@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Event Ticketing</title>
+    <script>
+      // Apply the saved theme before first paint (see src/theme/ThemeToggle.tsx).
+      try {
+        var t = localStorage.getItem('et.theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -5,6 +5,7 @@ import { eventApi, ticketTypeApi } from '../api/endpoints';
 import type { TicketType } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { useCart } from '../cart/CartContext';
+import { EventImage } from '../components/EventImage';
 import { Empty, ErrorBox, Spinner, StatusBadge, SuccessBox } from '../components/ui';
 import { formatDateTime, formatMoney, humanize } from '../utils/format';
 import { useAsync } from '../utils/useAsync';
@@ -19,11 +20,10 @@ export function EventDetailPage() {
   if (loading) return <Spinner />;
   if (error || !data) return <ErrorBox message={error ?? 'Event not found'} />;
   const [event, ticketTypes] = data;
-  const image = event.images?.[0];
 
   return (
     <article className="event-detail">
-      {image && <img className="event-banner" src={image} alt="" />}
+      <EventImage event={event} size="lg" className="event-banner" />
       <div className="row-between">
         <span className="eyebrow">{event.category}</span>
         <StatusBadge status={event.status} />

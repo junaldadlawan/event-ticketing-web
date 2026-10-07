@@ -40,9 +40,6 @@ export function ManageEventPage() {
 
   return (
     <>
-      <p>
-        <Link to="/manage">← Manage events</Link>
-      </p>
       <div className="row-between">
         <h1>{event.title}</h1>
         <StatusBadge status={event.status} />

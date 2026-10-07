@@ -35,9 +35,6 @@ export function OrderDetailPage() {
 
   return (
     <>
-      <p>
-        <Link to="/orders">← My orders</Link>
-      </p>
       {justPurchased && <SuccessBox message="Payment successful — your tickets are below." />}
       <div className="row-between">
         <h1>
