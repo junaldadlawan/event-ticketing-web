@@ -276,7 +276,9 @@ export interface TicketType {
   maxPerOrder: number;
   /** While true the type can not be added to a cart (the organizer paused sales). */
   salesPaused: boolean;
-  /** When it was created; the lists sort by it so a card never jumps after a pause or an edit. */
+  /** Where it sits in the event's list (0 = first), as arranged by the organizer. */
+  position: number;
+  /** When it was created (tie-break for the order). */
   createdAt?: string;
 }
 

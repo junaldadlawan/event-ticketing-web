@@ -8,12 +8,9 @@ import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKi
 import { CategorySelect } from '../../components/CategorySelect';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DeleteEventDialog } from '../../components/DeleteEventDialog';
-import { ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon } from '../../components/DesignerIcons';
-import { EventPostsFeed } from '../../components/EventPostsFeed';
+import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon } from '../../components/DesignerIcons';
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../components/ui';
 import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso } from '../../utils/format';
-import { addPost, loadPosts, removePost } from '../../utils/eventPosts';
-import type { EventPost, PostKind } from '../../utils/eventPosts';
 import { sortTicketTypes } from '../../utils/ticketTypes';
 import { useAsync } from '../../utils/useAsync';
 
@@ -171,7 +168,6 @@ export function ManageEventPage() {
         promoQuery={promoQuery}
         ownDesignTypeIds={new Set((templates ?? []).map((t) => t.ticketTypeId).filter((id): id is string => Boolean(id)))}
       />
-      <EventUpdates eventId={event.id} />
       <EventOrders eventId={event.id} />
     </div>
   );
@@ -661,16 +657,20 @@ function TicketTypes({
   const { data, error, reload } = query;
   // A ticket type waiting for a "yes" before it is deleted, and the last error from pause / delete.
   const [deleting, setDeleting] = useState<TicketType | null>(null);
+  // A ticket type waiting for a "yes" before its sales are paused or resumed.
+  const [toggling, setToggling] = useState<TicketType | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
-  // The order the organizer dragged the cards into. The API has no position field, so it is kept in this browser.
-  const orderKey = `ticketTypeOrder:${eventId}`;
-  const [order, setOrder] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(orderKey) ?? '[]') as string[];
-    } catch {
-      return [];
-    }
-  });
+  // A short confirmation (new arrangement saved, sales paused / resumed) so the organizer knows the change stuck.
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+  const savedTimer = useRef<number>();
+  useEffect(() => () => window.clearTimeout(savedTimer.current), []);
+  function notify(text: string) {
+    setSavedNote(text);
+    window.clearTimeout(savedTimer.current);
+    savedTimer.current = window.setTimeout(() => setSavedNote(null), 2500);
+  }
+  // The order while a save is in flight (shown at once); empty otherwise, when each card's `position` rules.
+  const [order, setOrder] = useState<string[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [dragDy, setDragDy] = useState(0);
@@ -679,15 +679,25 @@ function TicketTypes({
     const i = order.indexOf(id);
     return i < 0 ? Number.MAX_SAFE_INTEGER : i;
   };
-  // Dragged order first, then anything new (oldest first) at the end.
-  const sortedTypes = data ? [...sortTicketTypes(data)].sort((a, b) => rank(a.id) - rank(b.id)) : [];
+  const sortedTypes = data
+    ? order.length > 0
+      ? [...data].sort((x, y) => rank(x.id) - rank(y.id))
+      : sortTicketTypes(data)
+    : [];
 
-  function saveOrder(ids: string[]) {
-    setOrder(ids);
+  async function saveOrder(ids: string[]) {
+    setOrder(ids); // show the new arrangement at once
+    setRowError(null);
+    setSavedNote(null);
     try {
-      localStorage.setItem(orderKey, JSON.stringify(ids));
-    } catch {
-      /* blocked storage: the order just is not remembered */
+      const saved = await ticketTypeApi.reorder(eventId, ids);
+      query.setData(saved);
+      setOrder([]);
+      notify('New arrangement saved');
+    } catch (e) {
+      setRowError(errorMessage(e));
+      setOrder([]); // back to the saved positions
+      reload();
     }
   }
   /** Put `id` where `targetId` is (the others shift). */
@@ -767,16 +777,6 @@ function TicketTypes({
       }
       return next;
     });
-  }
-
-  async function togglePause(tt: TicketType) {
-    setRowError(null);
-    try {
-      await ticketTypeApi.setSalesStatus(tt.id, tt.salesPaused ? 'ACTIVE' : 'PAUSED');
-      reload();
-    } catch (ex) {
-      setRowError(errorMessage(ex));
-    }
   }
 
   async function confirmDelete() {
@@ -922,6 +922,11 @@ function TicketTypes({
         </button>
       </div>
       <ErrorBox message={error ?? rowError} />
+      {savedNote && (
+        <div className="toast" role="status">
+          <CheckIcon /> {savedNote}
+        </div>
+      )}
       {data && data.length === 0 && (
         <p className="muted small">None yet. Add the first one to start selling.</p>
       )}
@@ -992,7 +997,7 @@ function TicketTypes({
               <button
                 type="button"
                 className={`btn btn-sm btn-icon ${tt.salesPaused ? 'btn-resume' : 'btn-pause'}`}
-                onClick={() => void togglePause(tt)}
+                onClick={() => setToggling(tt)}
                 aria-label={tt.salesPaused ? `Resume sales for ${tt.name}` : `Pause sales for ${tt.name}`}
                 title={tt.salesPaused ? 'Resume sales: let people buy this ticket type again' : 'Pause sales: stop new purchases without deleting anything'}
               >
@@ -1084,6 +1089,22 @@ function TicketTypes({
         codes={promoFor ? promosFor(promoFor) : []}
         onClose={() => setPromoFor(null)}
         onCreated={promoQuery.reload}
+      />
+
+      {/* Same safeguard as deleting an event: type the ticket name and re-enter the password. */}
+      <DeleteEventDialog
+        kind={toggling?.salesPaused ? 'resume' : 'pause'}
+        open={toggling !== null}
+        eventTitle={toggling?.name ?? ''}
+        onCancel={() => setToggling(null)}
+        onConfirmed={async () => {
+          const tt = toggling;
+          if (!tt) return;
+          await ticketTypeApi.setSalesStatus(tt.id, tt.salesPaused ? 'ACTIVE' : 'PAUSED');
+          setToggling(null);
+          reload();
+          notify(`${tt.name} ${tt.salesPaused ? 'resumed' : 'paused'}`);
+        }}
       />
 
       <ConfirmDialog
@@ -1276,78 +1297,6 @@ function EventOrders({ eventId }: { eventId: string }) {
             <Pagination page={data} onChange={setPage} />
           </>
         )
-      )}
-    </section>
-  );
-}
-
-function EventUpdates({ eventId }: { eventId: string }) {
-  const [posts, setPosts] = useState<EventPost[]>(() => loadPosts(eventId));
-  const [kind, setKind] = useState<PostKind>('ANNOUNCEMENT');
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!title.trim()) return;
-    setPosts(addPost(eventId, { kind, title: title.trim(), body: body.trim() }));
-    setTitle('');
-    setBody('');
-  }
-
-  return (
-    <section>
-      <div className="row-between">
-        <h2>
-          Updates
-          {posts.length > 0 && (
-            <span className="count-badge" aria-label={`${posts.length} posts`}>
-              {posts.length}
-            </span>
-          )}
-        </h2>
-        <Link to={`/events/${eventId}/updates`} className="btn btn-outline-cta">
-          <EyeIcon />
-          View landing page
-        </Link>
-      </div>
-      <p className="muted">
-        Post a sale or an announcement for buyers. Posts are saved in this browser only for now.
-      </p>
-      <form className="form post-composer" onSubmit={onSubmit}>
-        <div className="two-col">
-          <label>
-            Type
-            <select value={kind} onChange={(e) => setKind(e.target.value as PostKind)}>
-              <option value="ANNOUNCEMENT">Announcement</option>
-              <option value="SALE">Sale</option>
-            </select>
-          </label>
-          <label>
-            Title
-            <input
-              required
-              maxLength={120}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={kind === 'SALE' ? 'Early bird: 20% off this week' : 'Doors now open at 5 PM'}
-            />
-          </label>
-        </div>
-        <label>
-          Details
-          <textarea rows={3} maxLength={2000} value={body} onChange={(e) => setBody(e.target.value)} />
-        </label>
-        <div className="modal-actions">
-          <button className="btn btn-primary" disabled={!title.trim()}>
-            Post
-          </button>
-        </div>
-      </form>
-      {posts.length === 0 ? (
-        <Empty>No posts yet.</Empty>
-      ) : (
-        <EventPostsFeed posts={posts} onRemove={(id) => setPosts(removePost(eventId, id))} />
       )}
     </section>
   );

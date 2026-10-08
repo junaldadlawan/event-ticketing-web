@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useCart } from '../cart/CartContext';
 import { ThemeToggle } from '../theme/ThemeToggle';
+import { Avatar } from './Avatar';
 import { BackButton } from './BackButton';
 import { useUnsavedChangesApi } from './UnsavedChanges';
 
@@ -77,7 +78,10 @@ export function Layout() {
             <ThemeToggle />
             {user ? (
               <>
-                <NavLink to="/profile">{user.name}</NavLink>
+                <NavLink to="/profile" className="nav-user">
+                  <Avatar userId={user.id} name={user.name} size={26} />
+                  {user.name.trim().split(/\s+/)[0]}
+                </NavLink>
                 <button className="btn btn-link" onClick={handleLogout}>
                   Log out
                 </button>

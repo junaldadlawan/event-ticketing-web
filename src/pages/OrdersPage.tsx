@@ -14,14 +14,7 @@ export function OrdersPage() {
 
   return (
     <>
-      <h1>
-        My orders
-        {data && data.totalElements > 0 && (
-          <span className="count-badge" aria-label={`${data.totalElements} orders`}>
-            {data.totalElements}
-          </span>
-        )}
-      </h1>
+      <h1>My orders</h1>
       <ErrorBox message={error} />
       {loading && !data ? (
         <Spinner />

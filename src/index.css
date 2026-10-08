@@ -4049,3 +4049,198 @@ button.code-warning:focus-visible {
 .landing-sale.sale-paused {
   opacity: 0.7;
 }
+
+/* Profile: a quiet single column of rows; fields only appear when you choose to edit. */
+.profile-page {
+  max-width: 520px;
+}
+.profile-list {
+  margin: 8px 0 32px;
+  padding: 0;
+}
+.profile-row {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.profile-row dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.profile-row dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.profile-row dd:last-child {
+  grid-column: 2 / -1;
+}
+.profile-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.profile-inline input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.profile-pw input {
+  flex-basis: 100%;
+}
+.my-qr {
+  border: none;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.my-qr .my-qr-body img {
+  width: 140px;
+  height: 140px;
+}
+
+/* Profile picture */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--subtle);
+  color: var(--muted);
+  font-weight: 700;
+  vertical-align: middle;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.nav a.nav-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.profile-photo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 8px 0 4px;
+}
+.profile-photo-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Pencil badge on the top-right of the profile picture. */
+.profile-photo {
+  position: relative;
+  width: max-content;
+  gap: 0;
+}
+.profile-photo-edit {
+  position: absolute;
+  top: -4px;
+  left: 62px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgb(48 54 63 / 0.15);
+}
+.profile-photo-edit:hover {
+  background: var(--subtle);
+}
+.profile-photo-edit svg {
+  width: 14px;
+  height: 14px;
+}
+.profile-photo-remove {
+  position: absolute;
+  left: 100px;
+  bottom: 4px;
+  white-space: nowrap;
+}
+
+/* QR button beside the profile picture; the remove link moves under it. */
+.profile-photo-qr {
+  position: absolute;
+  top: 26px;
+  left: 96px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.profile-photo-qr:hover {
+  background: var(--subtle);
+}
+.profile-photo-qr svg {
+  width: 14px;
+  height: 14px;
+}
+.profile-photo-remove {
+  left: 0;
+  bottom: -22px;
+}
+.profile-photo {
+  margin-bottom: 28px;
+}
+.my-qr-dialog-body {
+  text-align: center;
+  justify-items: center;
+}
+.my-qr-dialog-body img {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 8px;
+}
+
+/* Small confirmation that appears briefly at the bottom of the screen (e.g. "Order saved"). */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #1b1b1f;
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+  animation: toast-in 0.2s ease-out;
+}
+.toast svg {
+  color: #3cbf8f;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}

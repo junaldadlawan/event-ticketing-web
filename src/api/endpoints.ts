@@ -182,6 +182,9 @@ export const ticketTypeApi = {
     api<TicketType>(`/ticket-types/${id}/sales-status`, { method: 'PUT', body: { status } }),
   create: (eventId: UUID, body: TicketTypeCreateRequest) =>
     api<TicketType>(`/events/${eventId}/ticket-types`, { method: 'POST', body }),
+  /** Save the arrangement: every ticket type of the event, first to last. Returns them in the new order. */
+  reorder: (eventId: UUID, ticketTypeIds: UUID[]) =>
+    api<TicketType[]>(`/events/${eventId}/ticket-types/order`, { method: 'PUT', body: { ticketTypeIds } }),
 };
 
 export const venueApi = {

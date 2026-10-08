@@ -15,9 +15,9 @@ export function BackButton() {
   const navigate = useNavigate();
   const { confirmLeave } = useUnsavedChangesApi();
 
-  // The top-level tabs (Home, Events, Manage) have nowhere to go back to. They line up with each other, so
+  // The top-level tabs (Home, Events, Manage) and the login and sign-up pages have nowhere to go back to. They line up with each other, so
   // no placeholder is needed.
-  if (['/', '/home', '/manage'].includes(location.pathname)) return null;
+  if (['/', '/home', '/manage', '/login', '/register'].includes(location.pathname)) return null;
 
   async function goBack() {
     // Unsaved edits on this page? Ask "Discard or continue editing" first.

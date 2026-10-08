@@ -3,12 +3,38 @@ import type { ProblemDetail, TokenPair } from './types';
 const ACCESS_KEY = 'et.accessToken';
 const REFRESH_KEY = 'et.refreshToken';
 
+const OFFLINE_MESSAGE = "Can't connect to the server. Check your internet connection and try again.";
+const SERVER_MESSAGE = 'The server is having trouble right now. Please try again in a moment.';
+
+/**
+ * What to show the user. Server-side failures (5xx, which is also what the dev proxy answers when the API is down)
+ * never show raw status codes or internals; client errors keep the API's own explanation when there is one.
+ */
+function friendlyMessage(status: number, problem: ProblemDetail | null): string {
+  if (status === 0) return OFFLINE_MESSAGE;
+  if (status >= 500) return SERVER_MESSAGE;
+  const detail = problem?.detail || problem?.title;
+  if (detail) return detail;
+  switch (status) {
+    case 401:
+      return 'Please log in to continue.';
+    case 403:
+      return "You don't have permission to do that.";
+    case 404:
+      return "We couldn't find what you were looking for.";
+    case 429:
+      return 'Too many requests. Please wait a moment and try again.';
+    default:
+      return 'Something went wrong. Please try again.';
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
     public problem: ProblemDetail | null,
   ) {
-    super(problem?.detail || problem?.title || `Request failed (${status})`);
+    super(friendlyMessage(status, problem));
   }
 }
 
@@ -96,6 +122,9 @@ function send(path: string, opts: RequestOptions): Promise<Response> {
       : opts.body !== undefined
         ? JSON.stringify(opts.body)
         : undefined,
+  }).catch(() => {
+    // fetch only rejects when the request never got an answer (offline, server down, blocked).
+    throw new ApiError(0, null);
   });
 }
 
@@ -128,6 +157,8 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
 }
 
 export function errorMessage(err: unknown): string {
+  if (err instanceof ApiError) return err.message;
+  if (err instanceof TypeError) return OFFLINE_MESSAGE; // a fetch made outside api()
   if (err instanceof Error) return err.message;
   return 'Something went wrong';
 }

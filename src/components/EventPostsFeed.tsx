@@ -6,10 +6,13 @@ const LABEL = { ANNOUNCEMENT: 'Announcement', SALE: 'Sale' } as const;
 export function EventPostsFeed({
   posts,
   onRemove,
+  canRemove,
 }: {
   posts: EventPost[];
   /** Given only to the organizer: shows a remove button on each post. */
   onRemove?: (id: string) => void;
+  /** Narrows which posts get the remove button (default: all). */
+  canRemove?: (id: string) => boolean;
 }) {
   return (
     <ul className="post-feed">
@@ -18,7 +21,7 @@ export function EventPostsFeed({
           <div className="post-meta">
             <span className="post-kind">{LABEL[p.kind]}</span>
             <time dateTime={p.createdAt}>{formatDateTime(p.createdAt)}</time>
-            {onRemove && (
+            {onRemove && (!canRemove || canRemove(p.id)) && (
               <button type="button" className="btn-link post-remove" onClick={() => onRemove(p.id)}>
                 Remove
               </button>
