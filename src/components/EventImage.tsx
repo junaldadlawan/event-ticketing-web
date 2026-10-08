@@ -4,7 +4,7 @@ import type { Event } from '../api/types';
 
 type Size = 'sm' | 'md' | 'lg';
 
-/** Cheap stable string hash (FNV-1a), so each event always gets the same colours. */
+/** Cheap stable string hash (FNV-1a), so each event always gets the same colors. */
 function hash(value: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < value.length; i++) {
@@ -30,7 +30,7 @@ function fallbackStyle(seed: string): CSSProperties {
 
 /**
  * The event's first image, or - when it has none or the URL fails to load -
- * a generated graphic: the event title on a colour derived from its id.
+ * a generated graphic: the event title on a color derived from its id.
  */
 export function EventImage({
   event,

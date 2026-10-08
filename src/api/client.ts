@@ -83,13 +83,19 @@ function buildUrl(path: string, query?: Query) {
 
 function send(path: string, opts: RequestOptions): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json', ...opts.headers };
-  if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
+  // FormData (file uploads) lets the browser set the multipart boundary itself.
+  const isForm = opts.body instanceof FormData;
+  if (opts.body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
   const token = tokenStore.access;
   if (token) headers.Authorization = `Bearer ${token}`;
   return fetch(buildUrl(path, opts.query), {
     method: opts.method ?? 'GET',
     headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    body: isForm
+      ? (opts.body as FormData)
+      : opts.body !== undefined
+        ? JSON.stringify(opts.body)
+        : undefined,
   });
 }
 

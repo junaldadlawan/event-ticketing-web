@@ -14,7 +14,14 @@ export function OrdersPage() {
 
   return (
     <>
-      <h1>My orders</h1>
+      <h1>
+        My orders
+        {data && data.totalElements > 0 && (
+          <span className="count-badge" aria-label={`${data.totalElements} orders`}>
+            {data.totalElements}
+          </span>
+        )}
+      </h1>
       <ErrorBox message={error} />
       {loading && !data ? (
         <Spinner />
@@ -28,6 +35,7 @@ export function OrdersPage() {
             <table className="table">
               <thead>
                 <tr>
+                  <th>#</th>
                   <th>Order</th>
                   <th>Placed</th>
                   <th>Tickets</th>
@@ -36,8 +44,9 @@ export function OrdersPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.content.map((o) => (
+                {data.content.map((o, i) => (
                   <tr key={o.id}>
+                    <td>{page * data.size + i + 1}</td>
                     <td>
                       <Link to={`/orders/${o.id}`}>
                         <code>{o.id.slice(0, 8)}</code>

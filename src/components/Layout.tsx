@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useCart } from '../cart/CartContext';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { BackButton } from './BackButton';
+import { useUnsavedChangesApi } from './UnsavedChanges';
 
 function CartIcon() {
   return (
@@ -28,8 +29,10 @@ export function Layout() {
   const { user, logout } = useAuth();
   const { itemCount } = useCart();
   const navigate = useNavigate();
+  const { confirmLeave } = useUnsavedChangesApi();
 
   async function handleLogout() {
+    if (!(await confirmLeave())) return; // unsaved edits: discard or keep editing
     await logout();
     navigate('/');
   }
@@ -38,9 +41,12 @@ export function Layout() {
     <div className="app">
       <header className="topbar">
         <div className="container topbar-inner">
-          <Link to="/" className="brand">
-            events
-          </Link>
+          <NavLink to="/home" className="brand">
+            Home
+          </NavLink>
+          <NavLink to="/" end className="brand">
+            Events
+          </NavLink>
           {user && (
             <nav className="nav" aria-label="Organizer">
               <NavLink to="/manage">Manage</NavLink>
@@ -96,6 +102,7 @@ export function Layout() {
           <span>© {new Date().getFullYear()} events</span>
           <nav className="footer-links" aria-label="Footer">
             <Link to="/">Events</Link>
+            <Link to="/apply">Host an event</Link>
             {user ? (
               <>
                 <Link to="/orders">Orders</Link>

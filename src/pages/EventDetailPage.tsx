@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../api/client';
-import { eventApi, ticketTypeApi } from '../api/endpoints';
+import { eventApi, ticketTypeApi, waitlistApi } from '../api/endpoints';
 import type { TicketType } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
+import { useCanManage } from '../auth/useCanManage';
+import { EditIcon } from '../components/DesignerIcons';
 import { useCart } from '../cart/CartContext';
 import { EventImage } from '../components/EventImage';
 import { Empty, ErrorBox, Spinner, StatusBadge, SuccessBox } from '../components/ui';
 import { formatDateTime, formatMoney, humanize } from '../utils/format';
+import { sortTicketTypes } from '../utils/ticketTypes';
 import { useAsync } from '../utils/useAsync';
 
 export function EventDetailPage() {
@@ -16,6 +19,8 @@ export function EventDetailPage() {
     () => Promise.all([eventApi.get(eventId), ticketTypeApi.list(eventId)]),
     [eventId],
   );
+  // Owners/organizers of the event's organization (and admins) get a shortcut to edit it.
+  const canManage = useCanManage(data?.[0].organizationId);
 
   if (loading) return <Spinner />;
   if (error || !data) return <ErrorBox message={error ?? 'Event not found'} />;
@@ -28,7 +33,19 @@ export function EventDetailPage() {
         <span className="eyebrow">{event.category}</span>
         <StatusBadge status={event.status} />
       </div>
-      <h1>{event.title}</h1>
+      <div className="row-between page-header event-title-row">
+        <h1>{event.title}</h1>
+        {canManage && (
+          <Link
+            to={`/manage/events/${event.id}`}
+            className="btn"
+            title="Edit details, tickets and ticket design"
+          >
+            <EditIcon />
+            Manage
+          </Link>
+        )}
+      </div>
       <dl className="meta">
         <div>
           <dt>Starts</dt>
@@ -45,12 +62,16 @@ export function EventDetailPage() {
       </dl>
       <p className="description">{event.description}</p>
 
+      <p>
+        <Link to={`/events/${event.id}/updates`}>Sales &amp; announcements</Link>
+      </p>
+
       <h2>Tickets</h2>
       {ticketTypes.length === 0 ? (
         <Empty>No tickets available yet.</Empty>
       ) : (
         <div className="stack">
-          {ticketTypes.map((tt) => (
+          {sortTicketTypes(ticketTypes).map((tt) => (
             <TicketTypeRow key={tt.id} ticketType={tt} />
           ))}
         </div>
@@ -67,6 +88,8 @@ function TicketTypeRow({ ticketType: tt }: { ticketType: TicketType }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
+  // Sold out: the buyer can join the line instead (the API puts them in order).
+  const [waitPosition, setWaitPosition] = useState<number | null>(null);
 
   const now = Date.now();
   const notStarted = new Date(tt.saleStartAt).getTime() > now;
@@ -74,13 +97,32 @@ function TicketTypeRow({ ticketType: tt }: { ticketType: TicketType }) {
   const soldOut = tt.quantityAvailable <= 0;
   const reserved = tt.kind === 'RESERVED_SEATING';
   const max = Math.min(tt.maxPerOrder, tt.quantityAvailable);
-  const disabled = notStarted || ended || soldOut || reserved;
+  const paused = tt.salesPaused;
+  const disabled = notStarted || ended || soldOut || reserved || paused;
 
   let note: string | null = null;
-  if (soldOut) note = 'Sold out';
+  if (paused) note = 'Sales are paused for now';
+  else if (soldOut) note = 'Sold out. Join the waitlist and we will tell you if tickets come back.';
   else if (notStarted) note = `On sale ${formatDateTime(tt.saleStartAt)}`;
   else if (ended) note = 'Sales ended';
   else if (reserved) note = 'Seat selection not supported in this app yet';
+
+  async function onJoinWaitlist() {
+    if (!user) {
+      navigate('/login', { state: { from: location.pathname } });
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const entry = await waitlistApi.join(tt.eventId, tt.id);
+      setWaitPosition(entry.position);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onAdd() {
     if (!user) {
@@ -133,9 +175,15 @@ function TicketTypeRow({ ticketType: tt }: { ticketType: TicketType }) {
             </option>
           ))}
         </select>
-        <button className="btn btn-primary" disabled={disabled || busy} onClick={onAdd}>
-          {busy ? 'Adding...' : 'Add to cart'}
-        </button>
+        {soldOut && !paused && !ended && !notStarted ? (
+          <button className="btn btn-primary" disabled={busy || waitPosition !== null} onClick={onJoinWaitlist}>
+            {waitPosition !== null ? `On the waitlist (#${waitPosition})` : busy ? 'Joining...' : 'Join waitlist'}
+          </button>
+        ) : (
+          <button className="btn btn-primary" disabled={disabled || busy} onClick={onAdd}>
+            {busy ? 'Adding...' : 'Add to cart'}
+          </button>
+        )}
       </div>
     </div>
   );

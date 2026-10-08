@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { errorMessage } from '../api/client';
 import { userApi } from '../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
+import { MyQrCard } from '../components/MyQrCard';
 import { ErrorBox, SuccessBox } from '../components/ui';
 
 export function ProfilePage() {
@@ -99,6 +100,7 @@ export function ProfilePage() {
           </form>
         </section>
       </div>
+      <MyQrCard userId={user.id} name={user.name} />
     </>
   );
 }

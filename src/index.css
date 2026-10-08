@@ -1,8 +1,10 @@
 /*
  * Minimal theme: near-monochrome, flat, hairline dividers, generous spacing.
- * Colour only carries meaning (status, errors), never decoration.
+ * Color only carries meaning (status, errors), never decoration.
  */
 :root {
+  /* Darker than --border: the lines and chips on the ticket design tab. */
+  --line-strong: color-mix(in srgb, var(--text) 40%, transparent);
   --bg: #ffffff;
   --surface: #ffffff;
   --subtle: #f5f5f4;
@@ -14,6 +16,7 @@
   --cta: #6d28d9;
   --cta-hover: #5b21b6;
   --cta-glow: rgb(109 40 217 / 0.3);
+  --cta-text: #6d28d9;
   --danger: #dc2626;
   --success: #15803d;
   --warn: #b45309;
@@ -41,6 +44,7 @@
   --cta: #7c3aed;
   --cta-hover: #8b5cf6;
   --cta-glow: rgb(139 92 246 / 0.35);
+  --cta-text: #a78bfa;
   --danger: #f87171;
   --success: #4ade80;
   --warn: #fbbf24;
@@ -62,6 +66,7 @@
     --cta: #7c3aed;
     --cta-hover: #8b5cf6;
     --cta-glow: rgb(139 92 246 / 0.35);
+    --cta-text: #a78bfa;
     --danger: #f87171;
     --success: #4ade80;
     --warn: #fbbf24;
@@ -73,6 +78,12 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Always reserve the scrollbar's space, so moving between a long page and a
+   short one doesn't shift everything sideways. */
+html {
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -144,6 +155,716 @@ code {
   padding-bottom: 96px;
 }
 
+/* "Wanna host your own event?" banner under the events list */
+.host-cta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 64px;
+  padding: 28px 32px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 2);
+  background: var(--subtle);
+}
+.host-cta h2 {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+}
+.host-cta p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.host-cta p.host-cta-phone {
+  margin-top: 6px;
+}
+.host-cta-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Apply page: document rows */
+.fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fieldset legend {
+  font-size: 0.85rem;
+  color: var(--muted);
+  padding: 0;
+}
+.fieldset .btn-link {
+  align-self: flex-start;
+}
+.doc-row {
+  display: grid;
+  grid-template-columns: 170px 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+@media (max-width: 560px) {
+  .doc-row {
+    grid-template-columns: 1fr;
+  }
+  .host-cta {
+    padding: 24px;
+  }
+}
+
+/* Ticket template designer: two compact icon toolbars above the ticket. */
+h1.designer-title {
+  margin-bottom: 4px;
+}
+p.designer-subtitle {
+  margin: 0 0 24px; /* beats the generic .small margin defined later */
+}
+.designer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 38px;
+  margin-bottom: 12px;
+}
+.designer-bar + .designer-bar {
+  padding-top: 12px;
+  border-top: 1px solid var(--line-strong);
+}
+.designer-bar + .designer-bar + * {
+  margin-top: 8px;
+}
+.designer-scope {
+  width: auto;
+  min-width: 170px;
+}
+.bar-spacer {
+  flex: 1;
+}
+/* Format checkboxes: [☑ phone] [☐ printer] - both can be on. */
+.format-checks {
+  display: inline-flex;
+  gap: 4px;
+}
+.format-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+}
+.format-check:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--muted);
+}
+.format-check[aria-checked='true'] {
+  color: var(--text);
+  background: var(--subtle);
+}
+.format-check.is-required {
+  cursor: default; /* the last checked format can't be turned off */
+}
+.format-check:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.format-check-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--muted);
+  border-radius: 4px;
+}
+.format-check[aria-checked='true'] .format-check-box {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.format-check-box svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 3;
+}
+.unsaved-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+.icon-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.icon-button-danger:hover:not(:disabled) {
+  color: var(--danger);
+}
+.icon-spin {
+  animation: icon-spin 0.8s linear infinite;
+}
+@keyframes icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .icon-spin {
+    animation: none;
+  }
+}
+
+/* Small panel under an icon button (image link, help). */
+.popover {
+  position: relative;
+  display: inline-flex;
+}
+.popover-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: min(320px, 80vw);
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+}
+.bg-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bg-menu .menu-item span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.bg-menu .menu-item small {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.bg-menu .popover-form {
+  margin-top: 6px;
+}
+.popover-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.popover-help {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* The canvas takes the ticket's shape (--ticket-aspect = width / height, from
+   the background image) and is fitted to the screen: full width for wide
+   tickets, capped at 70% of the window height for tall ones. */
+.ticket-canvas-frame {
+  display: flex;
+  justify-content: center;
+}
+.ticket-canvas {
+  position: relative;
+  width: min(100%, calc(70vh * var(--ticket-aspect, 2.3684)));
+  aspect-ratio: var(--ticket-aspect, 2.3684);
+  border-radius: var(--radius);
+  /* Visible so the rotate knob can poke out above a barcode near the top edge. */
+  overflow: visible;
+  background: #fff;
+  border: 1px solid var(--border);
+  user-select: none;
+  touch-action: none;
+  /* Lets text fields size themselves in cqh (% of the ticket's height),
+     the same unit the renderer uses. Height comes from aspect-ratio. */
+  container-type: size;
+}
+.ticket-canvas-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+.ticket-canvas-empty {
+  position: absolute;
+  inset: 12px;
+  border: 2px dashed #d4d4d8;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #a1a1aa;
+  font-weight: 600;
+  font-size: clamp(1rem, 3vw, 1.5rem);
+  letter-spacing: -0.01em;
+  pointer-events: none;
+}
+.ticket-canvas-empty small {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #dc2626;
+}
+.ticket-canvas-empty small.canvas-hint {
+  color: #8b919b;
+}
+/* Icon switches (format, QR / barcode) */
+.designer-bar .segmented {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px;
+}
+.segmented-text button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 6px 10px;
+}
+.segmented-text button[aria-checked='true'] {
+  color: var(--text);
+  background: var(--subtle);
+}
+
+/* The draggable placeholder; its aspect ratio is set inline per code type. */
+/* Layout grid over the ticket (square cells; size set inline from the ticket's shape).
+   Light and violet so it reads on both pale and dark artwork; never catches clicks. */
+.ticket-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: var(--radius);
+  background-image:
+    linear-gradient(to right, var(--grid-line, rgb(109 40 217 / 0.22)) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line, rgb(109 40 217 / 0.22)) 1px, transparent 1px);
+}
+
+/* Grid menu (behind the grid icon): Small / Medium / Large, custom px, hide. */
+.grid-menu {
+  min-width: 220px;
+}
+.grid-menu .menu-item[aria-checked='true'] {
+  color: var(--text);
+}
+.grid-custom {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.grid-custom-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.grid-custom-label input {
+  width: 80px;
+  margin-left: auto;
+}
+.grid-custom-label input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.grid-hide {
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 4px 4px;
+  padding-top: 9px;
+}
+
+/* Text fields placed on the ticket (Section, Row, Seat, …). */
+.ticket-field {
+  position: absolute;
+  /* No wrapping: lines break only where the organizer put a break. */
+  white-space: pre;
+  line-height: 1.15;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  padding: 0 0.15em;
+  border-radius: 3px;
+  cursor: grab;
+  /* Same as the code: grey dashed box at rest (it's dynamic), violet on hover, framed when selected. */
+  outline: 1.5px dashed var(--addon-dash);
+  outline-offset: 2px;
+  z-index: 1;
+}
+/* Rotate knob above a selected text field, over its anchor point (turns with it). */
+.field-rotate {
+  position: absolute;
+  top: -26px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--sel-line, #6d28d9);
+  cursor: grab;
+  touch-action: none;
+}
+.field-rotate::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  background: var(--sel-line, #6d28d9);
+  pointer-events: none;
+}
+.ticket-field:hover {
+  outline-color: var(--sel-hover, rgb(109 40 217 / 0.6));
+}
+.ticket-field:active {
+  cursor: grabbing;
+}
+.ticket-field.is-selected,
+.ticket-field:focus-visible {
+  outline: 2px solid var(--sel-line, #6d28d9);
+  background: var(--sel-fill, rgb(109 40 217 / 0.08));
+}
+/* Dynamic fields: a small arrow under the X box - dot = where the value
+   starts, arrowhead = the way it fills. Outside the box, so it takes no space. */
+.fill-arrow {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: calc(100% + 5px);
+  height: 7px;
+  display: flex;
+  align-items: center;
+  color: var(--sel-line, #6d28d9);
+  opacity: 0.75;
+  pointer-events: none;
+}
+.fill-arrow-line {
+  flex: 1;
+  height: 1.5px;
+  background: currentColor;
+}
+.fill-arrow-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.fill-arrow-head {
+  width: 0;
+  height: 0;
+  flex-shrink: 0;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+}
+.fill-arrow-head.is-right {
+  border-left: 6px solid currentColor;
+}
+.fill-arrow-head.is-left {
+  border-right: 6px solid currentColor;
+}
+
+/* Double-clicked: split into lines in place. The hidden mirror keeps the box
+   the size of the text; the editor lies exactly over it. */
+.ticket-field.is-editing {
+  cursor: text;
+  outline-style: dotted;
+}
+.field-text-mirror {
+  visibility: hidden;
+}
+.field-text-edit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: inherit;
+  margin: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  white-space: pre;
+  resize: none;
+  overflow: hidden;
+  cursor: text;
+  caret-color: var(--sel-line, #6d28d9);
+}
+
+/* Placeholder box: everything that can go on the ticket, as on/off chips. */
+.placeholder-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+}
+/* One row per kind: Dynamic (per-ticket values) and Static (event details, own labels). */
+.placeholder-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.placeholder-box-label {
+  min-width: 58px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+  margin-right: 4px;
+  cursor: help;
+}
+.custom-label-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.custom-label-form input,
+.custom-label-edit {
+  width: 160px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+}
+.custom-label-edit {
+  border-style: solid;
+  border-radius: var(--radius);
+  height: 30px;
+}
+.placeholder-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.placeholder-chip:disabled:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+.placeholder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px 4px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.placeholder-chip svg {
+  width: 13px;
+  height: 13px;
+}
+.placeholder-chip:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+.placeholder-chip.is-on {
+  color: var(--cta-text);
+  border-color: var(--sel-line, var(--cta));
+  background: var(--sel-fill, rgb(109 40 217 / 0.08));
+  font-weight: 600;
+}
+
+/* Style bar for the selected text field: always one line of fixed height, so
+   selecting a field never moves the ticket. If the controls don't fit (narrow
+   screens, long field names) the bar scrolls sideways instead of wrapping. */
+.field-style-bar {
+  /* One line of fixed height, so selecting never moves the ticket; if the controls do not fit
+     (narrow screens) the bar scrolls sideways. Menus on it are 'floating', so they are not clipped. */
+  height: 46px;
+  min-height: 46px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.field-style-bar::-webkit-scrollbar {
+  display: none;
+}
+.field-style-bar > * {
+  flex-shrink: 0;
+}
+.field-style-bar > .muted {
+  flex-shrink: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.field-chip {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: var(--cta-text);
+  background: var(--sel-fill, rgb(109 40 217 / 0.1));
+}
+.color-swatch {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+}
+.color-swatch input {
+  width: 44px;
+  height: 44px;
+  margin: -7px;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+.toggle-button[aria-pressed='true'] {
+  color: var(--text);
+  background: var(--subtle);
+}
+
+/* Add-ons (code + text fields) always wear a grey dashed box so it's clear
+   they're dynamic placeholders, not part of the artwork; violet dashes on
+   hover, solid violet frame + handles when selected. */
+:root {
+  --addon-dash: rgb(128 128 128 / 0.85);
+}
+.dummy-code {
+  position: absolute;
+  cursor: grab;
+  outline: 1.5px dashed var(--addon-dash);
+  outline-offset: 2px;
+  background: #fff;
+}
+.dummy-code:hover {
+  outline-color: var(--sel-hover, rgb(109 40 217 / 0.6));
+}
+.dummy-code:active {
+  cursor: grabbing;
+}
+.dummy-code.is-selected,
+.dummy-code:focus-visible {
+  outline: 2px solid var(--sel-line, #6d28d9);
+}
+/* Resize dots and rotate knob only on the selected code. */
+.dummy-code:not(.is-selected) .dummy-code-handle,
+.dummy-code:not(.is-selected) .dummy-code-rotate {
+  display: none;
+}
+.dummy-code svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.dummy-code-handle {
+  position: absolute;
+  right: -9px;
+  bottom: -9px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--sel-line, #6d28d9);
+  border: 2px solid #fff;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+/* Top-right: resize from the centre. Square so it reads differently from the
+   round bottom-right handle (which keeps the top-left corner fixed). */
+.dummy-code-handle-centre {
+  top: -9px;
+  bottom: auto;
+  border-radius: 4px;
+  cursor: nesw-resize;
+}
+/* Rotate knob: sits above the code on a short stem and turns with it. */
+.dummy-code-rotate {
+  position: absolute;
+  left: 50%;
+  top: -30px;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--sel-line, #6d28d9);
+  cursor: grab;
+  touch-action: none;
+}
+.dummy-code-rotate::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 2px;
+  height: 14px;
+  margin-left: -1px;
+  background: var(--sel-line, #6d28d9);
+  pointer-events: none;
+}
+.dummy-code-rotate:active {
+  cursor: grabbing;
+}
+
+/* Size and rotation: [icon] [number box] [icon] */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.number-field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.number-field input {
+  width: 70px;
+  padding-right: 22px;
+  text-align: right;
+  /* No browser spinner arrows - the icon buttons either side do that job. */
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.number-field input::-webkit-outer-spin-button,
+.number-field input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.number-field span {
+  position: absolute;
+  right: 10px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
 .back-button {
   display: inline-flex;
   align-items: center;
@@ -157,6 +878,9 @@ code {
   font: inherit;
   font-size: 0.85rem;
   cursor: pointer;
+}
+.back-button-placeholder {
+  visibility: hidden;
 }
 .back-button:hover {
   color: var(--text);
@@ -235,6 +959,7 @@ code {
   margin-left: auto;
 }
 .nav-divider {
+  flex: none;
   width: 1px;
   height: 16px;
   background: var(--border);
@@ -295,7 +1020,7 @@ code {
 .btn-primary:hover:not(:disabled) {
   opacity: 0.85;
 }
-/* Call-to-action: the one coloured button (e.g. Sign up in the header) */
+/* Call-to-action: the one colored button (e.g. Sign up in the header) */
 .btn-cta,
 .nav a.btn-cta {
   background: var(--cta);
@@ -315,6 +1040,25 @@ code {
   border-color: var(--cta-hover);
   box-shadow: 0 4px 16px var(--cta-glow);
   transform: translateY(-1px);
+}
+/* Save button: no dimming while saving or while showing "✓ Saved" - only the
+   label/icon change, so pressing Save doesn't make anything flicker. */
+.btn-cta[aria-busy='true'],
+.btn-cta.is-saved:disabled {
+  opacity: 1;
+  cursor: default;
+}
+/* Secondary call-to-action: violet outline, for links that should stand out
+   without competing with a filled button (e.g. "View public page"). */
+.btn-outline-cta {
+  color: var(--cta-text);
+  border-color: var(--cta);
+  font-weight: 500;
+}
+.btn-outline-cta:hover {
+  color: #ffffff;
+  background: var(--cta);
+  border-color: var(--cta);
 }
 .btn-link {
   border: none;
@@ -451,7 +1195,7 @@ select option {
   text-align: center;
 }
 
-/* Alerts & status: plain text with a coloured dot */
+/* Alerts & status: plain text with a colored dot */
 .alert {
   border-radius: var(--radius);
   padding: 10px 14px;
@@ -506,6 +1250,64 @@ select option {
   grid-template-columns: 2fr 1fr auto;
   gap: 8px;
 }
+/* Icon-only Search: a solid square the same height as the inputs. */
+.search-button {
+  min-width: 44px;
+  padding: 0 12px;
+}
+/* Title with an action button on the right, vertically centred together. */
+.page-header {
+  margin-bottom: 24px;
+  min-height: 40px; /* the height of a header button, with or without one */
+}
+.page-header h1 {
+  margin: 0;
+}
+/* Manage event: status badge right after the title (wraps under it on narrow screens). */
+.title-with-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-bottom: 1.5rem;
+}
+.title-with-status h1 {
+  margin: 0;
+}
+/* Event cards: tags + status on the right of the top row. */
+.card-tags {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 10px;
+}
+/* "You manage" - violet pill so organizers spot their own events at a glance. */
+.managed-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--cta);
+  color: var(--cta-text);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.managed-tag svg {
+  width: 12px;
+  height: 12px;
+}
+/* Event page: title on the left, Manage shortcut on the right. */
+.event-title-row {
+  margin: 4px 0 16px;
+}
+/* Manage page: keyword, category, status, button. (The phone rule further
+   down still collapses it to one column.) */
+.search-wide {
+  grid-template-columns: 2fr 1fr 1fr auto;
+}
 .results-bar {
   display: flex;
   justify-content: space-between;
@@ -528,7 +1330,7 @@ select option {
   overflow: hidden;
 }
 
-/* Generated image: event title on a colour derived from the event id */
+/* Generated image: event title on a color derived from the event id */
 .event-fallback {
   display: flex;
   align-items: flex-end;
@@ -775,6 +1577,69 @@ select option {
   font-size: 0.8rem;
 }
 
+/* Modal dialogs (native <dialog>) */
+.modal {
+  width: min(440px, calc(100vw - 32px));
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 2);
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.25);
+}
+.modal::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.modal-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.modal-icon {
+  display: inline-flex;
+  padding: 8px;
+  border-radius: 50%;
+  color: var(--danger);
+  background: var(--error-bg);
+}
+.modal p {
+  margin: 0;
+}
+.modal h2.modal-title-plain {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.modal-name {
+  color: var(--text);
+  font-weight: 600;
+}
+.modal input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.form .modal-actions .btn {
+  align-self: auto;
+}
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+  font-weight: 600;
+}
+.btn-danger:hover:not(:disabled) {
+  opacity: 0.9;
+  border-color: var(--danger);
+}
+
 .auth-card {
   max-width: 360px;
   margin: 48px auto;
@@ -795,4 +1660,2392 @@ select option {
     display: block;
     overflow-x: auto;
   }
+}
+
+/* "XX" / "Aa" switch for a dynamic field's placeholder (X's or own text). */
+.placeholder-mode {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Ticket menu: fill color row, size presets, custom W x H. */
+.ticket-menu {
+  min-width: 240px;
+}
+.ticket-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
+.ticket-menu-row > span:first-child {
+  flex: 1;
+}
+.ticket-menu-note {
+  margin: 4px 8px 6px;
+  max-width: 240px;
+}
+
+/* "Remove background" at the bottom of the background menu. */
+.menu-item.menu-item-danger {
+  border-top: 1px solid var(--border);
+  color: var(--danger);
+}
+.menu-item.menu-item-danger small {
+  color: var(--muted);
+}
+
+/* Background image layer: clipped to the ticket so a moved/enlarged image
+   never spills out. The image itself is clickable only when editable. */
+.ticket-canvas-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+.ticket-canvas-bg.is-editable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+/* Selected background: violet frame (not clipped) with a resize dot. */
+.bg-frame {
+  position: absolute;
+  outline: 2px solid var(--sel-line, #6d28d9);
+  outline-offset: 0;
+  background: var(--sel-fill, rgb(109 40 217 / 0.06));
+  cursor: move;
+  touch-action: none;
+  z-index: 0;
+}
+.bg-frame:focus-visible {
+  outline-width: 3px;
+}
+/* Placed image: position and size come from its rect, not the full-ticket fill. */
+.ticket-canvas-bg.is-placed {
+  inset: auto;
+  max-width: none;
+  border-radius: 0;
+}
+/* W x H row: letters hug their boxes and the boxes share the width, so
+   long values (1206, 13.97) fit without empty gaps. */
+.ticket-menu .grid-custom {
+  padding-left: 8px;
+  padding-right: 2px;
+  gap: 8px;
+}
+.ticket-menu .grid-custom-label {
+  gap: 4px;
+  min-width: 0;
+}
+.ticket-menu .grid-custom-label input {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  margin-left: 0;
+  padding-left: 8px;
+  padding-right: 4px;
+}
+.ticket-menu .grid-custom .icon-button {
+  flex-shrink: 0;
+}
+
+/* Background menu: Image fit and Lock sit in their own band above Remove. */
+.bg-menu .menu-item-split {
+  border-top: 1px solid var(--border);
+}
+.bg-menu .ticket-menu-row {
+  gap: 12px;
+}
+
+/* Selection bar: a bit tighter, and the delete button is pinned to the right
+   edge so it never scrolls out of view when the controls don't all fit. */
+.field-style-bar {
+  column-gap: 8px;
+}
+.field-style-bar > .icon-button-danger:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--bg);
+  /* Fades the controls scrolling underneath. */
+  box-shadow: -14px 0 10px -4px var(--bg);
+}
+.field-style-bar > .icon-button-danger:last-child:hover:not(:disabled) {
+  background: var(--subtle);
+}
+
+/* Small headings / notes inside popover menus (e.g. "Copy from"). */
+.menu-heading {
+  margin: 2px 8px 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.menu-note {
+  margin: 2px 8px 6px;
+}
+.menu-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Preview: the ticket as it prints - no dashed boxes, handles, arrows or
+   grid, nothing clickable; dynamic fields show sample values. */
+.ticket-canvas.is-preview .ticket-field,
+.ticket-canvas.is-preview .dummy-code {
+  outline: none;
+  background: none;
+  pointer-events: none;
+}
+.ticket-canvas.is-preview .fill-arrow,
+.ticket-canvas.is-preview .field-rotate,
+.ticket-canvas.is-preview .dummy-code-handle,
+.ticket-canvas.is-preview .dummy-code-rotate,
+.ticket-canvas.is-preview .ticket-grid,
+.ticket-canvas.is-preview .bg-frame,
+.ticket-canvas.is-preview .ticket-canvas-empty > * {
+  display: none;
+}
+.ticket-canvas.is-preview .ticket-canvas-empty {
+  border-color: transparent;
+}
+.ticket-canvas.is-preview .ticket-canvas-bg {
+  pointer-events: none;
+}
+/* Sample value inside a dynamic field's reserved box. */
+.field-reserve {
+  visibility: hidden;
+}
+.field-value {
+  position: absolute;
+  top: 0;
+  white-space: pre;
+}
+.field-value-left {
+  left: 0.15em;
+}
+.field-value-right {
+  right: 0.15em;
+}
+.field-value-center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* "More" menu on the selection bar (alignment / fill, rotation, layer). */
+.more-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 260px;
+}
+.more-menu .ticket-menu-row {
+  gap: 8px;
+}
+.more-menu-note {
+  margin: 4px 8px 2px;
+}
+
+/* Multi-select (Shift-click): every member framed, no handles - they drag together. */
+.ticket-field.in-group,
+.dummy-code.in-group {
+  outline: 2px solid var(--sel-line, #6d28d9);
+  background: var(--sel-fill, rgb(109 40 217 / 0.06));
+}
+/* Alignment guides while dragging. */
+.snap-guide {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  background: #ec4899;
+}
+.snap-guide-v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.snap-guide-h {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+/* Print safe area (printable tickets). */
+.print-safe {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  border: 1px dashed rgb(14 165 233 / 0.8);
+  border-radius: 2px;
+}
+.print-safe span {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 10px;
+  line-height: 1;
+  color: rgb(14 165 233);
+  background: rgb(255 255 255 / 0.8);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+/* Code that may not scan: amber dashes and a "!" badge with the reasons. */
+.dummy-code.has-warning:not(.is-selected):not(.in-group) {
+  outline-color: #f59e0b;
+}
+.code-warning {
+  position: absolute;
+  top: -9px;
+  left: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #f59e0b;
+  color: #111;
+  font: 700 12px/18px system-ui, sans-serif;
+  text-align: center;
+  cursor: help;
+}
+
+/* Code bar: why the code may not scan (full list on hover). */
+.warning-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: #92400e;
+  background: #fef3c7;
+  white-space: nowrap;
+  cursor: help;
+}
+:root[data-theme='dark'] .warning-chip {
+  color: #fcd34d;
+  background: rgb(245 158 11 / 0.15);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .warning-chip {
+    color: #fcd34d;
+    background: rgb(245 158 11 / 0.15);
+  }
+}
+
+/* The code prints last (on top of all text), so it sits above text fields here too. */
+.dummy-code {
+  z-index: 2;
+}
+
+/* Size unit button (%, px, in, cm) after a size box in the selection bar. */
+.unit-picker-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  min-width: 18px;
+  text-align: center;
+}
+.unit-menu {
+  min-width: 190px;
+}
+/* No suffix (the unit button sits next to the box): use the room for digits. */
+.number-field:has(span:empty) input {
+  padding-right: 8px;
+}
+
+/* The "!" on the code is a button: click it for the list of warnings. */
+button.code-warning {
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+button.code-warning:hover,
+button.code-warning:focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+.code-warning-panel {
+  position: absolute;
+  z-index: 6;
+  transform: translate(-9px, 14px);
+  width: max-content;
+  max-width: 260px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  color: #78350f;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.15);
+  cursor: default;
+}
+.code-warning-title {
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+.code-warning-panel ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+/* Toolbar warnings icon: amber triangle with the number of warnings. */
+.warn-icon {
+  position: relative;
+  display: inline-flex;
+  color: #d97706;
+}
+.warn-count {
+  position: absolute;
+  top: -8px;
+  right: -9px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #111;
+  font: 700 10px/15px system-ui, sans-serif;
+  text-align: center;
+}
+.warn-menu {
+  min-width: 260px;
+}
+.warn-menu .menu-item svg {
+  color: #d97706;
+}
+/* The "!" on the code is only a marker now. */
+.code-warning {
+  pointer-events: none;
+}
+/* Text with a warning: amber dashes and the same "!" marker as the code. */
+.ticket-field.has-warning:not(.is-selected):not(.in-group) {
+  outline-color: #f59e0b;
+}
+.field-warning {
+  top: -8px;
+  left: -8px;
+  width: 15px;
+  height: 15px;
+  font-size: 10px;
+  line-height: 15px;
+  z-index: 2;
+}
+
+/* Code: a round resize dot on every corner (the opposite corner stays put). */
+.dummy-code-handle.handle-br {
+  right: -9px;
+  bottom: -9px;
+  top: auto;
+  left: auto;
+  cursor: nwse-resize;
+}
+.dummy-code-handle.handle-tl {
+  left: -9px;
+  top: -9px;
+  right: auto;
+  bottom: auto;
+  cursor: nwse-resize;
+}
+.dummy-code-handle.handle-tr {
+  right: -9px;
+  top: -9px;
+  left: auto;
+  bottom: auto;
+  cursor: nesw-resize;
+}
+.dummy-code-handle.handle-bl {
+  left: -9px;
+  bottom: -9px;
+  right: auto;
+  top: auto;
+  cursor: nesw-resize;
+}
+/* The code's "!" moves inside, clear of the top-left dot. */
+.dummy-code > .code-warning {
+  top: 10px;
+  left: 10px;
+}
+
+/* Real-size preview: as wide as the window allows; the ticket scrolls if it's bigger. */
+.modal.real-size-modal {
+  width: min(1200px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+.real-size {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.real-size-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.real-size-screen {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.real-size-screen label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.real-size-screen input {
+  width: 80px;
+}
+.real-size-stage {
+  flex-wrap: wrap;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--subtle);
+}
+.real-size-stage img {
+  flex-shrink: 0;
+  max-width: none;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.2);
+}
+.real-size-card {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--muted);
+  border-radius: 3mm;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* "Save with warnings?" list: scrolls if there are many. */
+.save-warning-list {
+  margin: 8px 0;
+  padding-left: 18px;
+  max-height: 200px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.save-warning-list strong {
+  color: var(--text);
+}
+
+/* Ticket size labels: a dimension line along the top (width) and down the
+   left (height), outside the ticket. The frame leaves room for them. */
+.ticket-canvas-frame {
+  padding: 26px 0 0 30px;
+}
+.ticket-dim {
+  position: absolute;
+  pointer-events: none;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1;
+}
+.ticket-dim::before {
+  content: '';
+  position: absolute;
+  border: 0 solid currentColor;
+  opacity: 0.6;
+}
+.ticket-dim span {
+  position: absolute;
+  padding: 1px 6px;
+  background: var(--bg);
+  white-space: nowrap;
+}
+/* Width: a line with end ticks above the ticket, label in the middle. */
+.ticket-dim-w {
+  left: 0;
+  right: 0;
+  top: -18px;
+  height: 10px;
+}
+.ticket-dim-w::before {
+  inset: 0;
+  border-left-width: 1px;
+  border-right-width: 1px;
+  background: linear-gradient(currentColor, currentColor) center / 100% 1px no-repeat;
+}
+.ticket-dim-w span {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+/* Height: the same, down the left side, label turned to read bottom-up. */
+.ticket-dim-h {
+  top: 0;
+  bottom: 0;
+  left: -22px;
+  width: 10px;
+}
+.ticket-dim-h::before {
+  inset: 0;
+  border-top-width: 1px;
+  border-bottom-width: 1px;
+  background: linear-gradient(currentColor, currentColor) center / 1px 100% no-repeat;
+}
+.ticket-dim-h span {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+/* The ticket floats a little off the page, like a real ticket (on screen only - not exported). */
+.ticket-canvas {
+  /* Tight and nearly solid, cast down-right (light from the upper left): a crisp edge, not a haze. */
+  box-shadow:
+    1px 1px 1px rgb(0 0 0 / 0.15),
+    10px 10px 12px rgb(0 0 0 / 0.18);
+}
+:root[data-theme='dark'] .ticket-canvas {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.4),
+    0 10px 30px rgb(0 0 0 / 0.55);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ticket-canvas {
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.4),
+      0 10px 30px rgb(0 0 0 / 0.55);
+  }
+}
+/* Dark pages: a black shadow disappears, so lift the ticket with a soft light glow. */
+:root[data-theme='dark'] .ticket-canvas {
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.06),
+    10px 10px 12px rgb(255 255 255 / 0.09);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ticket-canvas {
+    box-shadow:
+      0 0 0 1px rgb(255 255 255 / 0.06),
+      10px 10px 12px rgb(255 255 255 / 0.09);
+  }
+}
+
+/* Views menu: a divider between Real size and the sample previews. */
+.menu-heading-split {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Small "!" in the corner of a toolbar button: something about it needs attention. */
+.btn-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  pointer-events: none;
+}
+.icon-button:has(.btn-badge) {
+  position: relative;
+}
+
+/* Things appear and go with a short, slow ease instead of popping (opacity + the separate `scale`
+   property, so the inline rotate transform on text and code isn't disturbed). */
+.ticket-field,
+.dummy-code {
+  animation: ticket-item-in 0.22s ease-out;
+}
+.ticket-field.is-leaving,
+.dummy-code.is-leaving {
+  animation: ticket-item-out 0.18s ease-in forwards;
+  pointer-events: none;
+}
+@keyframes ticket-item-in {
+  from {
+    opacity: 0;
+    scale: 0.85;
+  }
+}
+@keyframes ticket-item-out {
+  to {
+    opacity: 0;
+    scale: 0.85;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticket-field,
+  .dummy-code,
+  .ticket-field.is-leaving,
+  .dummy-code.is-leaving {
+    animation: none;
+  }
+}
+
+/* Selecting: the outline / tint ease in, the dots appear softly, and the edit bar's controls slide in
+   (the bar is re-created per selection, so its children animate on every new selection). */
+.ticket-field,
+.dummy-code {
+  transition:
+    outline-color 0.15s ease,
+    background-color 0.15s ease,
+    outline-offset 0.15s ease;
+}
+.dummy-code.is-selected .dummy-code-handle,
+.dummy-code.is-selected .dummy-code-rotate,
+.ticket-field.is-selected .field-rotate {
+  animation: select-pop 0.18s ease-out;
+}
+.field-style-bar > * {
+  animation: bar-in 0.2s ease-out;
+}
+@keyframes select-pop {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes bar-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dummy-code.is-selected .dummy-code-handle,
+  .dummy-code.is-selected .dummy-code-rotate,
+  .ticket-field.is-selected .field-rotate,
+  .field-style-bar > * {
+    animation: none;
+  }
+}
+
+/* Dynamic vs static on the ticket layout. Dynamic (each ticket prints its own value): dashed
+   violet outline and a faint violet wash, like a fill-in field. Static (same on every ticket): a
+   thin solid grey outline, no wash - it already is what prints. Hover / selected / warning styles
+   still win, and the real-size preview shows neither. */
+.ticket-canvas:not(.is-preview) .ticket-field.is-dynamic:not(.is-selected):not(.in-group):not(.has-warning):not(.is-editing):not(:hover):not(:focus-visible) {
+  background: var(--dyn-fill, rgb(109 40 217 / 0.07));
+  outline: 1.5px dashed var(--dyn-line, rgb(109 40 217 / 0.55));
+}
+.ticket-canvas:not(.is-preview) .ticket-field.is-static:not(.is-selected):not(.in-group):not(.has-warning):not(.is-editing):not(:hover):not(:focus-visible) {
+  outline: 1px solid rgb(128 128 128 / 0.5);
+}
+
+/* How many items are on the ticket: per group next to its label, total in the box's corner. */
+.placeholder-box {
+  position: relative;
+}
+.count-badge {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--subtle);
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  letter-spacing: 0;
+}
+.placeholder-total {
+  position: absolute;
+  top: -9px;
+  right: 12px;
+  padding: 0 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+/* A panel that is just a short row of buttons: no menu width or padding around it. */
+.popover-panel-compact {
+  width: max-content;
+  padding: 3px;
+}
+
+/* Layout toggle (digital vs print): icon + short name in each segment. */
+.format-toggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.format-toggle svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* "+" menu: one row per ticket type, with the ways to start its layout underneath. */
+.layout-add-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 4px;
+}
+.layout-add-row + .layout-add-row {
+  border-top: 1px solid var(--border);
+}
+.layout-add-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.layout-add-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.layout-add-sub {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* The selected layout / format is easy to spot: violet tint, violet outline, bolder text (same family as the
+   "on" chips). Applies to the toggles in the designer's bars. */
+.designer-bar .segmented-text button[aria-checked='true'] {
+  color: var(--cta-text);
+  background: var(--sel-fill, rgb(109 40 217 / 0.12));
+  box-shadow: inset 0 0 0 1.5px var(--sel-line, var(--cta));
+  font-weight: 600;
+}
+.designer-bar .segmented-text button[aria-checked='true'] svg {
+  color: var(--cta-text);
+}
+.designer-bar .segmented-text button[aria-checked='false']:hover {
+  background: var(--subtle);
+}
+
+/* Names of the unsaved items in the "Discard unsaved changes?" dialog. */
+.unsaved-list {
+  margin: 0 0 4px;
+  padding-left: 18px;
+  font-weight: 600;
+}
+
+/* A layout name in the "Discard unsaved changes?" dialog: click to go back and open it. */
+.unsaved-link {
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* Major / minor tag next to an unsaved layout in the discard dialog. */
+.change-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--subtle);
+  color: var(--muted);
+}
+.change-tag.change-major {
+  background: var(--major-bg, var(--error-bg));
+  color: var(--major-fg, var(--danger));
+}
+.change-tag.change-minor {
+  background: var(--subtle);
+  color: var(--text);
+}
+
+/* ---- Ticket designer palette -------------------------------------------------------------
+   Supplied palette: Primary #30363F (text, the one filled button), Secondary #F4F6FA (surfaces),
+   Background #FFFFFF, Accent #C5CBFF (selected fill), Purple #A071FD (selection outline),
+   Blue #658EFF (dynamic items), Green #55CCA2, Orange #FDA471, Red #FD719F (status fills).
+   Pastel colours are fills, never text: text is always the slate. Scoped to .designer-page, so
+   the rest of the app keeps its own colours. Borders / muted / danger text are derived shades. */
+.designer-page,
+.manage-page {
+  --text: #30363f;
+  --muted: #5c636d;
+  --subtle: #f4f6fa;
+  --border: #d6d8dc;
+  --cta: #30363f;
+  --cta-hover: #1f2329;
+  --cta-glow: rgb(48 54 63 / 0.22);
+  --cta-text: #30363f;
+  --danger: #c7285f;
+  --error-bg: rgb(253 113 159 / 0.16);
+  --warn: #fda471;
+  --success: #55cca2;
+  --sel-line: #a071fd;
+  --sel-fill: rgb(197 203 255 / 0.6);
+  --sel-hover: rgb(160 113 253 / 0.7);
+  --grid-line: rgb(160 113 253 / 0.35);
+  --dyn-fill: rgb(101 142 255 / 0.14);
+  --dyn-line: rgb(160 113 253 / 0.85);
+  --addon-dash: rgb(92 99 109 / 0.7);
+}
+:root[data-theme='dark'] .designer-page,
+:root[data-theme='dark'] .manage-page {
+  --text: #f4f6fa;
+  --muted: #a9b0ba;
+  --subtle: #30363f;
+  --border: #454c57;
+  --cta: #c5cbff;
+  --cta-hover: #dfe2ff;
+  --cta-glow: rgb(197 203 255 / 0.25);
+  --cta-text: #c5cbff;
+  --danger: #fd719f;
+  --error-bg: rgb(253 113 159 / 0.18);
+  --sel-fill: rgb(160 113 253 / 0.28);
+  --addon-dash: rgb(169 176 186 / 0.7);
+}
+:root[data-theme='dark'] .designer-page .btn-cta,
+:root[data-theme='dark'] .designer-page .btn-cta:hover {
+  color: #1f2329;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .designer-page,
+  :root:not([data-theme='light']) .manage-page {
+    --text: #f4f6fa;
+    --muted: #a9b0ba;
+    --subtle: #30363f;
+    --border: #454c57;
+    --cta: #c5cbff;
+    --cta-hover: #dfe2ff;
+    --cta-glow: rgb(197 203 255 / 0.25);
+    --cta-text: #c5cbff;
+    --danger: #fd719f;
+    --error-bg: rgb(253 113 159 / 0.18);
+    --sel-fill: rgb(160 113 253 / 0.28);
+    --addon-dash: rgb(169 176 186 / 0.7);
+  }
+  :root:not([data-theme='light']) .designer-page .btn-cta,
+  :root:not([data-theme='light']) .designer-page .btn-cta:hover {
+    color: #1f2329;
+  }
+}
+/* Major / minor change tags use the palette's status fills with slate text (also in the leave dialog). */
+.change-tag.change-major {
+  background: #fd719f;
+  color: #30363f;
+}
+.change-tag.change-minor {
+  background: #f4f6fa;
+  color: #30363f;
+}
+
+/* A text button with a "!" badge in its corner (e.g. "Design ticket" when no layout exists yet). */
+.btn:has(.btn-badge) {
+  position: relative;
+}
+
+/* ---- Manage event page: hero, launch checklist, softer cards --------------------------------- */
+.manage-page .event-hero {
+  border-radius: 16px;
+  padding: 24px 24px 8px;
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, #c5cbff 0%, #f4f6fa 70%);
+  border: 1px solid #d6d8dc;
+}
+.manage-page .event-hero .title-with-status {
+  margin-bottom: 6px;
+}
+.manage-page .event-hero h1 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  color: #30363f;
+}
+.manage-page .event-hero-when {
+  margin: 0 0 4px;
+  color: #3f4650;
+  font-size: 0.9rem;
+}
+.manage-page .event-hero .btn:not(.btn-primary):not(.btn-outline-cta) {
+  background: #ffffff;
+}
+.launch-card {
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 14px rgb(48 54 63 / 0.06);
+}
+.launch-card h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.launch-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.launch-count {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.launch-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: #f4f6fa;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.launch-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #a071fd, #658eff);
+  transition: width 0.4s ease;
+}
+.launch-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.launch-steps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f4f6fa;
+}
+.launch-steps li.is-done {
+  background: rgb(85 204 162 / 0.16);
+}
+.launch-mark {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #a071fd;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #30363f;
+}
+.launch-steps li.is-done .launch-mark {
+  background: #55cca2;
+  border-color: #55cca2;
+}
+.launch-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.launch-text small {
+  color: var(--muted);
+}
+.launch-live {
+  background: rgb(85 204 162 / 0.16);
+  border-color: #55cca2;
+}
+.launch-live p {
+  margin: 6px 0 12px;
+}
+.manage-page .two-col > .card {
+  background: #f4f6fa;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 22px;
+}
+:root[data-theme='dark'] .manage-page .event-hero {
+  background: linear-gradient(135deg, #3a3f66 0%, #30363f 75%);
+  border-color: #454c57;
+}
+:root[data-theme='dark'] .manage-page .event-hero h1,
+:root[data-theme='dark'] .manage-page .event-hero-when {
+  color: #f4f6fa;
+}
+:root[data-theme='dark'] .launch-card,
+:root[data-theme='dark'] .launch-steps li {
+  background: #30363f;
+}
+:root[data-theme='dark'] .manage-page .two-col > .card {
+  background: #30363f;
+}
+
+/* The launch checklist header is a button: click to collapse or expand the steps. */
+.launch-toggle {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.launch-toggle .launch-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  flex: 1;
+}
+.launch-chevron {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+  transform: rotate(-90deg);
+}
+.launch-chevron.is-open {
+  transform: rotate(0deg);
+}
+.launch-toggle:hover .launch-chevron {
+  color: var(--text);
+}
+.launch-steps[hidden] {
+  display: none;
+}
+.launch-card:has(.launch-steps[hidden]) .launch-bar {
+  margin-bottom: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .launch-chevron {
+    transition: none;
+  }
+}
+
+/* Section header with a button on the right (e.g. Ticket types + "Add ticket type"). */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.section-head h2 {
+  margin: 0;
+}
+/* A dialog with a long form: wider, and scrolls inside when the screen is short. */
+.modal.modal-wide {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+/* Price + Edit button at the end of a ticket type row. */
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+
+/* Row buttons (Edit / Pause sales / Delete) wrap under the price on narrow cards. */
+.row-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.paused-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #fda471;
+  color: #30363f;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+/* Ticket types: a full-width card; each row is details | price | actions on one line, and the
+   actions drop under the details on narrow screens (never squeezing the text into a thin column). */
+.manage-page > #ticket-types {
+  background: #f4f6fa;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+.tt-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px 20px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.tt-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tt-meta {
+  margin: 2px 0 0;
+}
+.tt-price {
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+.tt-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.tt-actions .btn {
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .tt-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .tt-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+/* The pencil next to the event title, and the description and category shown in the header card. */
+.hero-edit {
+  align-self: center;
+}
+.hero-category {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid #d6d8dc;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.event-hero-about {
+  margin: 4px 0 12px;
+  max-width: 70ch;
+  color: #30363f;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+:root[data-theme='dark'] .manage-page > #ticket-types {
+  background: #30363f;
+}
+:root[data-theme='dark'] .manage-page .event-hero-about {
+  color: #f4f6fa;
+}
+:root[data-theme='dark'] .hero-category {
+  background: #30363f;
+  border-color: #454c57;
+}
+
+
+/* Ticket type rows: status chip, sales progress and the wider set of buttons. */
+.status-chip {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #30363f;
+  background: #f4f6fa;
+  border: 1px solid #d6d8dc;
+}
+.status-chip.status-good {
+  background: #55cca2;
+  border-color: #55cca2;
+}
+.status-chip.status-warn {
+  background: #fda471;
+  border-color: #fda471;
+}
+.status-chip.status-bad {
+  background: #fd719f;
+  border-color: #fd719f;
+}
+.status-chip.status-info {
+  background: #c5cbff;
+  border-color: #c5cbff;
+}
+.tt-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 6px;
+  max-width: 360px;
+}
+.tt-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.tt-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #a071fd, #658eff);
+  transition: width 0.4s ease;
+}
+.tt-actions {
+  flex-wrap: wrap;
+  max-width: 340px;
+}
+.promo-list {
+  margin: 0 0 12px;
+}
+.promo-new {
+  margin: 8px 0 6px;
+  font-size: 0.95rem;
+}
+
+/* The "More" menu on a ticket type row: a short list under the button, delete in red. */
+.row-menu {
+  width: 190px;
+  padding: 6px;
+  z-index: 30;
+}
+.row-menu .menu-item {
+  color: var(--text);
+  text-decoration: none;
+}
+.row-menu .menu-item:hover {
+  background: var(--subtle);
+}
+.row-menu .menu-item-danger {
+  color: var(--danger);
+}
+.tt-actions {
+  max-width: none;
+  flex-wrap: nowrap;
+}
+@media (max-width: 760px) {
+  .tt-actions {
+    flex-wrap: wrap;
+  }
+}
+
+/* Small ticket-design icon next to the status chip; hover or focus shows which design the type uses. */
+.tt-design {
+  position: relative;
+  display: inline-flex;
+  color: var(--muted);
+  cursor: help;
+}
+.tt-design svg {
+  width: 16px;
+  height: 16px;
+}
+.tt-design:hover,
+.tt-design:focus-visible {
+  color: var(--text);
+}
+.tt-design::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #30363f;
+  color: #ffffff;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  z-index: 40;
+}
+.tt-design:hover::after,
+.tt-design:focus-visible::after {
+  opacity: 1;
+}
+
+/* Ticket type rows: room for the details so a date is never cut in the middle. The sale window may
+   wrap only between its parts (start / arrow / end), each date stays on one line. */
+.nowrap {
+  white-space: nowrap;
+}
+.tt-window {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+}
+.tt-row {
+  grid-template-columns: minmax(340px, 1fr) auto auto;
+  column-gap: 28px;
+}
+@media (max-width: 1000px) {
+  .tt-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .tt-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+/* An icon-only button (e.g. the pencil on a ticket type row). */
+.btn.btn-icon {
+  padding: 6px 8px;
+  display: inline-flex;
+  align-items: center;
+}
+.btn.btn-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* A paused ticket type looks paused: orange-tinted diagonal stripes, an orange edge, and the details
+   dimmed. The buttons stay at full strength so it can be resumed with the play button. */
+.tt-row.is-paused {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgb(253 164 113 / 0.18),
+    rgb(253 164 113 / 0.18) 10px,
+    rgb(253 164 113 / 0.08) 10px,
+    rgb(253 164 113 / 0.08) 20px
+  );
+  box-shadow: inset 4px 0 0 #fda471;
+  border-radius: 10px;
+  padding-left: 16px;
+  padding-right: 12px;
+  transition: background-color 0.2s ease;
+}
+.tt-row.is-paused .tt-meta,
+.tt-row.is-paused .tt-progress,
+.tt-row.is-paused .tt-price,
+.tt-row.is-paused .tt-name strong {
+  opacity: 0.65;
+}
+.tt-row.is-paused .tt-bar span {
+  background: #fda471;
+}
+
+/* Section title with a count and a one-line summary next to it. */
+.section-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.section-title h2 {
+  margin: 0;
+}
+
+/* ---- Ticket types as tickets -----------------------------------------------------------------
+   Each ticket type is drawn like a ticket: details on the left, a tear-off stub on the right with the
+   price and actions, side notches and a dashed perforation, and a coloured edge for its status. */
+.manage-page > #ticket-types {
+  background: #f4f6fa;
+}
+.tt-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 0;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-left: 6px solid #d6d8dc;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 3px 14px rgb(48 54 63 / 0.08);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.tt-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgb(48 54 63 / 0.14);
+}
+.tt-row.tt-good {
+  border-left-color: #55cca2;
+}
+.tt-row.tt-info {
+  border-left-color: #658eff;
+}
+.tt-row.tt-bad {
+  border-left-color: #fd719f;
+}
+.tt-row.tt-warn {
+  border-left-color: #fda471;
+}
+.tt-main {
+  padding: 18px 22px;
+  min-width: 0;
+}
+.tt-name strong {
+  font-size: 1.15rem;
+}
+.tt-stub {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-width: 190px;
+  padding: 18px 22px;
+  border-left: 2px dashed #d6d8dc;
+}
+/* Notches where the perforation meets the top and bottom edge. */
+.tt-stub::before,
+.tt-stub::after {
+  content: '';
+  position: absolute;
+  left: -11px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f4f6fa;
+  border: 1px solid var(--border);
+}
+.tt-stub::before {
+  top: -11px;
+  clip-path: inset(50% 0 0 0);
+}
+.tt-stub::after {
+  bottom: -11px;
+  clip-path: inset(0 0 50% 0);
+}
+.tt-price {
+  font-size: 1.6rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  background: linear-gradient(90deg, #a071fd, #658eff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.tt-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  max-width: none;
+  justify-content: center;
+}
+.tt-bar {
+  height: 12px;
+  background: #f4f6fa;
+}
+.tt-bar span {
+  position: relative;
+  min-width: 6px;
+  background: linear-gradient(90deg, #55cca2, #658eff);
+}
+.tt-row.tt-bad .tt-bar span {
+  background: #fd719f;
+}
+.status-chip.status-good::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #30363f;
+  animation: draft-pulse 1.8s ease-in-out infinite;
+}
+@keyframes draft-pulse {
+  50% {
+    box-shadow: 0 0 0 4px rgb(48 54 63 / 0.18);
+  }
+}
+.section-title .count-badge {
+  background: #c5cbff;
+  color: #30363f;
+  font-size: 0.8rem;
+  padding: 2px 10px;
+}
+.tt-row.is-paused {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgb(253 164 113 / 0.2),
+      rgb(253 164 113 / 0.2) 10px,
+      rgb(253 164 113 / 0.08) 10px,
+      rgb(253 164 113 / 0.08) 20px
+    ),
+    #ffffff;
+  box-shadow: 0 3px 14px rgb(48 54 63 / 0.08);
+  padding-left: 0;
+  padding-right: 0;
+}
+@media (max-width: 760px) {
+  .tt-row {
+    grid-template-columns: 1fr;
+  }
+  .tt-stub {
+    flex-direction: row;
+    justify-content: space-between;
+    border-left: none;
+    border-top: 2px dashed #d6d8dc;
+  }
+  .tt-stub::before,
+  .tt-stub::after {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt-row,
+  .status-chip.status-good::before {
+    transition: none;
+    animation: none;
+  }
+}
+:root[data-theme='dark'] .tt-row {
+  background: #30363f;
+  border-color: #454c57;
+}
+:root[data-theme='dark'] .tt-stub::before,
+:root[data-theme='dark'] .tt-stub::after {
+  background: #1f2329;
+  border-color: #454c57;
+}
+
+/* A ticket type card in a colour of the organizer's choosing: coloured edge and matching bar (the stub stays as it is). */
+.tt-row.has-color {
+  border-left-color: var(--tt-color);
+}
+.tt-row.has-color .tt-bar span {
+  background: var(--tt-color);
+}
+/* Colour swatches inside the row's More menu. */
+.swatch-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.swatch-label {
+  width: 100%;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #8d9197;
+  cursor: pointer;
+  padding: 0;
+}
+.swatch.swatch-none {
+  background: repeating-linear-gradient(45deg, #ffffff, #ffffff 4px, #d6d8dc 4px, #d6d8dc 8px);
+}
+.swatch.is-on {
+  box-shadow: 0 0 0 2px #a071fd;
+}
+
+/* The pencil next to a ticket type's name: just the icon, no outline; a soft background on hover. */
+.btn.btn-icon.tt-edit {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 4px;
+  color: var(--muted);
+  border-radius: 6px;
+}
+.btn.btn-icon.tt-edit svg {
+  width: 15px;
+  height: 15px;
+}
+.btn.btn-icon.tt-edit:hover {
+  background: #f4f6fa;
+  color: var(--text);
+}
+
+/* More breathing room around the Ticket types header: above it, and between it and the first ticket. */
+.manage-page > #ticket-types {
+  padding: 28px 28px 14px;
+}
+.manage-page > #ticket-types .section-head {
+  margin-bottom: 24px;
+}
+
+/* Stacking fix: a hovered card (it is lifted with a transform, which makes its own stacking context)
+   must paint above the cards after it, and a card with its More menu open above everything, or the
+   next card covers the menu. */
+.tt-row:hover {
+  z-index: 2;
+}
+.tt-row:has(.row-menu) {
+  z-index: 20;
+}
+
+/* Ticket type window: landscape, with the fields grouped (Basics | Price and stock, Sale window below). */
+.modal.modal-landscape {
+  width: min(880px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.tt-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.form-group {
+  margin: 0;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #f4f6fa;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.form-group legend {
+  padding: 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.form-group-wide {
+  grid-column: 1 / -1;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.form-group .hint {
+  margin: 0;
+}
+@media (max-width: 720px) {
+  .tt-form-grid,
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+:root[data-theme='dark'] .form-group {
+  background: #30363f;
+  border-color: #454c57;
+}
+
+/* Keep paired fields level: a hint beside a label (e.g. "(default 10)") stays on the label's line, so
+   the two inputs in a row line up. */
+.form-row {
+  align-items: start;
+}
+.form-group label .hint {
+  display: inline;
+  margin: 0 0 0 4px;
+}
+.form-group label {
+  display: block;
+}
+.form-group label input,
+.form-group label select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+
+/* Space between the window title and the first group, and inside each group under its title. */
+.modal.modal-landscape .modal-head {
+  margin-bottom: 22px;
+}
+.modal.modal-landscape .hint {
+  margin-bottom: 8px;
+}
+.tt-form-grid {
+  margin-top: 6px;
+}
+.form-group {
+  padding-top: 20px;
+}
+.form-group legend {
+  margin-left: 6px;
+}
+
+/* Status chips pop: bigger, bolder, a soft glow in their own colour, and "On sale" gets a live dot. */
+.status-chip {
+  padding: 3px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-width: 0;
+  box-shadow: 0 2px 8px rgb(48 54 63 / 0.18);
+}
+.status-chip.status-good {
+  background: linear-gradient(135deg, #55cca2, #3fb98d);
+  box-shadow: 0 2px 12px rgb(85 204 162 / 0.65);
+}
+.status-chip.status-info {
+  box-shadow: 0 2px 12px rgb(101 142 255 / 0.5);
+}
+.status-chip.status-warn {
+  box-shadow: 0 2px 12px rgb(253 164 113 / 0.65);
+}
+.status-chip.status-bad {
+  box-shadow: 0 2px 12px rgb(253 113 159 / 0.6);
+}
+.status-chip.status-good::before {
+  width: 8px;
+  height: 8px;
+  margin-right: 7px;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgb(48 54 63 / 0.25);
+  animation: live-dot 1.6s ease-in-out infinite;
+}
+@keyframes live-dot {
+  50% {
+    box-shadow: 0 0 0 5px rgb(255 255 255 / 0.35);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-chip.status-good::before {
+    animation: none;
+  }
+}
+
+
+
+/* Ticket viewer window: the ticket in the middle, a bar with Download and Close on top. */
+.modal.modal-viewer {
+  width: min(960px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  overflow: hidden;
+}
+.modal.modal-viewer[open] {
+  display: flex;
+  flex-direction: column;
+}
+.viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.viewer-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+.viewer-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.viewer-body {
+  overflow: auto;
+  padding: 16px;
+  background: #f4f6fa;
+  display: flex;
+  justify-content: center;
+}
+.viewer-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 18px rgb(48 54 63 / 0.18);
+}
+.viewer-body iframe {
+  width: 100%;
+  height: min(70vh, 640px);
+  border: none;
+  background: #ffffff;
+}
+
+/* "My QR" card on the profile page. */
+.my-qr {
+  margin-top: 24px;
+}
+.my-qr-body {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.my-qr-body img {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 6px;
+}
+/* The recipient line on the transfer form (picked from a QR picture). */
+.transfer-recipient {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.transfer-form {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.transfer-help {
+  width: 100%;
+  margin: 0 0 4px;
+}
+.transfer-form input:not([type='file']) {
+  flex: 1 1 280px;
+}
+
+/* The two choices that appear after "View ticket" is clicked. */
+.ticket-formats {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  animation: formats-in 0.15s ease-out;
+}
+@keyframes formats-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticket-formats {
+    animation: none;
+  }
+}
+
+
+/* Tickets on the order page: the same ticket card, with View ticket and Transfer in the stub. */
+.tt-row.ticket-owned {
+  margin-bottom: 16px;
+}
+.tt-row.ticket-owned .tt-name h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.tt-row.ticket-owned.is-given {
+  opacity: 0.75;
+}
+.owned-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.owned-actions .btn {
+  width: 100%;
+  justify-content: center;
+}
+.ticket-formats.ticket-formats-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.tt-row.ticket-owned .transfer-form {
+  margin-top: 10px;
+}
+
+/* The tickets of an order sit on a soft grey panel, like the Ticket types section, so the white ticket
+   cards (and their notches) stand out. */
+.tickets-panel {
+  background: #f4f6fa;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px 28px 14px;
+  margin-bottom: 24px;
+}
+.tickets-panel .section-title {
+  margin-bottom: 20px;
+}
+:root[data-theme='dark'] .tickets-panel {
+  background: #30363f;
+  border-color: #454c57;
+}
+
+.transfer-upload {
+  align-self: flex-start;
+  cursor: pointer;
+}
+
+/* "12 days to go" on a ticket card: a small pill, warmer as the date gets close. */
+.countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 4px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #30363f;
+  background: #c5cbff;
+}
+.countdown-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #a071fd;
+}
+.countdown-soon {
+  background: #fda471;
+}
+.countdown-soon .countdown-dot {
+  background: #30363f;
+  animation: live-dot 1.6s ease-in-out infinite;
+}
+.countdown-live {
+  background: #55cca2;
+}
+.countdown-over {
+  background: #f4f6fa;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+@media (prefers-reduced-motion: reduce) {
+  .countdown-soon .countdown-dot {
+    animation: none;
+  }
+}
+
+/* ---- Order page hero --------------------------------------------------------------------------
+   A celebratory header: "You're going to <event>!", the key facts, and a big countdown. */
+.order-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin: 8px 0 24px;
+  padding: 28px 32px;
+  border-radius: 20px;
+  border: 1px solid #d6d8dc;
+  background:
+    radial-gradient(circle at 92% 18%, rgb(253 113 159 / 0.35) 0, transparent 22%),
+    radial-gradient(circle at 78% 90%, rgb(253 164 113 / 0.35) 0, transparent 24%),
+    radial-gradient(circle at 8% 100%, rgb(85 204 162 / 0.3) 0, transparent 22%),
+    linear-gradient(135deg, #c5cbff 0%, #f4f6fa 70%);
+  overflow: hidden;
+}
+.order-kicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  color: #3f4650;
+}
+.order-hero h1 {
+  margin: 0 0 14px;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  line-height: 1.15;
+  color: #30363f;
+}
+.order-hero-event {
+  background: linear-gradient(90deg, #a071fd, #658eff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.order-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.order-fact {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.75);
+  border: 1px solid rgb(48 54 63 / 0.1);
+  font-weight: 600;
+  color: #30363f;
+}
+.order-fact small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #5c636d;
+}
+.big-countdown {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 150px;
+  padding: 18px 26px;
+  border-radius: 20px;
+  background: #30363f;
+  color: #ffffff;
+  box-shadow: 0 10px 30px rgb(48 54 63 / 0.3);
+  transform: rotate(-3deg);
+}
+.big-countdown strong {
+  font-size: 3.2rem;
+  line-height: 1;
+  background: linear-gradient(135deg, #c5cbff, #fda471);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.big-countdown span {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #c5cbff;
+}
+:root[data-theme='dark'] .order-hero {
+  background:
+    radial-gradient(circle at 92% 18%, rgb(253 113 159 / 0.22) 0, transparent 22%),
+    radial-gradient(circle at 78% 90%, rgb(253 164 113 / 0.22) 0, transparent 24%),
+    linear-gradient(135deg, #3a3f66 0%, #30363f 75%);
+  border-color: #454c57;
+}
+:root[data-theme='dark'] .order-hero h1,
+:root[data-theme='dark'] .order-kicker {
+  color: #f4f6fa;
+}
+@media (max-width: 640px) {
+  .order-hero {
+    padding: 20px;
+  }
+  .big-countdown {
+    transform: none;
+  }
+}
+
+/* Transfer window, minimal: a title, the ticket name, one input with a QR button, two actions. */
+.transfer-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.transfer-sub {
+  margin: 2px 0 18px;
+}
+.transfer-min {
+  gap: 8px;
+}
+.transfer-field {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.transfer-field input {
+  flex: 1;
+  min-width: 0;
+}
+.transfer-qr {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.transfer-qr svg {
+  width: 20px;
+  height: 20px;
+}
+.transfer-hint {
+  margin: 0 0 14px;
+}
+
+/* A card colour the organizer picked always wins for the left strip, paused or not (the status colour and the
+   orange inset of the paused look must not override it). */
+.tt-row.has-color,
+.tt-row.has-color.is-paused,
+.tt-row.has-color.tt-warn,
+.tt-row.has-color.tt-good,
+.tt-row.has-color.tt-info,
+.tt-row.has-color.tt-bad {
+  border-left-color: var(--tt-color);
+}
+.tt-row.has-color.is-paused {
+  box-shadow: 0 3px 14px rgb(48 54 63 / 0.08);
+}
+
+/* The paused stripes follow the picked card colour too (orange only when no colour was picked). */
+.tt-row.has-color.is-paused {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--tt-color) 26%, transparent),
+      color-mix(in srgb, var(--tt-color) 26%, transparent) 10px,
+      color-mix(in srgb, var(--tt-color) 10%, transparent) 10px,
+      color-mix(in srgb, var(--tt-color) 10%, transparent) 20px
+    ),
+    #ffffff;
+}
+.tt-row.has-color.is-paused .tt-bar span {
+  background: var(--tt-color);
+}
+
+/* The play (resume) button on a paused ticket type pops: solid green, white icon, a glow and a gentle pulse. */
+.btn.btn-icon.btn-resume {
+  background: linear-gradient(135deg, #2fb88a, #1f9a70);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgb(47 184 138 / 0.6);
+  animation: resume-pulse 1.8s ease-in-out infinite;
+  transition: transform 0.12s ease;
+}
+.btn.btn-icon.btn-resume svg {
+  fill: currentColor;
+}
+.btn.btn-icon.btn-resume:hover {
+  background: linear-gradient(135deg, #3ccb9b, #25ad7f);
+  transform: scale(1.1);
+}
+@keyframes resume-pulse {
+  50% {
+    box-shadow: 0 4px 14px rgb(47 184 138 / 0.6), 0 0 0 6px rgb(47 184 138 / 0.25);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.btn-icon.btn-resume {
+    animation: none;
+  }
+}
+
+/* The pause button on an active ticket type pops too: solid orange with a glow (calmer than resume: no pulse). */
+.btn.btn-icon.btn-pause {
+  background: linear-gradient(135deg, #fda471, #f58f4d);
+  border-color: transparent;
+  color: #30363f;
+  box-shadow: 0 4px 14px rgb(245 143 77 / 0.55);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.btn.btn-icon.btn-pause svg {
+  fill: currentColor;
+}
+.btn.btn-icon.btn-pause:hover {
+  background: linear-gradient(135deg, #ffb283, #f9994f);
+  transform: scale(1.1);
+  box-shadow: 0 6px 18px rgb(245 143 77 / 0.7);
+}
+
+/* The pause icon is white on the orange button. */
+.btn.btn-icon.btn-pause {
+  color: #ffffff;
+}
+
+/* Buttons in the stub sit on solid white, so the paused stripes never show through them. */
+.tt-row .tt-actions .btn:not(.btn-resume):not(.btn-pause) {
+  background: #ffffff;
+}
+:root[data-theme='dark'] .tt-row .tt-actions .btn:not(.btn-resume):not(.btn-pause) {
+  background: #30363f;
+}
+
+/* Drag to reorder ticket type cards: a grip before the name, the dragged card faded, a bar where it will land. */
+.tt-grip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: grab;
+  border-radius: 6px;
+  touch-action: none;
+}
+.tt-grip svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  stroke: none;
+}
+.tt-grip:hover,
+.tt-grip:focus-visible {
+  color: var(--text);
+  background: #f4f6fa;
+}
+.tt-grip:active {
+  cursor: grabbing;
+}
+.tt-row.is-dragging {
+  opacity: 0.45;
+  transform: scale(0.99);
+}
+.tt-row.is-drop-target {
+  box-shadow: 0 -4px 0 0 #a071fd, 0 3px 14px rgb(48 54 63 / 0.08);
+}
+
+.tt-row.is-dragging {
+  transition: none;
+  cursor: grabbing;
+  box-shadow: 0 12px 30px rgb(48 54 63 / 0.25);
+}
+
+/* The drag grip sits on the right edge of the card, in the middle. */
+.tt-row {
+  position: relative;
+}
+.tt-row > .tt-grip {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  z-index: 2;
+  padding: 6px 4px;
+}
+.tt-row > .tt-grip svg {
+  width: 20px;
+  height: 20px;
+}
+.tt-row:has(> .tt-grip) .tt-stub {
+  padding-right: 40px;
+}
+
+/* On the manage page the card only "moves" (lifts) when the pointer is on its drag grip, not whenever it is
+   over the card, so reading and clicking buttons does not make the card shift. */
+.tt-row:has(> .tt-grip):hover:not(.is-dragging) {
+  transform: none;
+  box-shadow: 0 3px 14px rgb(48 54 63 / 0.08);
+}
+.tt-row:has(> .tt-grip:hover):not(.is-dragging),
+.tt-row:has(> .tt-grip:focus-visible):not(.is-dragging) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgb(48 54 63 / 0.14);
+}
+
+/* Current page in the top bar: bold, dark and underlined so it is obvious which tab is open. */
+.nav a:not(.btn-cta) {
+  position: relative;
+  padding: 18px 2px;
+}
+.nav a.active:not(.btn-cta) {
+  color: var(--text);
+  font-weight: 700;
+}
+.nav a.active:not(.btn-cta)::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: #a071fd;
+}
+
+/* "events" (home) gets the same current-tab indicator as the nav links. */
+.brand {
+  position: relative;
+  padding: 18px 2px;
+  color: var(--muted);
+}
+.brand.active {
+  color: var(--text);
+  font-weight: 700;
+}
+.brand.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: #a071fd;
+}
+
+/* Event landing page and organizer updates */
+.post-feed,
+.landing-sales {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.post-card {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left: 4px solid #a071fd;
+  border-radius: 10px;
+  background: var(--bg);
+}
+.post-card.post-sale {
+  border-left-color: #f0813c;
+}
+.post-card h3 {
+  margin: 4px 0;
+  font-size: 1rem;
+}
+.post-card p {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+.post-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.post-kind {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6d4bd1;
+}
+.post-sale .post-kind {
+  color: #c2540f;
+}
+.post-remove {
+  margin-left: auto;
+}
+.post-composer {
+  margin-bottom: 16px;
+}
+.landing-when {
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+.landing-sale {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.landing-sale-note {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.landing-sale-price {
+  font-weight: 700;
+}
+.landing-sale.sale-live {
+  border-color: #3cbf8f;
+}
+.landing-sale.sale-soldout,
+.landing-sale.sale-ended,
+.landing-sale.sale-paused {
+  opacity: 0.7;
 }

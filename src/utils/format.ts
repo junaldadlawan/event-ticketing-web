@@ -40,3 +40,10 @@ export function humanize(enumValue: string): string {
 export function newIdempotencyKey(): string {
   return crypto.randomUUID();
 }
+
+/** ISO-8601 instant -> `<input type="datetime-local">` value (local time, minutes). */
+export function isoToLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}

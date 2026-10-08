@@ -1,8 +1,11 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useUnsavedChangesApi } from './UnsavedChanges';
 
 /** Where "back" goes when there is no in-app history (direct link, refresh, new tab). */
 function parentPath(pathname: string): string {
   if (pathname.startsWith('/orders/')) return '/orders';
+  const design = pathname.match(/^\/manage\/events\/([^/]+)\/ticket-design$/);
+  if (design) return `/manage/events/${design[1]}`;
   if (pathname.startsWith('/manage/')) return '/manage';
   return '/';
 }
@@ -10,10 +13,15 @@ function parentPath(pathname: string): string {
 export function BackButton() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { confirmLeave } = useUnsavedChangesApi();
 
-  if (location.pathname === '/') return null;
+  // The top-level tabs (Home, Events, Manage) have nowhere to go back to. They line up with each other, so
+  // no placeholder is needed.
+  if (['/', '/home', '/manage'].includes(location.pathname)) return null;
 
-  function goBack() {
+  async function goBack() {
+    // Unsaved edits on this page? Ask "Discard or continue editing" first.
+    if (!(await confirmLeave())) return;
     // React Router gives the very first entry of a session the key "default",
     // so anything else means there is an in-app page to go back to.
     if (location.key !== 'default') navigate(-1);

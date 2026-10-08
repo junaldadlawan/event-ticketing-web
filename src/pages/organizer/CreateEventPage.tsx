@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
 import { eventApi, venueApi } from '../../api/endpoints';
+import { CategorySelect } from '../../components/CategorySelect';
 import { ErrorBox } from '../../components/ui';
 import { localInputToIso } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
@@ -102,12 +103,7 @@ export function CreateEventPage() {
         </label>
         <label>
           Category
-          <input
-            required
-            maxLength={100}
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          />
+          <CategorySelect value={category} onChange={setCategory} required />
         </label>
         <label>
           Venue
