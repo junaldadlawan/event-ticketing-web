@@ -1,18 +1,26 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
-import { eventApi, venueApi } from '../../api/endpoints';
+import { eventApi, organizationApi, venueApi } from '../../api/endpoints';
+import { useAuth } from '../../auth/AuthContext';
 import { CategorySelect } from '../../components/CategorySelect';
-import { ErrorBox } from '../../components/ui';
+import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
+import { Empty, ErrorBox, Spinner } from '../../components/ui';
 import { localInputToIso } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** The organizations the signed-in user can create events for (id + name). */
+async function loadMyOrganizations(isAdmin: boolean): Promise<{ id: string; name: string }[]> {
+  if (isAdmin) return (await organizationApi.list('APPROVED')).map(({ id, name }) => ({ id, name }));
+  // Only approved organizations can host events (a suspended or pending one cannot).
+  return (await organizationApi.mine()).filter((o) => o.status === 'APPROVED').map(({ id, name }) => ({ id, name }));
+}
 
 export function CreateEventPage() {
   const navigate = useNavigate();
-  const [organizationId, setOrganizationId] = useState('');
+  const { user } = useAuth();
+  const [orgChoice, setOrgChoice] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -24,21 +32,12 @@ export function CreateEventPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // There is no "my organizations" endpoint for non-admins, so suggest the
-  // org ids seen on events the caller already manages.
-  const { data: knownOrgIds } = useAsync(
-    () =>
-      eventApi
-        .managed({ size: 100 })
-        .then((p) => [...new Set(p.content.map((e) => e.organizationId))])
-        .catch(() => [] as string[]),
-    [],
-  );
-
-  const orgValid = UUID_RE.test(organizationId.trim());
+  const orgs = useAsync(() => loadMyOrganizations(user?.role === 'ADMIN'), [user?.role]);
+  // One organization is used silently; with several, the first is preselected and a name dropdown is shown.
+  const organizationId = orgChoice || orgs.data?.[0]?.id || '';
   const { data: venues } = useAsync(
-    () => (orgValid ? venueApi.listForOrg(organizationId.trim()) : Promise.resolve([])),
-    [orgValid, organizationId],
+    () => (organizationId ? venueApi.listForOrg(organizationId) : Promise.resolve([])),
+    [organizationId],
   );
 
   async function onSubmit(e: FormEvent) {
@@ -51,7 +50,7 @@ export function CreateEventPage() {
         .map((s) => s.trim())
         .filter(Boolean);
       const created = await eventApi.create({
-        organizationId: organizationId.trim(),
+        organizationId,
         title,
         description,
         category,
@@ -73,20 +72,32 @@ export function CreateEventPage() {
     <>
       <h1>New event</h1>
       <ErrorBox message={error} />
+      {orgs.loading && !orgs.data ? (
+        <Spinner />
+      ) : orgs.data?.length === 0 ? (
+        <Empty>
+          <SuspendedOrgNotice organizationIds={[]} />
+          No approved organization to create events for. <Link to="/apply">Apply to host events</Link>
+        </Empty>
+      ) : (
       <form className="form card narrow" onSubmit={onSubmit}>
-        <label>
-          Organization ID
-          <input
-            required
-            list="known-orgs"
-            placeholder="UUID of an organization you own or organize for"
-            value={organizationId}
-            onChange={(e) => setOrganizationId(e.target.value)}
-          />
-          <datalist id="known-orgs">
-            {knownOrgIds?.map((id) => <option key={id} value={id} />)}
-          </datalist>
-        </label>
+        {orgs.data && orgs.data.length > 1 && (
+          <label>
+            Organization
+            <select value={organizationId} onChange={(e) => setOrgChoice(e.target.value)}>
+              {orgs.data.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {orgs.data?.length === 1 && (
+          <p className="muted small">
+            Hosting as <strong>{orgs.data[0]!.name}</strong>
+          </p>
+        )}
         <label>
           Title
           <input required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -148,6 +159,7 @@ export function CreateEventPage() {
           {busy ? 'Creating...' : 'Create draft event'}
         </button>
       </form>
+      )}
     </>
   );
 }

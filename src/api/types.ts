@@ -33,6 +33,10 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  /** Profile picture (an /api/v1/uploads/files/ URL), or null/absent when none. */
+  avatarUrl?: string | null;
+  /** Admin list only (once the API returns it). */
+  accountStatus?: AccountStatus;
   createdAt: string;
   updatedAt?: string;
 }
@@ -174,6 +178,10 @@ export interface OrganizationMember {
   organizationId: UUID;
   roles: OrganizationRole[];
   assignedAt: string;
+  /** Who the member is (absent until the API returns them with the member). */
+  name?: string | null;
+  email?: string | null;
+  avatarUrl?: string | null;
 }
 
 export type OrganizationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
@@ -192,6 +200,10 @@ export interface Organization {
   ownerId: UUID | null;
   rejectionReason: string | null;
   createdAt: string;
+  /** Last change (approval, rejection, suspension, rename...). */
+  updatedAt?: string | null;
+  /** When an admin approved the application (absent until the API records it). */
+  approvedAt?: string | null;
 }
 
 export interface Category {
@@ -306,6 +318,9 @@ export interface Cart {
   buyerId: UUID;
   items: CartItem[];
   appliedPromoCode: { code: string; discountAmount: Money } | null;
+  /** The platform fee added on top of the tickets (0 or absent when none applies). */
+  platformFee?: Money | null;
+  /** Tickets - promo discount + platform fee: what the buyer pays. */
   total: Money;
   createdAt: string;
   updatedAt?: string;
@@ -335,6 +350,8 @@ export interface Order {
   payeeId: UUID;
   status: OrderStatus;
   promoCode: string | null;
+  /** The platform fee that was added on top of the tickets (it is included in `total`). */
+  platformFee?: Money | null;
   total: Money;
   tickets: Ticket[];
   createdAt: string;
@@ -391,3 +408,149 @@ export interface WaitlistEntry {
 
 /** Whether a ticket type is being sold: ACTIVE (normal) or PAUSED (can't be bought; nothing is deleted). */
 export type SalesStatus = 'ACTIVE' | 'PAUSED';
+
+export type PostKind = 'ANNOUNCEMENT' | 'SALE';
+
+/** Where a post is in its life: only LIVE posts are public. */
+export type PostStatus = 'LIVE' | 'SCHEDULED' | 'EXPIRED' | 'HIDDEN';
+
+/** An admin's sale or announcement: site-wide (eventId null, shown on Home) or about one event. */
+export interface Post {
+  id: UUID;
+  eventId?: UUID | null;
+  eventTitle?: string | null;
+  kind: PostKind;
+  title: string;
+  body: string;
+  createdAt: string;
+  /** Public from this moment (absent = as soon as it was created). */
+  publishAt?: string | null;
+  /** Not public from this moment on (absent = never). */
+  expiresAt?: string | null;
+  /** An admin switch: a hidden post is never public, whatever its dates say. */
+  hidden?: boolean;
+  /** Optional picture (an /api/v1/uploads/files/ URL). */
+  imageUrl?: string | null;
+  status?: PostStatus;
+}
+
+export interface PostCreateRequest {
+  eventId?: UUID;
+  kind: PostKind;
+  title: string;
+  body?: string;
+  /** Leave out to publish right away. */
+  publishAt?: string;
+  /** Leave out for a post that never expires. */
+  expiresAt?: string;
+  hidden?: boolean;
+  /** An image uploaded with POST /uploads; leave out for a post without a picture. */
+  imageUrl?: string;
+}
+
+/** Fields of a post that can be changed (the event it belongs to can not). */
+export interface PostUpdateRequest {
+  kind?: PostKind;
+  title?: string;
+  body?: string;
+  publishAt?: string;
+  expiresAt?: string;
+  hidden?: boolean;
+  /** Omit = keep the picture, '' = remove it, a URL = replace it. */
+  imageUrl?: string;
+  /** Left out or false = leave the date alone; true = remove it. */
+  clearPublishAt?: boolean;
+  clearExpiresAt?: boolean;
+}
+
+/** Admin: an account state the API enforces at login (absent until the API returns it). */
+export type AccountStatus = 'ACTIVE' | 'SUSPENDED';
+
+export type ModerationTargetType = 'ORGANIZATION' | 'EVENT' | 'USER';
+export type ModerationActionType = 'SUSPEND' | 'REINSTATE' | 'REMOVE';
+
+export interface ModerationActionRequest {
+  targetType: ModerationTargetType;
+  targetId: UUID;
+  action: ModerationActionType;
+  /** Required, up to 1000 characters; kept as the audit trail. */
+  reason: string;
+}
+
+export interface ModerationAction {
+  id: UUID;
+  targetType: ModerationTargetType;
+  targetId: UUID;
+  action: ModerationActionType;
+  reason: string;
+  previousStatus?: string | null;
+  performedBy: UUID;
+  createdAt: string;
+}
+
+/** Platform fee ("overhead") rule: one per scope; the most specific one applies to a purchase. */
+export type FeeScope = 'PLATFORM' | 'ORGANIZATION' | 'EVENT';
+export type FeeType = 'PERCENTAGE' | 'FLAT';
+
+export interface PlatformFeeRule {
+  id: UUID;
+  scope: FeeScope;
+  /** Null for the platform default. */
+  scopeId?: UUID | null;
+  type: FeeType;
+  /** 0-100, for PERCENTAGE. */
+  percentage?: number | null;
+  /** Minor units + currency, for FLAT. */
+  flatAmount?: Money | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface PlatformFeeRuleRequest {
+  type: FeeType;
+  percentage?: number;
+  flatAmount?: Money;
+}
+
+export interface EffectivePlatformFee {
+  eventId: UUID;
+  organizationId: UUID;
+  /** Null when no rule applies (no fee is charged). */
+  rule?: PlatformFeeRule | null;
+}
+
+export type PayoutStatus = 'SCHEDULED' | 'PAID' | 'FAILED';
+
+export interface Payout {
+  id: UUID;
+  organizationId: UUID;
+  gross: Money;
+  fees: Money;
+  net: Money;
+  periodStart: string;
+  periodEnd: string;
+  status: PayoutStatus;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface UserUpdateRequest {
+  name?: string;
+  email?: string;
+  role?: Role;
+}
+
+export interface EventAnalytics {
+  eventId: UUID;
+  ticketsSold: number;
+  revenue: Money;
+  remainingInventory: number;
+  salesOverTime: { date: string; ticketsSold: number; revenue: Money }[];
+}
+
+export interface PayoutGenerateRequest {
+  /** First day included (UTC). */
+  periodStart: string;
+  /** Last day included (UTC); not in the future. */
+  periodEnd: string;
+}

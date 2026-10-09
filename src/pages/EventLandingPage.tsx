@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { eventApi, ticketTypeApi } from '../api/endpoints';
+import { errorMessage } from '../api/client';
+import { eventApi, postApi, ticketTypeApi } from '../api/endpoints';
 import type { TicketType } from '../api/types';
+import { useAuth } from '../auth/AuthContext';
 import { EventImage } from '../components/EventImage';
 import { EventPostsFeed } from '../components/EventPostsFeed';
+import { PostComposer } from '../components/PostComposer';
 import { Empty, ErrorBox, Spinner } from '../components/ui';
 import { formatDateTime, formatMoney } from '../utils/format';
-import { loadPosts } from '../utils/eventPosts';
 import { sortTicketTypes } from '../utils/ticketTypes';
+import { useLivePosts } from '../utils/livePosts';
 import { useAsync } from '../utils/useAsync';
 
 type SaleState = 'live' | 'soon' | 'soldout' | 'paused' | 'ended';
@@ -42,7 +45,12 @@ export function EventLandingPage() {
     () => Promise.all([eventApi.get(eventId), ticketTypeApi.list(eventId)]),
     [eventId],
   );
-  const [posts] = useState(() => loadPosts(eventId));
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+  const postsQuery = useAsync(() => postApi.list({ eventId, page: 0, size: 20 }), [eventId]);
+  useLivePosts(() => postApi.list({ eventId, page: 0, size: 20 }), postsQuery.setData);
+  const posts = postsQuery.data?.content ?? [];
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   if (loading) return <Spinner />;
   if (error || !data) return <ErrorBox message={error ?? 'Event not found'} />;
@@ -84,7 +92,37 @@ export function EventLandingPage() {
       )}
 
       <h2>Announcements</h2>
-      {posts.length === 0 ? <Empty>No announcements yet.</Empty> : <EventPostsFeed posts={posts} />}
+      {isAdmin && (
+        <PostComposer
+          onPost={async (p) => {
+            await postApi.create({ ...p, eventId });
+            postsQuery.reload();
+          }}
+        />
+      )}
+      <ErrorBox message={postsQuery.error ?? removeError} />
+      {postsQuery.loading && !postsQuery.data ? (
+        <Spinner />
+      ) : posts.length === 0 ? (
+        <Empty>No announcements yet.</Empty>
+      ) : (
+        <EventPostsFeed
+          posts={posts}
+          onRemove={
+            isAdmin
+              ? async (id) => {
+                  setRemoveError(null);
+                  try {
+                    await postApi.remove(id);
+                    postsQuery.reload();
+                  } catch (e) {
+                    setRemoveError(errorMessage(e));
+                  }
+                }
+              : undefined
+          }
+        />
+      )}
     </article>
   );
 }

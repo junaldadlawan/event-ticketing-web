@@ -66,6 +66,14 @@ export const EyeIcon = () => (
   </Icon>
 );
 
+/** Crossed-out eye: "hide this". */
+export const EyeOffIcon = () => (
+  <Icon>
+    <path d="M10.6 5.1A10.5 10.5 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.5 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7c1.7 0 3.2-.5 4.5-1.2" />
+    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M3 3l18 18" />
+  </Icon>
+);
+
 /** Pencil: "edit / manage this". */
 export const EditIcon = () => (
   <Icon>
@@ -387,5 +395,12 @@ export const GripIcon = () => (
     <circle cx="15" cy="12" r="1.4" />
     <circle cx="9" cy="18" r="1.4" />
     <circle cx="15" cy="18" r="1.4" />
+  </Icon>
+);
+
+/** Bars: "statistics". */
+export const StatsIcon = () => (
+  <Icon>
+    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
   </Icon>
 );

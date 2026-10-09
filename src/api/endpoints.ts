@@ -10,8 +10,24 @@ import type {
   Order,
   Organization,
   OrganizationDocument,
+  EffectivePlatformFee,
+  EventAnalytics,
+  FeeScope,
+  ModerationAction,
+  ModerationActionRequest,
+  ModerationTargetType,
   OrganizationMember,
+  OrganizationRole,
+  OrganizationStatus,
+  Payout,
+  PayoutGenerateRequest,
+  PlatformFeeRule,
+  PlatformFeeRuleRequest,
+  UserUpdateRequest,
   PageResponse,
+  Post,
+  PostCreateRequest,
+  PostUpdateRequest,
   CodePlacement,
   Ticket,
   TicketTemplate,
@@ -83,7 +99,8 @@ export const authApi = {
 
 export const userApi = {
   me: () => api<User>('/users/me'),
-  updateMe: (body: { name?: string; email?: string }) =>
+  /** avatarUrl: omit = unchanged, '' = remove the picture. */
+  updateMe: (body: { name?: string; email?: string; avatarUrl?: string }) =>
     api<User>('/users/me', { method: 'PATCH', body }),
   changePassword: (currentPassword: string, newPassword: string) =>
     api<User>('/users/me/change-password', {
@@ -149,6 +166,24 @@ export const ticketTemplateApi = {
   delete: (id: UUID) => api<void>(`/ticket-templates/${id}`, { method: 'DELETE' }),
 };
 
+export const postApi = {
+  /**
+   * Public: only live posts (not hidden, published, not expired), newest first. Default: site-wide posts plus
+   * posts of events that are on sale or done. `all` (admin only) lists every post, including hidden, scheduled
+   * and expired ones.
+   */
+  list: (q: PageQuery & { eventId?: UUID; siteWide?: boolean; all?: boolean } = {}) =>
+    api<PageResponse<Post>>('/posts', {
+      query: { ...q, siteWide: q.siteWide ? 'true' : undefined, all: q.all ? 'true' : undefined },
+    }),
+  /** Admin only. Leave eventId out for a site-wide post. */
+  create: (body: PostCreateRequest) => api<Post>('/posts', { method: 'POST', body }),
+  /** Admin only. Change the kind, title or details of a post. */
+  update: (id: UUID, body: PostUpdateRequest) => api<Post>(`/posts/${id}`, { method: 'PATCH', body }),
+  /** Admin only. */
+  remove: (id: UUID) => api<void>(`/posts/${id}`, { method: 'DELETE' }),
+};
+
 export const uploadApi = {
   /** PNG/JPEG/WebP/GIF, max 5 MB. Returns an absolute URL. */
   image: (file: File) => {
@@ -164,6 +199,64 @@ export const organizationApi = {
     api<Organization>('/organizations', { method: 'POST', body: { name, documents } }),
   /** Members and their roles. Only members of the organization (or admins) may call this. */
   members: (orgId: UUID) => api<OrganizationMember[]>(`/organizations/${orgId}/members`),
+  get: (orgId: UUID) => api<Organization>(`/organizations/${orgId}`),
+  /** The caller's organizations, any status (owner / organizer / applicant). Needs GET /organizations/mine on the API. */
+  mine: () => api<Organization[]>('/organizations/mine'),
+  /** Admin: every organization, optionally only one status (PENDING / APPROVED / REJECTED / SUSPENDED). */
+  list: (status?: OrganizationStatus) =>
+    api<Organization[]>('/organizations', { query: { status } }),
+  rename: (orgId: UUID, name: string) =>
+    api<Organization>(`/organizations/${orgId}`, { method: 'PATCH', body: { name } }),
+  approve: (orgId: UUID) => api<Organization>(`/organizations/${orgId}/approve`, { method: 'POST' }),
+  reject: (orgId: UUID, reason?: string) =>
+    api<Organization>(`/organizations/${orgId}/reject`, { method: 'POST', body: reason ? { reason } : {} }),
+  /** OWNER can't be assigned here (it only comes from approving the application). */
+  assignMember: (orgId: UUID, userId: UUID, role: OrganizationRole) =>
+    api<OrganizationMember>(`/organizations/${orgId}/members`, { method: 'POST', body: { userId, role } }),
+};
+
+/** Admin only. */
+export const adminUserApi = {
+  list: () => api<User[]>('/users'),
+  update: (id: UUID, body: UserUpdateRequest) => api<User>(`/users/${id}`, { method: 'PATCH', body }),
+  remove: (id: UUID) => api<void>(`/users/${id}`, { method: 'DELETE' }),
+};
+
+/** Admin only: suspend / reinstate / remove an organization, event or user, with a reason that is kept. */
+export const moderationApi = {
+  create: (body: ModerationActionRequest) =>
+    api<ModerationAction>('/admin/moderation-actions', { method: 'POST', body }),
+  list: (q: PageQuery & { targetType?: ModerationTargetType; targetId?: UUID } = {}) =>
+    api<PageResponse<ModerationAction>>('/admin/moderation-actions', { query: { ...q } }),
+};
+
+/** Admin only: the platform fee ("overhead") rules. */
+export const platformFeeApi = {
+  list: (scope?: FeeScope) => api<PlatformFeeRule[]>('/platform-fees', { query: { scope } }),
+  effective: (eventId: UUID) => api<EffectivePlatformFee>('/platform-fees/effective', { query: { eventId } }),
+  setDefault: (body: PlatformFeeRuleRequest) =>
+    api<PlatformFeeRule>('/platform-fees/default', { method: 'PUT', body }),
+  removeDefault: () => api<void>('/platform-fees/default', { method: 'DELETE' }),
+  setForOrganization: (orgId: UUID, body: PlatformFeeRuleRequest) =>
+    api<PlatformFeeRule>(`/platform-fees/organizations/${orgId}`, { method: 'PUT', body }),
+  removeForOrganization: (orgId: UUID) => api<void>(`/platform-fees/organizations/${orgId}`, { method: 'DELETE' }),
+  setForEvent: (eventId: UUID, body: PlatformFeeRuleRequest) =>
+    api<PlatformFeeRule>(`/platform-fees/events/${eventId}`, { method: 'PUT', body }),
+  removeForEvent: (eventId: UUID) => api<void>(`/platform-fees/events/${eventId}`, { method: 'DELETE' }),
+};
+
+export const analyticsApi = {
+  /** Owner / organizer of the event's organization, or an admin. */
+  event: (eventId: UUID) => api<EventAnalytics>(`/events/${eventId}/analytics`),
+};
+
+export const payoutApi = {
+  /** Admin only: settle the organization's paid orders of the period that are not in a payout yet (fees are deducted). */
+  generate: (orgId: UUID, body: PayoutGenerateRequest) =>
+    api<Payout>(`/organizations/${orgId}/payouts`, { method: 'POST', body }),
+  /** Owner / organizer of the organization, or an admin. Newest first. */
+  list: (orgId: UUID, q: PageQuery = {}) =>
+    api<PageResponse<Payout>>(`/organizations/${orgId}/payouts`, { query: { ...q } }),
 };
 
 export const categoryApi = {

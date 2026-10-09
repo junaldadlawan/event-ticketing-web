@@ -109,7 +109,7 @@ export function EventCollection({
   );
 }
 
-function ListIcon() {
+export function ListIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <rect x="1.5" y="2.5" width="3" height="3" rx="0.75" fill="currentColor" />

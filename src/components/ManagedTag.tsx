@@ -1,4 +1,5 @@
 import type { UUID } from '../api/types';
+import { useManagementHidden } from '../auth/ViewMode';
 import { useCanManage } from '../auth/useCanManage';
 import { EditIcon } from './DesignerIcons';
 
@@ -9,7 +10,8 @@ import { EditIcon } from './DesignerIcons';
  */
 export function ManagedTag({ organizationId }: { organizationId: UUID }) {
   const canManage = useCanManage(organizationId);
-  if (!canManage) return null;
+  const hidden = useManagementHidden(); // browsing as a customer
+  if (!canManage || hidden) return null;
   return (
     <span className="managed-tag" title="You manage this event - open it and use Manage to edit">
       <EditIcon />

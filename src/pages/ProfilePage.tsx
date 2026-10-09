@@ -1,18 +1,19 @@
 import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { errorMessage } from '../api/client';
-import { userApi } from '../api/endpoints';
+import { uploadApi, userApi } from '../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
 import { Avatar } from '../components/Avatar';
 import { EditIcon, QrIcon } from '../components/DesignerIcons';
 import { MyQrDialog } from '../components/MyQrCard';
 import { ErrorBox, SuccessBox } from '../components/ui';
-import { removeAvatar, saveAvatar, useAvatar } from '../utils/avatar';
+import { squareAvatarFile } from '../utils/avatar';
 
 export function ProfilePage() {
   const { user, setUser } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
-  const avatar = useAvatar(user?.id);
+  const avatar = user?.avatarUrl ?? null;
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(user?.name ?? '');
@@ -60,7 +61,7 @@ export function ProfilePage() {
       <SuccessBox message={msg} />
 
       <div className="profile-photo">
-        <Avatar userId={user.id} name={user.name} size={80} />
+        <Avatar src={avatar} name={user.name} size={80} />
         <input
           ref={fileRef}
           type="file"
@@ -71,16 +72,21 @@ export function ProfilePage() {
             e.target.value = '';
             if (!file) return;
             setErr(null);
+            setPhotoBusy(true);
             try {
-              await saveAvatar(user.id, file);
+              const uploaded = await uploadApi.image(await squareAvatarFile(file));
+              setUser(await userApi.updateMe({ avatarUrl: uploaded.url }));
             } catch (e2) {
-              setErr(e2 instanceof Error ? e2.message : 'Could not use that picture.');
+              setErr(errorMessage(e2));
+            } finally {
+              setPhotoBusy(false);
             }
           }}
         />
         <button
           type="button"
           className="profile-photo-edit"
+          disabled={photoBusy}
           onClick={() => fileRef.current?.click()}
           title={avatar ? 'Change photo' : 'Add photo'}
           aria-label={avatar ? 'Change photo' : 'Add photo'}
@@ -97,7 +103,22 @@ export function ProfilePage() {
           <QrIcon />
         </button>
         {avatar && (
-          <button type="button" className="btn-link profile-photo-remove" onClick={() => removeAvatar(user.id)}>
+          <button
+            type="button"
+            className="btn-link profile-photo-remove"
+            disabled={photoBusy}
+            onClick={async () => {
+              setErr(null);
+              setPhotoBusy(true);
+              try {
+                setUser(await userApi.updateMe({ avatarUrl: '' }));
+              } catch (e2) {
+                setErr(errorMessage(e2));
+              } finally {
+                setPhotoBusy(false);
+              }
+            }}
+          >
             Remove
           </button>
         )}

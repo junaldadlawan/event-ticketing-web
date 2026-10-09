@@ -162,6 +162,12 @@ export function CartPage() {
               </button>
             </form>
           )}
+          {cart.platformFee && cart.platformFee.amount > 0 && (
+            <div className="row-between">
+              <span>Platform fee</span>
+              <span>{formatMoney(cart.platformFee)}</span>
+            </div>
+          )}
           <div className="row-between total">
             <span>Total</span>
             <strong>{formatMoney(cart.total)}</strong>

@@ -3,12 +3,14 @@ import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { eventApi } from '../../api/endpoints';
 import type { EventStatus } from '../../api/types';
+import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { CategorySelect } from '../../components/CategorySelect';
 import { PlusIcon, SearchIcon } from '../../components/DesignerIcons';
 import { EventCollection, ResultsBar, useEventView } from '../../components/EventCollection';
 import { Empty, ErrorBox, Pagination, Spinner } from '../../components/ui';
 import { humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
+import { useOrgNames } from '../../utils/useOrgNames';
 
 const STATUSES: EventStatus[] = [
   'DRAFT',
@@ -44,6 +46,8 @@ export function ManageEventsPage() {
     [keyword, category, status, page],
   );
 
+  const orgNames = useOrgNames((data?.content ?? []).map((e) => e.organizationId));
+
   function update(next: Record<string, string>) {
     const merged = { keyword, category, status, page: String(page), ...next };
     const clean = Object.fromEntries(Object.entries(merged).filter(([, v]) => v && v !== '0'));
@@ -59,9 +63,13 @@ export function ManageEventsPage() {
 
   return (
     <>
+      <SuspendedOrgNotice organizationIds={(data?.content ?? []).map((e) => e.organizationId)} />
       <section className="hero">
         <div className="row-between page-header">
-          <h1>Manage events</h1>
+          <div>
+            <h1>Manage events</h1>
+            {orgNames.size > 0 && <p className="muted org-line">{[...orgNames.values()].join(' · ')}</p>}
+          </div>
           <Link to="/manage/new" className="btn btn-cta">
             <PlusIcon />
             New event
@@ -122,6 +130,7 @@ export function ManageEventsPage() {
               hrefFor={(ev) => `/manage/events/${ev.id}`}
               extra={(ev) => (
                 <>
+                  {orgNames.size > 1 && orgNames.get(ev.organizationId) && <>{orgNames.get(ev.organizationId)} · </>}
                   Prefix <code>{ev.ticketPrefix}</code>
                 </>
               )}

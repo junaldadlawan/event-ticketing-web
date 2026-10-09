@@ -1,8 +1,5 @@
-import { useAvatar } from '../utils/avatar';
-
-/** Round profile picture, or the user's initials when none was added. */
-export function Avatar({ userId, name, size = 32 }: { userId: string; name: string; size?: number }) {
-  const src = useAvatar(userId);
+/** Round profile picture, or the user's initials when there is none. */
+export function Avatar({ src, name, size = 32 }: { src?: string | null; name: string; size?: number }) {
   const initials = name
     .split(/\s+/)
     .filter(Boolean)

@@ -4,6 +4,7 @@ import { errorMessage } from '../api/client';
 import { eventApi, ticketTypeApi, waitlistApi } from '../api/endpoints';
 import type { TicketType } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
+import { useManagementHidden } from '../auth/ViewMode';
 import { useCanManage } from '../auth/useCanManage';
 import { EditIcon } from '../components/DesignerIcons';
 import { useCart } from '../cart/CartContext';
@@ -20,7 +21,8 @@ export function EventDetailPage() {
     [eventId],
   );
   // Owners/organizers of the event's organization (and admins) get a shortcut to edit it.
-  const canManage = useCanManage(data?.[0].organizationId);
+  const managementHidden = useManagementHidden(); // a host browsing as a customer
+  const canManage = useCanManage(data?.[0].organizationId) && !managementHidden;
 
   if (loading) return <Spinner />;
   if (error || !data) return <ErrorBox message={error ?? 'Event not found'} />;
@@ -63,7 +65,7 @@ export function EventDetailPage() {
       <p className="description">{event.description}</p>
 
       <p>
-        <Link to={`/events/${event.id}/updates`}>Sales &amp; announcements</Link>
+        <Link to={`/events/${event.id}/updates`}>Posts</Link>
       </p>
 
       <h2>Tickets</h2>

@@ -108,3 +108,25 @@ export function useCanManage(organizationId: UUID | null | undefined): boolean {
 
   return allowed;
 }
+
+/**
+ * Whether the signed-in user is an owner or organizer of `organizationId` themselves. Unlike `useCanManage`
+ * there is no admin shortcut: an admin who is not a member of the organization gets false. Used for the
+ * ticket types, which only the event's own organizers may add, edit, pause, reorder or delete.
+ */
+export function useIsOrgManager(organizationId: UUID | null | undefined): boolean {
+  const { user } = useAuth();
+  const [allowed, setAllowed] = useState(false);
+
+  useEffect(() => {
+    setAllowed(false);
+    if (!user || !organizationId) return;
+    let cancelled = false;
+    canManageOrg(user.id, organizationId).then((ok) => !cancelled && setAllowed(ok));
+    return () => {
+      cancelled = true;
+    };
+  }, [user, organizationId]);
+
+  return allowed;
+}

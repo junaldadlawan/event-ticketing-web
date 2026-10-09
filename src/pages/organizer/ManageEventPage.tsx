@@ -12,6 +12,9 @@ import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, Pla
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../components/ui';
 import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso } from '../../utils/format';
 import { sortTicketTypes } from '../../utils/ticketTypes';
+import { useIsOrgManager } from '../../auth/useCanManage';
+import { useOrgNames } from '../../utils/useOrgNames';
+import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { useAsync } from '../../utils/useAsync';
 
 export function ManageEventPage() {
@@ -32,6 +35,9 @@ export function ManageEventPage() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [editingDetails, setEditingDetails] = useState(false);
+  // Only the event's own owner / organizer may change ticket types; an admin sees them read-only.
+  const canEditTickets = useIsOrgManager(event?.organizationId);
+  const orgName = useOrgNames(event ? [event.organizationId] : []).get(event?.organizationId ?? '');
 
   if (loading && !event) return <Spinner />;
   if (error || !event) return <ErrorBox message={error ?? 'Event not found'} />;
@@ -54,6 +60,7 @@ export function ManageEventPage() {
 
   return (
     <div className="manage-page">
+      <SuspendedOrgNotice organizationIds={[event.organizationId]} />
       <section className="event-hero">
         <div className="title-with-status">
           <h1>{event.title}</h1>
@@ -69,6 +76,7 @@ export function ManageEventPage() {
           </button>
         </div>
         <p className="event-hero-when">
+          {orgName && <>{orgName} · </>}
           {formatDateTime(event.startAt, event.timezone)} · prefix <code>{event.ticketPrefix}</code>
           {event.category && <span className="hero-category">{humanize(event.category)}</span>}
         </p>
@@ -128,6 +136,7 @@ export function ManageEventPage() {
         typeCount={typesQuery.data?.length ?? null}
         layoutCount={templates?.length ?? null}
         busy={busy}
+        canEditTickets={canEditTickets}
         onPublish={() => act(() => eventApi.publish(event.id))}
       />
 
@@ -164,6 +173,7 @@ export function ManageEventPage() {
 
       <TicketTypes
         eventId={event.id}
+        canEdit={canEditTickets}
         query={typesQuery}
         promoQuery={promoQuery}
         ownDesignTypeIds={new Set((templates ?? []).map((t) => t.ticketTypeId).filter((id): id is string => Boolean(id)))}
@@ -182,6 +192,7 @@ function LaunchChecklist({
   typeCount,
   layoutCount,
   busy,
+  canEditTickets,
   onPublish,
 }: {
   event: Event;
@@ -189,6 +200,7 @@ function LaunchChecklist({
   typeCount: number | null;
   layoutCount: number | null;
   busy: boolean;
+  canEditTickets: boolean;
   onPublish: () => void;
 }) {
   // Collapsed = just the headline and the progress bar. The choice is remembered in this browser.
@@ -233,11 +245,11 @@ function LaunchChecklist({
       title: 'Ticket types',
       hint: typeCount ? `${typeCount} ticket type${typeCount === 1 ? '' : 's'} ready to sell` : 'Decide what people can buy',
       done: Boolean(typeCount),
-      action: (
+      action: canEditTickets ? (
         <a href="#ticket-types" className="btn btn-sm">
           Add ticket types
         </a>
-      ),
+      ) : null,
     },
     {
       key: 'design',
@@ -644,11 +656,14 @@ function PromoCodesDialog({
 
 function TicketTypes({
   eventId,
+  canEdit,
   query,
   promoQuery,
   ownDesignTypeIds,
 }: {
   eventId: string;
+  /** false = read-only (an admin who is not an organizer of this event): no add, edit, pause, reorder or delete. */
+  canEdit: boolean;
   query: ReturnType<typeof useAsync<TicketType[]>>;
   promoQuery: ReturnType<typeof useAsync<PromoCode[]>>;
   /** Ticket types that have a layout of their own (the others print with "All ticket types"). */
@@ -917,9 +932,11 @@ function TicketTypes({
             </>
           )}
         </div>
-        <button type="button" className="btn btn-primary btn-sm" onClick={openAdd}>
-          + Add ticket type
-        </button>
+        {canEdit && (
+          <button type="button" className="btn btn-primary btn-sm" onClick={openAdd}>
+            + Add ticket type
+          </button>
+        )}
       </div>
       <ErrorBox message={error ?? rowError} />
       {savedNote && (
@@ -928,7 +945,9 @@ function TicketTypes({
         </div>
       )}
       {data && data.length === 0 && (
-        <p className="muted small">None yet. Add the first one to start selling.</p>
+        <p className="muted small">
+          {canEdit ? 'None yet. Add the first one to start selling.' : 'No ticket types yet.'}
+        </p>
       )}
       <ul className="plain-list">
         {sortedTypes.map((tt) => (
@@ -946,15 +965,17 @@ function TicketTypes({
             <div className="tt-main">
               <div className="tt-name">
                 <strong>{tt.name}</strong>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-icon tt-edit"
-                  onClick={() => openEdit(tt)}
-                  aria-label={`Edit ${tt.name}`}
-                  title="Edit"
-                >
-                  <EditIcon />
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-icon tt-edit"
+                    onClick={() => openEdit(tt)}
+                    aria-label={`Edit ${tt.name}`}
+                    title="Edit"
+                  >
+                    <EditIcon />
+                  </button>
+                )}
                 <span className={`status-chip status-${ticketStatus(tt).tone}`}>{ticketStatus(tt).label}</span>
                 <span
                   className="tt-design"
@@ -994,15 +1015,17 @@ function TicketTypes({
             <div className="tt-stub">
             <strong className="tt-price">{formatMoney(tt.price)}</strong>
             <div className="tt-actions">
-              <button
-                type="button"
-                className={`btn btn-sm btn-icon ${tt.salesPaused ? 'btn-resume' : 'btn-pause'}`}
-                onClick={() => setToggling(tt)}
-                aria-label={tt.salesPaused ? `Resume sales for ${tt.name}` : `Pause sales for ${tt.name}`}
-                title={tt.salesPaused ? 'Resume sales: let people buy this ticket type again' : 'Pause sales: stop new purchases without deleting anything'}
-              >
-                {tt.salesPaused ? <PlayIcon /> : <PauseIcon />}
-              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  className={`btn btn-sm btn-icon ${tt.salesPaused ? 'btn-resume' : 'btn-pause'}`}
+                  onClick={() => setToggling(tt)}
+                  aria-label={tt.salesPaused ? `Resume sales for ${tt.name}` : `Pause sales for ${tt.name}`}
+                  title={tt.salesPaused ? 'Resume sales: let people buy this ticket type again' : 'Pause sales: stop new purchases without deleting anything'}
+                >
+                  {tt.salesPaused ? <PlayIcon /> : <PauseIcon />}
+                </button>
+              )}
               <RowMenu label={`More actions for ${tt.name}`}>
                 {(close) => (
                   <>
@@ -1038,47 +1061,53 @@ function TicketTypes({
                     >
                       Promo codes ({promosFor(tt).length})
                     </button>
-                    <button
-                      type="button"
-                      className="menu-item"
-                      onClick={() => {
-                        close();
-                        openDuplicate(tt);
-                      }}
-                    >
-                      Duplicate
-                    </button>
-                    <button
-                      type="button"
-                      className="menu-item menu-item-danger"
-                      onClick={() => {
-                        close();
-                        setDeleting(tt);
-                      }}
-                    >
-                      Delete
-                    </button>
+                    {canEdit && (
+                      <>
+                        <button
+                          type="button"
+                          className="menu-item"
+                          onClick={() => {
+                            close();
+                            openDuplicate(tt);
+                          }}
+                        >
+                          Duplicate
+                        </button>
+                        <button
+                          type="button"
+                          className="menu-item menu-item-danger"
+                          onClick={() => {
+                            close();
+                            setDeleting(tt);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
               </RowMenu>
             </div>
             </div>
-            <button
-              type="button"
-              className="tt-grip"
-              onPointerDown={(e) => beginDrag(e, tt.id)}
-              onPointerMove={(e) => moveDrag(e)}
-              onPointerUp={() => endDrag()}
-              onPointerCancel={() => cancelDrag()}
-              onKeyDown={(e) => {
-                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                  e.preventDefault();
-                  moveBy(tt.id, e.key === 'ArrowUp' ? -1 : 1);
-                }
-              }}
-            >
-              <GripIcon />
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                className="tt-grip"
+                onPointerDown={(e) => beginDrag(e, tt.id)}
+                onPointerMove={(e) => moveDrag(e)}
+                onPointerUp={() => endDrag()}
+                onPointerCancel={() => cancelDrag()}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    moveBy(tt.id, e.key === 'ArrowUp' ? -1 : 1);
+                  }
+                }}
+              >
+                <GripIcon />
+              </button>
+            )}
           </li>
         ))}
       </ul>

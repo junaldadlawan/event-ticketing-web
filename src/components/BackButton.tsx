@@ -17,7 +17,7 @@ export function BackButton() {
 
   // The top-level tabs (Home, Events, Manage) and the login and sign-up pages have nowhere to go back to. They line up with each other, so
   // no placeholder is needed.
-  if (['/', '/home', '/manage', '/login', '/register'].includes(location.pathname)) return null;
+  if (['/', '/home', '/manage', '/manage/team', '/login', '/register', '/admin/posts', '/admin/organizations', '/admin/users', '/admin/payouts'].includes(location.pathname)) return null;
 
   async function goBack() {
     // Unsaved edits on this page? Ask "Discard or continue editing" first.

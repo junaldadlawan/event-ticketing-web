@@ -65,6 +65,12 @@ export function OrderDetailPage() {
               <small>Total</small>
               {formatMoney(order.total)}
             </span>
+            {order.platformFee && order.platformFee.amount > 0 && (
+              <span className="order-fact">
+                <small>Platform fee</small>
+                {formatMoney(order.platformFee)}
+              </span>
+            )}
             <span className="order-fact">
               <small>Tickets</small>
               {order.tickets.length}
