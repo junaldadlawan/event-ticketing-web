@@ -2,13 +2,23 @@ import { useEffect, useRef, useState } from 'react';
 import type { ViewMode } from '../auth/ViewMode';
 import { CheckIcon, ChevronDownIcon } from './DesignerIcons';
 
-const OPTIONS: { mode: ViewMode; label: string; hint: string }[] = [
-  { mode: 'customer', label: 'Customer', hint: 'The app the way buyers see it' },
-  { mode: 'manage', label: 'Management', hint: 'Manage events, tickets and posts' },
+/** The two views, named by what the person is: "Customer view" and "<position> view" (Organization Owner view, Admin view...). */
+const optionsFor = (position: string | null): { mode: ViewMode; label: string; hint: string }[] => [
+  { mode: 'customer', label: 'Customer view', hint: 'The app the way buyers see it' },
+  { mode: 'manage', label: `${position ?? 'Management'} view`, hint: 'Manage events, tickets and posts' },
 ];
 
-/** One button showing the current view; clicking it opens a short menu to choose Customer or Management. */
-export function ViewSwitcher({ mode, onChoose }: { mode: ViewMode; onChoose: (next: ViewMode) => void }) {
+/** One button showing the current view; clicking it opens a short menu to choose the customer view or the position's view. */
+export function ViewSwitcher({
+  mode,
+  position,
+  onChoose,
+}: {
+  mode: ViewMode;
+  position: string | null;
+  onChoose: (next: ViewMode) => void;
+}) {
+  const OPTIONS = optionsFor(position);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 

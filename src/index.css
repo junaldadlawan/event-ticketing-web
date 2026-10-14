@@ -6295,3 +6295,538 @@ button.code-warning:focus-visible {
   font-size: 1.3rem;
   font-weight: 800;
 }
+
+/* Dev only: seeded test accounts beside the log in pop-up (a popover, so it lives in the top layer). */
+.test-users {
+  position: fixed;
+  inset: auto;
+  top: 50%;
+  right: 28px;
+  transform: translateY(-50%);
+  width: 270px;
+  max-height: 80vh;
+  overflow: auto;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 20px 50px rgb(20 10 70 / 0.35);
+}
+.test-users h2 {
+  margin: 0 0 2px;
+  font-size: 1rem;
+}
+.test-user {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 12px;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--subtle);
+}
+.test-user:hover {
+  border-color: #a071fd;
+}
+@media (max-width: 1250px) {
+  .test-users {
+    display: none;
+  }
+}
+.test-user {
+  margin-top: 6px;
+  padding: 7px 12px;
+}
+
+/* Staff top bar: the extra tabs (Manage, Posts, Organizations...) do not fit in the page column, so the bar gets
+   wider and stays on one line instead of wrapping the account controls onto a second row. */
+.topbar-inner:has(nav[aria-label='Organizer']) {
+  max-width: 1160px;
+  gap: 22px;
+  flex-wrap: nowrap;
+}
+.topbar-inner:has(nav[aria-label='Organizer']) .nav {
+  gap: 16px;
+}
+@media (max-width: 1000px) {
+  .topbar-inner:has(nav[aria-label='Organizer']) {
+    flex-wrap: wrap;
+  }
+}
+
+/* Organization roles sit beside the account role chip on the Users page. */
+.admin-table td .status-chip + .status-chip {
+  margin-left: 6px;
+}
+
+/* Users page: the arrow at the end of each row opens that user's organizations. */
+.admin-expand svg {
+  transition: transform 0.15s;
+}
+.admin-expand[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-expand svg {
+    transition: none;
+  }
+}
+.admin-menu {
+  position: relative;
+  width: 1%;
+}
+.admin-menu .menu {
+  min-width: 220px;
+}
+.menu-empty {
+  cursor: default;
+}
+.test-users-note {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px dashed #ff8e7a;
+  background: rgb(255 142 122 / 0.14);
+  color: var(--text);
+}
+
+/* Test users: one colour per kind of account (stripe on the left + the role pill). */
+.test-user {
+  --tone: #8c6bea;
+  border-left: 5px solid var(--tone);
+}
+.test-user[data-tone='super'] { --tone: #f0a020; }
+.test-user[data-tone='admin'] { --tone: #8c6bea; }
+.test-user[data-tone='owner'] { --tone: #3b6fe0; }
+.test-user[data-tone='organizer'] { --tone: #17a2b8; }
+.test-user[data-tone='staff'] { --tone: #e8643c; }
+.test-user[data-tone='customer'] { --tone: #2fb67c; }
+.test-user-role {
+  align-self: flex-start;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text);
+  background: color-mix(in srgb, var(--tone) 28%, transparent);
+}
+
+/* Test users: use the free space beside the dialog (wider on big screens), compact cards so all fit without scrolling. */
+.test-users {
+  right: 16px;
+  width: clamp(240px, calc(50vw - 472px), 400px);
+  max-height: calc(100vh - 32px);
+}
+.test-user {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px 10px;
+  margin-top: 6px;
+  padding: 6px 12px;
+}
+.test-user .muted {
+  flex-basis: 100%;
+}
+.test-user-role {
+  align-self: center;
+}
+@media (max-width: 1423px) {
+  .test-users {
+    display: none;
+  }
+}
+
+/* Test users as a grid, one section per kind of account. */
+.test-group {
+  --tone: #8c6bea;
+  margin-top: 12px;
+}
+.test-group[data-tone='super'] { --tone: #f0a020; }
+.test-group[data-tone='admin'] { --tone: #8c6bea; }
+.test-group[data-tone='owner'] { --tone: #3b6fe0; }
+.test-group[data-tone='organizer'] { --tone: #17a2b8; }
+.test-group[data-tone='staff'] { --tone: #e8643c; }
+.test-group[data-tone='customer'] { --tone: #2fb67c; }
+.test-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.test-group h3::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+.test-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+.test-grid .test-user {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 1px;
+  min-width: 0;
+  margin: 0;
+}
+.test-grid .test-user .muted {
+  flex-basis: auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "Nothing to show" in a menu is plain text, not an item: no hover, no pointer. */
+.menu-empty {
+  display: block;
+  padding: 7px 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: default;
+  user-select: none;
+}
+
+/* Member names in the organization members dialog open that user on the Users page. */
+.admin-member-link {
+  color: inherit;
+  text-decoration: none;
+}
+.admin-member-link:hover strong,
+.admin-member-link:focus-visible strong {
+  text-decoration: underline;
+  text-decoration-color: #a071fd;
+  text-underline-offset: 3px;
+}
+
+/* Plain event cards (Manage events, grid and list): real cards with room inside, like the ticket cards elsewhere. */
+.event-list {
+  gap: 12px;
+  border-top: none;
+}
+.event-list .event-card,
+.event-grid .event-card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+  transition: border-color 0.15s, transform 0.15s;
+}
+.event-list .event-card {
+  padding: 16px 22px 16px 16px;
+}
+.event-grid .event-card {
+  padding: 12px 12px 16px;
+}
+.event-list .event-card:hover,
+.event-grid .event-card:hover {
+  border-color: #a071fd;
+}
+.event-card .card-body {
+  min-width: 0;
+}
+.event-grid .event-card .card-body {
+  padding: 0 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .event-list .event-card,
+  .event-grid .event-card {
+    transition: none;
+  }
+}
+/* One more admin tab (Settings): a little wider and tighter so the staff bar still stays on one row. */
+.topbar-inner:has(nav[aria-label='Organizer']) {
+  max-width: 1300px;
+  gap: 18px;
+}
+.topbar-inner:has(nav[aria-label='Organizer']) .nav {
+  gap: 13px;
+}
+@media (max-width: 1100px) {
+  .topbar-inner:has(nav[aria-label='Organizer']) {
+    flex-wrap: wrap;
+  }
+}
+
+/* Settings: a vertical list of sections on the left, the chosen section's settings on the right. */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+  margin-top: 8px;
+}
+.settings-nav {
+  position: sticky;
+  top: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+}
+.settings-nav a {
+  padding: 9px 12px;
+  border-radius: 10px;
+  border-left: 3px solid transparent;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+.settings-nav a:hover {
+  color: var(--text);
+  background: var(--subtle);
+}
+.settings-nav a.active {
+  color: var(--text);
+  font-weight: 600;
+  background: var(--subtle);
+  border-left-color: #a071fd;
+}
+.settings-panel > h2 {
+  margin-top: 0;
+}
+@media (max-width: 760px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .settings-nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+/* One setting: its name, its value, and a button to change it. */
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.setting-row dt {
+  min-width: 140px;
+  font-weight: 600;
+}
+.setting-row dd {
+  margin: 0;
+  flex: 1;
+  color: var(--muted);
+}
+
+/* Payout filters: status, start date, end date (and event name when payouts carry one). */
+.payout-filters {
+  margin-top: 0;
+}
+.payout-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.payout-date input {
+  width: auto;
+}
+.admin-toolbar select[aria-label='Organization'],
+.admin-toolbar select[aria-label='Payout status'] {
+  width: auto;
+  min-width: 200px;
+}
+/* Payout filters: one row, every control the same height, wrapping neatly on narrow screens. */
+.payout-filters {
+  gap: 10px 12px;
+  align-items: center;
+}
+.payout-filters select,
+.payout-filters input[type='date'] {
+  height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.payout-filters select[aria-label='Organization'] {
+  min-width: 220px;
+}
+.payout-filters select[aria-label='Payout status'] {
+  min-width: 150px;
+}
+
+/* Generate payout page */
+.gp-crumbs {
+  margin: 4px 0 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.gp-crumbs a {
+  color: inherit;
+}
+.gp-stats {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  margin: 20px 0;
+}
+.gp-card {
+  margin: 20px 0;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow: var(--card-shadow);
+}
+.gp-title {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.gp-heading {
+  margin: 28px 0 10px;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.gp-criteria {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 20px;
+  margin-bottom: 10px;
+}
+.gp-criteria label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.gp-table th:first-child,
+.gp-table td:first-child {
+  width: 36px;
+}
+.gp-summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 24px;
+  margin: 0 0 12px;
+}
+.gp-summary dt {
+  color: var(--muted);
+}
+.gp-summary dd {
+  margin: 0;
+  text-align: right;
+}
+.gp-note {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px dashed #f0a020;
+  background: rgb(240 160 32 / 0.12);
+}
+@media (max-width: 640px) {
+  .gp-criteria {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Payout cards (Settings > Payment). */
+.pay-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.pay-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+}
+.pay-card.is-primary {
+  border-left-color: #2fb67c;
+}
+.pay-card-brand {
+  min-width: 78px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--subtle);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+}
+.pay-card-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Settings list: plain labels, no box. The current one is bold with a purple mark. */
+.settings-nav {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  gap: 2px;
+}
+.settings-nav a {
+  padding: 6px 12px;
+  border-radius: 0;
+  background: transparent;
+}
+.settings-nav a:hover {
+  background: transparent;
+  color: var(--text);
+}
+.settings-nav a.active {
+  background: transparent;
+  border-left-color: #a071fd;
+}
+
+/* Stripe's card field sits in a box that looks like the other inputs. */
+.stripe-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.stripe-card {
+  min-height: 42px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+/* Customer Profile and Payment share one frame: the list on the left, the page on the right. The profile page keeps its own width. */
+.profile-tabs .profile-page {
+  max-width: none;
+}
+.profile-tabs .settings-panel > h1,
+.profile-tabs .profile-page > h1 {
+  margin-top: 0;
+}

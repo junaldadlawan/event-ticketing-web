@@ -1,3 +1,4 @@
+import { ProfileTabs } from '../components/ProfileTabs';
 import { useRef, useState } from 'react';
 import { fullName, formatDate } from '../utils/format';
 import type { FormEvent } from 'react';
@@ -71,6 +72,7 @@ export function ProfilePage() {
   }
 
   return (
+    <ProfileTabs>
     <div className="profile-page">
       <h1>Profile</h1>
       <ErrorBox message={err} />
@@ -256,8 +258,10 @@ export function ProfilePage() {
         </div>
       </dl>
 
+
       <MyQrDialog open={qrOpen} onClose={() => setQrOpen(false)} userId={user.id} name={fullName(user)} />
     </div>
+    </ProfileTabs>
   );
 }
 

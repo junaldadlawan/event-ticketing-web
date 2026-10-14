@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
 import { adminUserApi, eventApi, moderationApi, organizationApi } from '../../api/endpoints';
 import type { Organization, OrganizationRole, OrganizationStatus, User } from '../../api/types';
@@ -78,7 +79,9 @@ function OrganizationsManager() {
   // Which organizations have created at least one event (any state): those are "operating".
   const orgsWithEvents = useAsync(loadOrgIdsWithEvents, []);
   const [filter, setFilter] = useState<StatusFilter>('ALL');
-  const [query, setQuery] = useState('');
+  // The Users page links here with ?q=<organization name> to open the list already searched.
+  const [params] = useSearchParams();
+  const [query, setQuery] = useState(params.get('q') ?? '');
   const [action, setAction] = useState<Action | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -391,7 +394,8 @@ function RenameForm({ org, onCancel, onSaved }: { org: Organization; onCancel: (
   );
 }
 
-const ASSIGNABLE: OrganizationRole[] = ['ORGANIZER', 'CHECK_IN_STAFF'];
+// shortcut: the API still refuses OWNER here (403) until it allows granting it; the error shows in the dialog.
+const ASSIGNABLE: OrganizationRole[] = ['OWNER', 'ORGANIZER', 'CHECK_IN_STAFF'];
 
 function MembersPanel({ org, users, onClose }: { org: Organization; users: User[]; onClose: () => void }) {
   const members = useAsync(() => organizationApi.members(org.id), [org.id]);
@@ -430,7 +434,18 @@ function MembersPanel({ org, users, onClose }: { org: Organization; users: User[
             return (
               <li key={m.userId} className="row-between admin-member">
                 <span>
-                  <strong>{u ? fullName(u) : 'Unknown user'}</strong>
+                  {u ? (
+                    <Link
+                      to={`/admin/users?q=${encodeURIComponent(u.email)}`}
+                      state={{ from: '/admin/organizations' }}
+                      className="admin-member-link"
+                      title="Open in Users"
+                    >
+                      <strong>{fullName(u)}</strong>
+                    </Link>
+                  ) : (
+                    <strong>Unknown user</strong>
+                  )}
                   <span className="muted small"> {u?.email ?? m.userId}</span>
                 </span>
                 <span>
@@ -465,7 +480,6 @@ function MembersPanel({ org, users, onClose }: { org: Organization; users: User[
           {busy ? 'Adding…' : 'Add'}
         </button>
       </form>
-      <small className="muted">The owner comes from approving the application, so it can&apos;t be assigned here.</small>
       <ErrorBox message={members.error ?? error} />
       <div className="modal-actions">
         <button type="button" className="btn" onClick={onClose}>

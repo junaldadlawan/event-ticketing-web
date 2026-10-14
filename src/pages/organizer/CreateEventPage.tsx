@@ -1,3 +1,4 @@
+import { isAdmin as isAdminRole } from '../../auth/roles';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -32,7 +33,7 @@ export function CreateEventPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const orgs = useAsync(() => loadMyOrganizations(user?.role === 'ADMIN'), [user?.role]);
+  const orgs = useAsync(() => loadMyOrganizations(isAdminRole(user?.role)), [user?.role]);
   // One organization is used silently; with several, the first is preselected and a name dropdown is shown.
   const organizationId = orgChoice || orgs.data?.[0]?.id || '';
   const { data: venues } = useAsync(

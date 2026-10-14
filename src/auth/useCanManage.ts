@@ -1,3 +1,4 @@
+import { isAdmin as isAdminRole } from './roles';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../api/client';
 import { eventApi, organizationApi } from '../api/endpoints';
@@ -69,7 +70,7 @@ export function useIsHost(): boolean | null {
       setIsHost(false);
       return;
     }
-    if (user.role === 'ADMIN') {
+    if (isAdminRole(user.role)) {
       setIsHost(true);
       return;
     }
@@ -95,7 +96,7 @@ export function useCanManage(organizationId: UUID | null | undefined): boolean {
   useEffect(() => {
     setAllowed(false);
     if (!user || !organizationId) return;
-    if (user.role === 'ADMIN') {
+    if (isAdminRole(user.role)) {
       setAllowed(true);
       return;
     }
@@ -129,4 +130,43 @@ export function useIsOrgManager(organizationId: UUID | null | undefined): boolea
   }, [user, organizationId]);
 
   return allowed;
+}
+
+// Per user, per page load: the user's best organization role ("Organization Owner" beats "Organizer").
+const positionCache = new Map<UUID, Promise<string | null>>();
+
+function orgPosition(userId: UUID): Promise<string | null> {
+  let result = positionCache.get(userId);
+  if (!result) {
+    result = organizationApi
+      .mine()
+      .then((orgs) => Promise.all(orgs.filter((o) => o.status === 'APPROVED').map((o) => organizationApi.members(o.id).catch(() => []))))
+      .then((lists) => {
+        const roles = lists.flat().filter((m) => m.userId === userId).flatMap((m) => m.roles);
+        return roles.includes('OWNER') ? 'Organization Owner' : roles.includes('ORGANIZER') ? 'Organizer' : null;
+      })
+      .catch(() => null);
+    positionCache.set(userId, result);
+  }
+  return result;
+}
+
+/** What to call the management view for this user: "Super admin", "Admin", "Organization Owner" or "Organizer" (null while checking). */
+export function usePosition(): string | null {
+  const { user } = useAuth();
+  const [position, setPosition] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPosition(null);
+    if (!user) return;
+    if (user.role === 'SUPER_ADMIN') return setPosition('Super admin');
+    if (user.role === 'ADMIN') return setPosition('Admin');
+    let cancelled = false;
+    orgPosition(user.id).then((p) => !cancelled && setPosition(p));
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  return position;
 }

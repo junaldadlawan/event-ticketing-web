@@ -1,3 +1,4 @@
+import { isAdmin as isAdminRole } from '../auth/roles';
 import { organizationApi } from '../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
 import { CONTACT_EMAIL } from '../config';
@@ -12,7 +13,7 @@ export function SuspendedOrgNotice({ organizationIds }: { organizationIds: strin
   const key = [...new Set(organizationIds)].sort().join(',');
   const suspended = useAsync(
     async () => {
-      if (user?.role === 'ADMIN') return [];
+      if (isAdminRole(user?.role)) return [];
       // The user's own organizations (finds one with no events yet), plus the ones behind the events on screen.
       const mine = await organizationApi.mine().catch(() => []);
       const known = new Set(mine.map((o) => o.id));

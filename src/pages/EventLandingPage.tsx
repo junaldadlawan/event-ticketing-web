@@ -1,3 +1,4 @@
+import { isAdmin as isAdminRole } from '../auth/roles';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { errorMessage } from '../api/client';
@@ -46,7 +47,7 @@ export function EventLandingPage() {
     [eventId],
   );
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = isAdminRole(user?.role);
   const postsQuery = useAsync(() => postApi.list({ eventId, page: 0, size: 20 }), [eventId]);
   useLivePosts(() => postApi.list({ eventId, page: 0, size: 20 }), postsQuery.setData);
   const posts = postsQuery.data?.content ?? [];

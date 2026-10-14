@@ -1,22 +1,38 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
-import { adminUserApi, moderationApi } from '../../api/endpoints';
-import type { ModerationActionType, Role, User } from '../../api/types';
+import { adminUserApi, moderationApi, organizationApi } from '../../api/endpoints';
+import type { ModerationActionType, OrganizationRole, Role, User } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
+import { canModerate } from '../../auth/roles';
 import { Avatar } from '../../components/Avatar';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { EditIcon, SearchIcon, TrashIcon } from '../../components/DesignerIcons';
+import { ChevronDownIcon, EditIcon, SearchIcon, TrashIcon } from '../../components/DesignerIcons';
 import { FormDialog } from '../../components/FormDialog';
 import { Empty, ErrorBox, Spinner, SuccessBox } from '../../components/ui';
-import { formatDateTime, fullName } from '../../utils/format';
+import { formatDateTime, fullName, humanize } from '../../utils/format';
 import { BirthdateField } from '../../components/BirthdateField';
 import { PhoneField } from '../../components/PhoneField';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
 import { ReasonForm } from './ReasonForm';
 
-type RoleFilter = 'ALL' | Role;
+type RoleFilter = 'ALL' | Role | OrganizationRole;
+
+/** Who holds which role in which organization. The account role is only Customer / Admin; owner, organizer and
+ * check-in staff are memberships, so they come from each organization's member list. */
+async function loadMemberships(): Promise<Map<string, { orgId: string; orgName: string; role: OrganizationRole }[]>> {
+  const orgs = await organizationApi.list('APPROVED');
+  const lists = await Promise.all(orgs.map((o) => organizationApi.members(o.id).catch(() => [])));
+  const byUser = new Map<string, { orgId: string; orgName: string; role: OrganizationRole }[]>();
+  lists.forEach((members, i) =>
+    members.forEach((mem) =>
+      mem.roles.forEach((role) => byUser.set(mem.userId, [...(byUser.get(mem.userId) ?? []), { orgId: orgs[i].id, orgName: orgs[i].name, role }])),
+    ),
+  );
+  return byUser;
+}
 
 /** Admin tab: every account, with edit (name, email, role), suspend / reinstate and delete. */
 export function AdminUsersPage() {
@@ -30,21 +46,42 @@ export function AdminUsersPage() {
 function UsersManager() {
   const { user: me } = useAuth();
   const users = useAsync(() => adminUserApi.list(), []);
-  const [query, setQuery] = useState('');
+  const memberships = useAsync(loadMemberships, []);
+  // The Organizations page links here with ?q=<email> to open the list already searched.
+  const [params] = useSearchParams();
+  const [query, setQuery] = useState(params.get('q') ?? '');
   const [role, setRole] = useState<RoleFilter>('ALL');
   const [editing, setEditing] = useState<User | null>(null);
   const [moderating, setModerating] = useState<{ user: User; action: ModerationActionType } | null>(null);
   const [deleting, setDeleting] = useState<User | null>(null);
+  // Id of the user whose organizations menu is open.
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (users.data ?? [])
-      .filter((u) => role === 'ALL' || u.role === role)
+      .filter(
+        (u) =>
+          role === 'ALL' || u.role === role || memberships.data?.get(u.id)?.some((mem) => mem.role === role),
+      )
       .filter((u) => !q || fullName(u).toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
       .sort((a, b) => fullName(a).localeCompare(fullName(b)));
-  }, [users.data, query, role]);
+  }, [users.data, memberships.data, query, role]);
+
+  // Close the menu on an outside click or Escape.
+  useEffect(() => {
+    if (!menuFor) return;
+    const onDown = (e: MouseEvent) => !(e.target as Element).closest('.admin-menu') && setMenuFor(null);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuFor(null);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuFor]);
 
   async function confirmDelete() {
     const u = deleting;
@@ -79,8 +116,12 @@ function UsersManager() {
         </label>
         <select value={role} onChange={(e) => setRole(e.target.value as RoleFilter)} aria-label="Filter by role">
           <option value="ALL">All roles</option>
+          <option value="SUPER_ADMIN">Super admin</option>
           <option value="ADMIN">Admins</option>
           <option value="CUSTOMER">Customers</option>
+          <option value="OWNER">Organization owners</option>
+          <option value="ORGANIZER">Organizers</option>
+          <option value="CHECK_IN_STAFF">Check-in staff</option>
         </select>
         <span className="muted small">
           {list.length} {list.length === 1 ? 'user' : 'users'}
@@ -101,6 +142,7 @@ function UsersManager() {
               <th>Role</th>
               <th>Joined</th>
               <th aria-label="Actions" />
+              <th aria-label="Organizations" />
             </tr>
           </thead>
           <tbody>
@@ -121,9 +163,18 @@ function UsersManager() {
                     </div>
                   </td>
                   <td>
-                    <span className={`status-chip ${u.role === 'ADMIN' ? 'status-info' : 'status-good'}`}>
-                      {u.role === 'ADMIN' ? 'Admin' : 'Customer'}
+                    <span className={`status-chip ${u.role === 'CUSTOMER' ? 'status-good' : 'status-info'}`}>
+                      {humanize(u.role)}
                     </span>
+                    {memberships.data?.get(u.id)?.map((mem) => (
+                      <span
+                        key={mem.orgName + mem.role}
+                        className="status-chip status-info admin-chip"
+                        title={mem.orgName}
+                      >
+                        {humanize(mem.role)}
+                      </span>
+                    ))}
                   </td>
                   <td className="muted small">{formatDateTime(u.createdAt)}</td>
                   <td>
@@ -137,15 +188,17 @@ function UsersManager() {
                       >
                         <EditIcon />
                       </button>
+                      {!isMe && canModerate(me?.role, u.role) && (
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => setModerating({ user: u, action: suspended ? 'REINSTATE' : 'SUSPEND' })}
+                        >
+                          {suspended ? 'Reinstate' : 'Suspend'}
+                        </button>
+                      )}
                       {!isMe && (
                         <>
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => setModerating({ user: u, action: suspended ? 'REINSTATE' : 'SUSPEND' })}
-                          >
-                            {suspended ? 'Reinstate' : 'Suspend'}
-                          </button>
                           <button
                             type="button"
                             className="icon-button icon-button-danger"
@@ -158,6 +211,37 @@ function UsersManager() {
                         </>
                       )}
                     </div>
+                  </td>
+                  <td className="admin-menu">
+                    <button
+                      type="button"
+                      className="icon-button admin-expand"
+                      aria-haspopup="menu"
+                      aria-expanded={menuFor === u.id}
+                      aria-label={`Organizations of ${fullName(u)}`}
+                      onClick={() => setMenuFor(menuFor === u.id ? null : u.id)}
+                    >
+                      <ChevronDownIcon />
+                    </button>
+                    {menuFor === u.id && (
+                      <div className="menu" role="menu" aria-label="Organizations">
+                        {memberships.data?.get(u.id)?.length ? (
+                          memberships.data.get(u.id)!.map((mem) => (
+                            <Link
+                              key={mem.orgId + mem.role}
+                              to={`/admin/organizations?q=${encodeURIComponent(mem.orgName)}`}
+                              state={{ from: '/admin/users' }}
+                              role="menuitem"
+                              className="menu-item"
+                            >
+                              {mem.orgName} · {humanize(mem.role)}
+                            </Link>
+                          ))
+                        ) : (
+                          <span className="menu-empty">Nothing to show</span>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
@@ -302,11 +386,12 @@ function EditUserForm({
       </label>
       <label>
         Role
-        <select value={role} disabled={isMe} onChange={(e) => setRole(e.target.value as Role)}>
+        <select value={role} disabled={isMe || user.role === 'SUPER_ADMIN'} onChange={(e) => setRole(e.target.value as Role)}>
           <option value="CUSTOMER">Customer</option>
           <option value="ADMIN">Admin</option>
+          {user.role === 'SUPER_ADMIN' && <option value="SUPER_ADMIN">Super admin</option>}
         </select>
-        {isMe && <small className="muted">You can't change your own role.</small>}
+        {(isMe || user.role === 'SUPER_ADMIN') && <small className="muted">{isMe ? "You can't change your own role." : 'The super admin role cannot be changed.'}</small>}
       </label>
       <ErrorBox message={error} />
       <div className="modal-actions">

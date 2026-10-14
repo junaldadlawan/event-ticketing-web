@@ -20,7 +20,11 @@ import type {
   OrganizationRole,
   OrganizationStatus,
   Payout,
+  PayoutBatchRequest,
+  PayoutCard,
+  PayoutCardRequest,
   PayoutGenerateRequest,
+  EligiblePayouts,
   PlatformFeeRule,
   PlatformFeeRuleRequest,
   UserUpdateRequest,
@@ -260,6 +264,26 @@ export const analyticsApi = {
   event: (eventId: UUID) => api<EventAnalytics>(`/events/${eventId}/analytics`),
 };
 
+/** The signed-in customer's saved payment methods. Needs the payment-method endpoints on the API (see the API prompt). */
+export const paymentMethodApi = {
+  list: () => api<PayoutCard[]>('/users/me/payment-methods'),
+  add: (body: Partial<PayoutCardRequest> & { paymentToken: string; primary: boolean }) =>
+    api<PayoutCard>('/users/me/payment-methods', { method: 'POST', body }),
+  setPrimary: (id: UUID) => api<PayoutCard>(`/users/me/payment-methods/${id}/primary`, { method: 'PUT' }),
+  remove: (id: UUID) => api<void>(`/users/me/payment-methods/${id}`, { method: 'DELETE' }),
+  /** Stripe: a setup intent for the signed-in customer; the card field confirms it with the client secret. */
+  setupIntent: () => api<{ clientSecret: string }>('/users/me/payment-methods/setup-intent', { method: 'POST' }),
+};
+
+/** An organization's payout cards. Needs the payout-card endpoints on the API (see the API prompt). */
+export const payoutCardApi = {
+  list: (orgId: UUID) => api<PayoutCard[]>(`/organizations/${orgId}/payout-cards`),
+  add: (orgId: UUID, body: PayoutCardRequest) =>
+    api<PayoutCard>(`/organizations/${orgId}/payout-cards`, { method: 'POST', body }),
+  setPrimary: (cardId: UUID) => api<PayoutCard>(`/payout-cards/${cardId}/primary`, { method: 'PUT' }),
+  remove: (cardId: UUID) => api<void>(`/payout-cards/${cardId}`, { method: 'DELETE' }),
+};
+
 export const payoutApi = {
   /** Admin only: settle the organization's paid orders of the period that are not in a payout yet (fees are deducted). */
   generate: (orgId: UUID, body: PayoutGenerateRequest) =>
@@ -267,6 +291,11 @@ export const payoutApi = {
   /** Owner / organizer of the organization, or an admin. Newest first. */
   list: (orgId: UUID, q: PageQuery = {}) =>
     api<PageResponse<Payout>>(`/organizations/${orgId}/payouts`, { query: { ...q } }),
+  /** Admin only. Needs GET /payouts/eligible on the API (see the API prompt). */
+  eligible: (q: { periodStart: string; periodEnd: string; organizationId?: UUID; eventScope: 'COMPLETED' | 'ALL' }) =>
+    api<EligiblePayouts>('/payouts/eligible', { query: { ...q } }),
+  /** Admin only. Needs POST /payouts/batch on the API. One payout per organization among the chosen lines. */
+  generateBatch: (body: PayoutBatchRequest) => api<Payout[]>('/payouts/batch', { method: 'POST', body }),
 };
 
 export const categoryApi = {
@@ -304,10 +333,11 @@ export const cartApi = {
   applyPromo: (id: UUID, code: string) =>
     api<Cart>(`/carts/${id}/promo-code`, { method: 'POST', body: { code } }),
   removePromo: (id: UUID) => api<Cart>(`/carts/${id}/promo-code`, { method: 'DELETE' }),
-  checkout: (id: UUID, paymentMethodToken: string, idempotencyKey: string) =>
+  /** Pay with a one-off token (a new card) or with a card the customer saved (paymentMethodId). */
+  checkout: (id: UUID, payment: { paymentMethodToken: string } | { paymentMethodId: UUID }, idempotencyKey: string) =>
     api<Order>(`/carts/${id}/checkout`, {
       method: 'POST',
-      body: { paymentMethodToken },
+      body: payment,
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
 };
