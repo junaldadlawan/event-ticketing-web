@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { errorMessage } from '../api/client';
 import { eventApi, ticketTypeApi, waitlistApi } from '../api/endpoints';
 import type { TicketType } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
+import { useAuthDialog } from '../auth/AuthDialog';
 import { useManagementHidden } from '../auth/ViewMode';
 import { useCanManage } from '../auth/useCanManage';
-import { EditIcon } from '../components/DesignerIcons';
+import { EditIcon, MoonIcon, SunIcon } from '../components/DesignerIcons';
 import { useCart } from '../cart/CartContext';
-import { EventImage } from '../components/EventImage';
+import { EventCover } from '../components/EventSky';
 import { Empty, ErrorBox, Spinner, StatusBadge, SuccessBox } from '../components/ui';
 import { formatDateTime, formatMoney, humanize } from '../utils/format';
+import { isDaytime } from '../utils/timeOfDay';
 import { sortTicketTypes } from '../utils/ticketTypes';
 import { useAsync } from '../utils/useAsync';
 
@@ -27,10 +29,10 @@ export function EventDetailPage() {
   if (loading) return <Spinner />;
   if (error || !data) return <ErrorBox message={error ?? 'Event not found'} />;
   const [event, ticketTypes] = data;
-
-  return (
-    <article className="event-detail">
-      <EventImage event={event} size="lg" className="event-banner" />
+  const day = isDaytime(event);
+  // Category and status, then the big title (with the Manage shortcut): over the sky, or under a picture.
+  const titleBlock = (
+    <>
       <div className="row-between">
         <span className="eyebrow">{event.category}</span>
         <StatusBadge status={event.status} />
@@ -48,6 +50,14 @@ export function EventDetailPage() {
           </Link>
         )}
       </div>
+    </>
+  );
+
+  return (
+    <article className="event-detail">
+      <EventCover event={event} day={day}>
+        {titleBlock}
+      </EventCover>
       <dl className="meta">
         <div>
           <dt>Starts</dt>
@@ -65,7 +75,9 @@ export function EventDetailPage() {
       <p className="description">{event.description}</p>
 
       <p>
-        <Link to={`/events/${event.id}/updates`}>Posts</Link>
+        <Link to={`/events/${event.id}/updates`} className="event-posts-link">
+          Posts
+        </Link>
       </p>
 
       <h2>Tickets</h2>
@@ -74,7 +86,7 @@ export function EventDetailPage() {
       ) : (
         <div className="stack">
           {sortTicketTypes(ticketTypes).map((tt) => (
-            <TicketTypeRow key={tt.id} ticketType={tt} />
+            <TicketTypeRow key={tt.id} ticketType={tt} day={day} />
           ))}
         </div>
       )}
@@ -82,10 +94,10 @@ export function EventDetailPage() {
   );
 }
 
-function TicketTypeRow({ ticketType: tt }: { ticketType: TicketType }) {
+function TicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: boolean }) {
   const { user } = useAuth();
   const { addItem } = useCart();
-  const navigate = useNavigate();
+  const { openAuth } = useAuthDialog();
   const [qty, setQty] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +123,7 @@ function TicketTypeRow({ ticketType: tt }: { ticketType: TicketType }) {
 
   async function onJoinWaitlist() {
     if (!user) {
-      navigate('/login', { state: { from: location.pathname } });
+      openAuth('login');
       return;
     }
     setBusy(true);
@@ -128,7 +140,7 @@ function TicketTypeRow({ ticketType: tt }: { ticketType: TicketType }) {
 
   async function onAdd() {
     if (!user) {
-      navigate('/login', { state: { from: location.pathname } });
+      openAuth('login');
       return;
     }
     setBusy(true);
@@ -144,7 +156,10 @@ function TicketTypeRow({ ticketType: tt }: { ticketType: TicketType }) {
   }
 
   return (
-    <div className="card ticket-row">
+    <div className="card ticket-row cart-ticket">
+      <span className={`cart-stub ${day ? 'is-day' : 'is-night'}`} aria-hidden="true">
+        {day ? <SunIcon /> : <MoonIcon />}
+      </span>
       <div>
         <h3>{tt.name}</h3>
         <p className="muted small">
@@ -178,11 +193,11 @@ function TicketTypeRow({ ticketType: tt }: { ticketType: TicketType }) {
           ))}
         </select>
         {soldOut && !paused && !ended && !notStarted ? (
-          <button className="btn btn-primary" disabled={busy || waitPosition !== null} onClick={onJoinWaitlist}>
+          <button className="btn signup-submit ticket-cta" disabled={busy || waitPosition !== null} onClick={onJoinWaitlist}>
             {waitPosition !== null ? `On the waitlist (#${waitPosition})` : busy ? 'Joining...' : 'Join waitlist'}
           </button>
         ) : (
-          <button className="btn btn-primary" disabled={disabled || busy} onClick={onAdd}>
+          <button className="btn signup-submit ticket-cta" disabled={disabled || busy} onClick={onAdd}>
             {busy ? 'Adding...' : 'Add to cart'}
           </button>
         )}

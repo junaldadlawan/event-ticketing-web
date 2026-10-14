@@ -25,10 +25,12 @@ export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<EventsPage />} />
+        {/* Home is the landing screen; the event list lives at /events. */}
+        <Route index element={<HomePage />} />
+        <Route path="events" element={<EventsPage />} />
         <Route path="events/:eventId" element={<EventDetailPage />} />
         <Route path="events/:eventId/updates" element={<EventLandingPage />} />
-        <Route path="home" element={<HomePage />} />
+        <Route path="home" element={<Navigate to="/" replace />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
 

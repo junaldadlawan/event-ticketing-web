@@ -28,6 +28,7 @@ import type {
   Post,
   PostCreateRequest,
   PostUpdateRequest,
+  RegisterDetails,
   CodePlacement,
   Ticket,
   TicketTemplate,
@@ -37,6 +38,7 @@ import type {
   TicketTypeCreateRequest,
   PromoCode,
   PromoCodeCreateRequest,
+  PromoCodeUpdateRequest,
   SalesStatus,
   TicketTypeUpdateRequest,
   WaitlistEntry,
@@ -56,12 +58,12 @@ export interface PageQuery {
 export const authApi = {
   login: (email: string, password: string) =>
     api<TokenPair>('/auth/login', { method: 'POST', body: { email, password } }),
-  // The register DTO names the plaintext password field `passwordHash`
-  // (the server hashes it) and requires a role.
-  register: (name: string, email: string, password: string) =>
+  // The register DTO names the plaintext password field `passwordHash` (the server hashes it). No role is
+  // sent: every new account is a customer, whatever the body says.
+  register: (name: RegisterDetails, email: string, password: string) =>
     api<User>('/auth/register', {
       method: 'POST',
-      body: { name, email, passwordHash: password, role: 'CUSTOMER' },
+      body: { ...name, email, passwordHash: password },
     }),
   logout: (refreshToken: string) =>
     api<void>('/auth/logout', { method: 'POST', body: { refreshToken } }),
@@ -100,7 +102,15 @@ export const authApi = {
 export const userApi = {
   me: () => api<User>('/users/me'),
   /** avatarUrl: omit = unchanged, '' = remove the picture. */
-  updateMe: (body: { name?: string; email?: string; avatarUrl?: string }) =>
+  updateMe: (body: {
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    birthDate?: string;
+    phoneNumber?: string;
+    email?: string;
+    avatarUrl?: string;
+  }) =>
     api<User>('/users/me', { method: 'PATCH', body }),
   changePassword: (currentPassword: string, newPassword: string) =>
     api<User>('/users/me/change-password', {
@@ -328,6 +338,13 @@ export const promoApi = {
   list: (eventId: UUID) => api<PromoCode[]>(`/events/${eventId}/promo-codes`),
   create: (eventId: UUID, body: PromoCodeCreateRequest) =>
     api<PromoCode>(`/events/${eventId}/promo-codes`, { method: 'POST', body }),
+  update: (id: UUID, body: PromoCodeUpdateRequest) =>
+    api<PromoCode>(`/promo-codes/${id}`, { method: 'PATCH', body }),
+  /** Pause or resume a code. Orders that already used it are untouched. */
+  setStatus: (id: UUID, status: 'ACTIVE' | 'PAUSED') =>
+    api<PromoCode>(`/promo-codes/${id}/status`, { method: 'PUT', body: { status } }),
+  /** Only a code nobody has used yet (the API answers 409 otherwise). */
+  remove: (id: UUID) => api<void>(`/promo-codes/${id}`, { method: 'DELETE' }),
 };
 
 export const waitlistApi = {

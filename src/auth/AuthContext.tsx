@@ -2,14 +2,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 import { setSessionExpiredHandler, tokenStore } from '../api/client';
 import { authApi, userApi } from '../api/endpoints';
-import type { User } from '../api/types';
+import type { RegisterDetails, User } from '../api/types';
 
 interface AuthState {
   user: User | null;
   /** True until the stored session (if any) has been checked on startup. */
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: RegisterDetails, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User) => void;
 }
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(
-    async (name: string, email: string, password: string) => {
+    async (name: RegisterDetails, email: string, password: string) => {
       await authApi.register(name, email, password);
       await login(email, password);
     },

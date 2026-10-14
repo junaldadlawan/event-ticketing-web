@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { fullName, formatDate } from '../utils/format';
 import type { FormEvent } from 'react';
 import { errorMessage } from '../api/client';
 import { uploadApi, userApi } from '../api/endpoints';
@@ -8,6 +9,10 @@ import { EditIcon, QrIcon } from '../components/DesignerIcons';
 import { MyQrDialog } from '../components/MyQrCard';
 import { ErrorBox, SuccessBox } from '../components/ui';
 import { squareAvatarFile } from '../utils/avatar';
+import { BirthdateField } from '../components/BirthdateField';
+import { PasswordStrength } from '../components/PasswordStrength';
+import { PhoneField } from '../components/PhoneField';
+import { birthDateError, nameError, phoneError } from '../utils/validation';
 
 export function ProfilePage() {
   const { user, setUser } = useAuth();
@@ -16,7 +21,9 @@ export function ProfilePage() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [editingName, setEditingName] = useState(false);
-  const [name, setName] = useState(user?.name ?? '');
+  const [firstName, setFirstName] = useState(user?.firstName ?? '');
+  const [middleName, setMiddleName] = useState(user?.middleName ?? '');
+  const [lastName, setLastName] = useState(user?.lastName ?? '');
   const [changingPw, setChangingPw] = useState(false);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -29,9 +36,18 @@ export function ProfilePage() {
     e.preventDefault();
     setMsg(null);
     setErr(null);
+    const invalid =
+      nameError(firstName, 'First name') ??
+      (middleName.trim() ? nameError(middleName, 'Middle name') : null) ??
+      nameError(lastName, 'Last name');
+    if (invalid) {
+      setErr(invalid);
+      return;
+    }
     try {
-      // Email is the login identity, so it is shown but not editable here.
-      setUser(await userApi.updateMe({ name: name.trim(), email: user!.email }));
+      // Email is the login identity, so it is shown but not editable here (and not sent: an older account
+      // whose email predates the character rules would otherwise be refused when only the name changes).
+      setUser(await userApi.updateMe({ firstName: firstName.trim(), middleName: middleName.trim(), lastName: lastName.trim() }));
       setEditingName(false);
       setMsg('Name updated.');
     } catch (e2) {
@@ -61,7 +77,7 @@ export function ProfilePage() {
       <SuccessBox message={msg} />
 
       <div className="profile-photo">
-        <Avatar src={avatar} name={user.name} size={80} />
+        <Avatar src={avatar} name={fullName(user)} size={80} />
         <input
           ref={fileRef}
           type="file"
@@ -133,17 +149,35 @@ export function ProfilePage() {
                 <input
                   autoFocus
                   required
-                  value={name}
+                  value={firstName}
                   maxLength={150}
-                  onChange={(e) => setName(e.target.value)}
-                  aria-label="Name"
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="First name"
+                  aria-label="First name"
+                />
+                <input
+                  value={middleName}
+                  maxLength={150}
+                  onChange={(e) => setMiddleName(e.target.value)}
+                  placeholder="Middle name (optional)"
+                  aria-label="Middle name"
+                />
+                <input
+                  required
+                  value={lastName}
+                  maxLength={150}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Last name"
+                  aria-label="Last name"
                 />
                 <button className="btn btn-primary btn-sm">Save</button>
                 <button
                   type="button"
                   className="btn btn-sm"
                   onClick={() => {
-                    setName(user.name);
+                    setFirstName(user.firstName);
+                    setMiddleName(user.middleName ?? '');
+                    setLastName(user.lastName);
                     setEditingName(false);
                   }}
                 >
@@ -153,7 +187,7 @@ export function ProfilePage() {
             </dd>
           ) : (
             <>
-              <dd>{user.name}</dd>
+              <dd>{fullName(user)}</dd>
               <button type="button" className="btn-link" onClick={() => setEditingName(true)}>
                 Edit
               </button>
@@ -164,6 +198,22 @@ export function ProfilePage() {
           <dt>Email</dt>
           <dd>{user.email}</dd>
         </div>
+        <EditableRow
+          label="Phone"
+          display={user.phoneNumber || null}
+          initial={user.phoneNumber ?? ''}
+          type="tel"
+          validate={phoneError}
+          onSave={async (value) => setUser(await userApi.updateMe({ phoneNumber: value.trim() }))}
+        />
+        <EditableRow
+          label="Birthdate"
+          display={user.birthDate ? formatDate(user.birthDate) : null}
+          initial={user.birthDate ?? ''}
+          type="birthdate"
+          validate={birthDateError}
+          onSave={async (value) => setUser(await userApi.updateMe({ birthDate: value }))}
+        />
         <div className="profile-row">
           <dt>Password</dt>
           {changingPw ? (
@@ -186,6 +236,9 @@ export function ProfilePage() {
                   value={next}
                   onChange={(e) => setNext(e.target.value)}
                 />
+                <div className="pw-wide">
+                  <PasswordStrength password={next} avoid={[user.firstName, user.lastName, user.email.split('@')[0] ?? '']} />
+                </div>
                 <button className="btn btn-primary btn-sm">Update</button>
                 <button type="button" className="btn btn-sm" onClick={() => setChangingPw(false)}>
                   Cancel
@@ -203,7 +256,81 @@ export function ProfilePage() {
         </div>
       </dl>
 
-      <MyQrDialog open={qrOpen} onClose={() => setQrOpen(false)} userId={user.id} name={user.name} />
+      <MyQrDialog open={qrOpen} onClose={() => setQrOpen(false)} userId={user.id} name={fullName(user)} />
+    </div>
+  );
+}
+
+/** A profile row with an Edit link that turns the value into one small form. */
+function EditableRow({
+  label,
+  display,
+  initial,
+  type,
+  validate,
+  onSave,
+}: {
+  label: string;
+  display: string | null;
+  initial: string;
+  type: 'tel' | 'birthdate';
+  validate: (value: string) => string | null;
+  onSave: (value: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const invalid = validate(value);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    try {
+      await onSave(value);
+      setEditing(false);
+      setError(null);
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  return (
+    <div className="profile-row">
+      <dt>{label}</dt>
+      {editing ? (
+        <dd>
+          <form className="profile-inline" onSubmit={submit}>
+            {type === 'birthdate' ? (
+              <BirthdateField value={value} onChange={setValue} />
+            ) : (
+              <PhoneField value={value} onChange={setValue} />
+            )}
+            <button className="btn btn-primary btn-sm">Save</button>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => {
+                setValue(initial);
+                setError(null);
+                setEditing(false);
+              }}
+            >
+              Cancel
+            </button>
+          </form>
+          <ErrorBox message={error} />
+        </dd>
+      ) : (
+        <>
+          <dd>{display ?? <span className="muted">Not added</span>}</dd>
+          <button type="button" className="btn-link" onClick={() => setEditing(true)}>
+            {display ? 'Edit' : 'Add'}
+          </button>
+        </>
+      )}
     </div>
   );
 }
