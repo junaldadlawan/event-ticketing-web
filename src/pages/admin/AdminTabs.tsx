@@ -1,3 +1,4 @@
+import { isAdmin as isAdminRole } from '../../auth/roles';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
@@ -8,7 +9,7 @@ import { Spinner } from '../../components/ui';
 export function AdminOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
-  if (user?.role !== 'ADMIN') return <Navigate to="/" replace />;
+  if (!isAdminRole(user?.role)) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 

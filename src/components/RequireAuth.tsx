@@ -12,14 +12,14 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const needsLogin = !loading && !user;
   useEffect(() => {
-    if (needsLogin) openAuth('login');
+    if (needsLogin) openAuth('login', pathname);
   }, [needsLogin, pathname, openAuth]);
   if (loading) return <Spinner />;
   if (!user) {
     return (
       <Empty>
         Log in to continue.{' '}
-        <button type="button" className="btn-link" onClick={() => openAuth('login')}>
+        <button type="button" className="btn-link" onClick={() => openAuth('login', pathname)}>
           Log in
         </button>
       </Empty>

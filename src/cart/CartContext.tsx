@@ -15,7 +15,7 @@ interface CartState {
   removeItem: (itemId: UUID) => Promise<void>;
   applyPromo: (code: string) => Promise<void>;
   removePromo: () => Promise<void>;
-  checkout: (paymentMethodToken: string, idempotencyKey: string) => Promise<Order>;
+  checkout: (payment: { paymentMethodToken: string } | { paymentMethodId: string }, idempotencyKey: string) => Promise<Order>;
 }
 
 const CartContext = createContext<CartState | null>(null);
@@ -90,9 +90,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [cart]);
 
   const checkout = useCallback(
-    async (paymentMethodToken: string, idempotencyKey: string) => {
+    async (payment: { paymentMethodToken: string } | { paymentMethodId: string }, idempotencyKey: string) => {
       if (!cart) throw new Error('Your cart is empty');
-      const order = await cartApi.checkout(cart.id, paymentMethodToken, idempotencyKey);
+      const order = await cartApi.checkout(cart.id, payment, idempotencyKey);
       forget();
       return order;
     },

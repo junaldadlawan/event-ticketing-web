@@ -24,9 +24,12 @@ export interface ProblemDetail {
   status?: number;
   detail?: string;
   instance?: string;
+  /** Card payments: the card needs an extra step (3-D Secure); `clientSecret` lets Stripe's page finish it. */
+  error?: string;
+  clientSecret?: string;
 }
 
-export type Role = 'CUSTOMER' | 'ADMIN';
+export type Role = 'CUSTOMER' | 'ADMIN' | 'SUPER_ADMIN';
 
 export interface User {
   id: UUID;
@@ -539,6 +542,8 @@ export interface Payout {
   net: Money;
   periodStart: string;
   periodEnd: string;
+  /** The event this payout settles (the "after the event" method); absent for period payouts. */
+  eventTitle?: string | null;
   status: PayoutStatus;
   createdAt: string;
   updatedAt?: string;
@@ -572,6 +577,53 @@ export interface EventAnalytics {
   revenue: Money;
   remainingInventory: number;
   salesOverTime: { date: string; ticketsSold: number; revenue: Money }[];
+}
+
+/** One line of "what can be paid out now": an organization (and its event) with the amount ready or held back. */
+/** A card an organization is paid out to. Only the last four digits are kept; the primary card receives payouts. */
+export interface PayoutCard {
+  id: UUID;
+  organizationId: UUID;
+  holderName: string;
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+  primary: boolean;
+  createdAt: string;
+}
+
+export interface PayoutCardRequest {
+  holderName: string;
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+  /** What the payment gateway returned for the card (the demo gateway takes tok_<brand>). */
+  paymentToken: string;
+  primary: boolean;
+}
+
+export interface EligiblePayoutItem {
+  organizationId: UUID;
+  organizationName: string;
+  eventId: UUID | null;
+  eventTitle: string | null;
+  eligible: Money;
+  status: 'READY' | 'ON_HOLD';
+  /** Why it is on hold (e.g. "Pending refunds"). */
+  holdReason?: string | null;
+}
+
+export interface EligiblePayouts {
+  summary: { eligibleOrganizations: number; eligibleAmount: Money; onHold: Money };
+  items: EligiblePayoutItem[];
+}
+
+export interface PayoutBatchRequest {
+  periodStart: string;
+  periodEnd: string;
+  items: { organizationId: UUID; eventId: UUID | null }[];
 }
 
 export interface PayoutGenerateRequest {

@@ -22,3 +22,9 @@ export function telHref(phone: string): string {
   if (digits.startsWith('0')) return `tel:+63${digits.slice(1)}`;
   return `tel:${digits}`;
 }
+
+/**
+ * Stripe's PUBLISHABLE key (starts with pk_), meant to be public. Leave it unset and the cart keeps the demo
+ * token field. Never put a secret key (sk_) anywhere in this app: card payments are completed by the API.
+ */
+export const STRIPE_PUBLISHABLE_KEY = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? '').trim() || null;

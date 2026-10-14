@@ -1,3 +1,4 @@
+import { isAdmin as isAdminRole } from '../auth/roles';
 import { useEffect, useState } from 'react';
 import { fullName, isNewAccount } from '../utils/format';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -5,7 +6,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useAuthDialog } from '../auth/AuthDialog';
 import { useManagementHidden, useViewMode } from '../auth/ViewMode';
 import type { ViewMode } from '../auth/ViewMode';
-import { useIsHost } from '../auth/useCanManage';
+import { useIsHost, usePosition } from '../auth/useCanManage';
 import { useCart } from '../cart/CartContext';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { Avatar } from './Avatar';
@@ -46,6 +47,7 @@ export function Layout() {
   // The view the user asked for, waiting for a "yes" before it is applied.
   const [switchingTo, setSwitchingTo] = useState<ViewMode | null>(null);
   const isHost = useIsHost();
+  const position = usePosition();
   const { mode, setMode } = useViewMode();
   // Management tabs are for people who run events (or admins): a plain customer never sees them. While that is
   // still being checked (isHost === null) they stay hidden too.
@@ -88,24 +90,26 @@ export function Layout() {
           </NavLink>
           {user && !hideManagement && (
             <nav className="nav" aria-label="Organizer">
-              {/* the Team tab lives under /manage too, so Manage is not highlighted there */}
-              <NavLink to="/manage" className={({ isActive }) => (isActive && pathname !== '/manage/team' ? 'active' : '')}>
-                Manage
+              {/* Team and Settings live under /manage too, so Event Management is not highlighted there */}
+              <NavLink to="/manage" className={({ isActive }) => (isActive && pathname !== '/manage/team' && pathname !== '/manage/settings' ? 'active' : '')}>
+                Event Management
               </NavLink>
-              {user.role !== 'ADMIN' && isHost === true && <NavLink to="/manage/team">Team</NavLink>}
-              {user.role === 'ADMIN' && (
+              {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/team">Team</NavLink>}
+              {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/settings">Settings</NavLink>}
+              {isAdminRole(user.role) && (
                 <>
                   <NavLink to="/admin/posts">Posts</NavLink>
                   <NavLink to="/admin/organizations">Organizations</NavLink>
                   <NavLink to="/admin/users">Users</NavLink>
-                  <NavLink to="/admin/payouts">Payouts</NavLink>
+                  <NavLink to="/admin/payouts">Finance &amp; Payouts</NavLink>
+                  <NavLink to="/admin/settings">Settings</NavLink>
                 </>
               )}
             </nav>
           )}
           <div className="nav nav-right">
             {user && isHost === true && (
-              <ViewSwitcher mode={mode} onChoose={setSwitchingTo} />
+              <ViewSwitcher mode={mode} position={position} onChoose={setSwitchingTo} />
             )}
             <ThemeToggle />
             {user && (
@@ -186,7 +190,7 @@ export function Layout() {
       </ConfirmDialog>
       <ConfirmDialog
         open={switchingTo !== null}
-        title={switchingTo === 'customer' ? 'Switch to Customer view?' : 'Switch to Management view?'}
+        title={switchingTo === 'customer' ? 'Switch to Customer view?' : `Switch to ${position ?? 'Management'} view?`}
         confirmLabel="Switch"
         cancelLabel="Stay here"
         onCancel={() => setSwitchingTo(null)}
@@ -209,7 +213,7 @@ export function Layout() {
             {user ? (
               <>
                 <Link to="/orders">Orders</Link>
-                {!hideManagement && <Link to="/manage">Manage</Link>}
+                {!hideManagement && <Link to="/manage">Event Management</Link>}
                 <Link to="/profile">Profile</Link>
               </>
             ) : (

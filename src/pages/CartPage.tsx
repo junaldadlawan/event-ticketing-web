@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { errorMessage } from '../api/client';
-import { eventApi, ticketTypeApi } from '../api/endpoints';
+import { ApiError, errorMessage } from '../api/client';
+import { eventApi, paymentMethodApi, ticketTypeApi } from '../api/endpoints';
 import type { Event, TicketType } from '../api/types';
 import { useCart } from '../cart/CartContext';
+import { STRIPE_PUBLISHABLE_KEY } from '../config';
 import { MoonIcon, SunIcon } from '../components/DesignerIcons';
+import { StripeCard, confirmCardAction } from '../components/StripeCard';
+import type { StripeCardApi } from '../components/StripeCard';
 import { ErrorBox } from '../components/ui';
 import { formatDateTime, formatMoney, newIdempotencyKey } from '../utils/format';
 import { isDaytime } from '../utils/timeOfDay';
@@ -21,6 +24,12 @@ export function CartPage() {
   const navigate = useNavigate();
   const [promo, setPromo] = useState('');
   const [token, setToken] = useState('tok_visa');
+  // The customer's saved cards (Settings > Payment). The primary one is chosen first; "new" pays with another card.
+  const savedCards = useAsync(() => paymentMethodApi.list().catch(() => []), []).data ?? [];
+  const [choice, setChoice] = useState('');
+  const chosen = choice === 'new' ? 'new' : (savedCards.find((c) => c.id === choice) ?? savedCards.find((c) => c.primary))?.id ?? 'new';
+  // With a Stripe key set, the card is typed into Stripe's own field and this turns it into a payment method id.
+  const [stripeCard, setStripeCard] = useState<StripeCardApi | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // One key per checkout attempt; reused on retry so a double-submit
@@ -69,7 +78,18 @@ export function CartPage() {
   async function onCheckout(e: FormEvent) {
     e.preventDefault();
     await run(async () => {
-      const order = await checkout(token.trim(), idempotencyKey);
+      const payment =
+        chosen !== 'new'
+          ? { paymentMethodId: chosen }
+          : { paymentMethodToken: STRIPE_PUBLISHABLE_KEY ? await stripeCard!.createPaymentMethod() : token.trim() };
+      // A card that needs 3-D Secure comes back as 402 REQUIRES_ACTION: confirm it with Stripe, then pay again with
+      // the same idempotency key so the order is only created once.
+      const pay = () => checkout(payment, idempotencyKey);
+      const order = await pay().catch(async (e) => {
+        if (!(e instanceof ApiError) || e.status !== 402 || e.problem?.error !== 'REQUIRES_ACTION' || !e.problem.clientSecret || !STRIPE_PUBLISHABLE_KEY) throw e;
+        await confirmCardAction(STRIPE_PUBLISHABLE_KEY, e.problem.clientSecret);
+        return pay();
+      });
       navigate(`/orders/${order.id}`, { state: { justPurchased: true } });
     });
   }
@@ -198,15 +218,41 @@ export function CartPage() {
             <strong>{formatMoney(cart.total)}</strong>
           </div>
           <form className="form" onSubmit={onCheckout}>
-            <label>
-              Payment method token
-              <input required value={token} onChange={(e) => setToken(e.target.value)} />
-              <span className="hint">
-                The API uses a mock gateway: any token succeeds, tokens starting with{' '}
-                <code>tok_fail</code> are declined.
-              </span>
-            </label>
-            <button className="btn signup-submit" disabled={busy}>
+            {savedCards.length > 0 && (
+              <label>
+                Pay with
+                <select value={chosen} onChange={(e) => setChoice(e.target.value)}>
+                  {savedCards.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.brand} •••• {c.last4}
+                      {c.primary ? ' (primary)' : ''}
+                    </option>
+                  ))}
+                  <option value="new">Use a new card</option>
+                </select>
+                <span className="hint">
+                  <Link to="/profile/payment">Manage cards</Link>
+                </span>
+              </label>
+            )}
+            {chosen === 'new' &&
+              (STRIPE_PUBLISHABLE_KEY ? (
+                <div className="stripe-field">
+                  <span>Card</span>
+                  <StripeCard publishableKey={STRIPE_PUBLISHABLE_KEY} onReady={setStripeCard} />
+                  <span className="hint">Your card is entered into Stripe's secure field. We never see the number.</span>
+                </div>
+              ) : (
+                <label>
+                  Payment method token
+                  <input required value={token} onChange={(e) => setToken(e.target.value)} />
+                  <span className="hint">
+                    The API uses a mock gateway: any token succeeds, tokens starting with <code>tok_fail</code> are
+                    declined.
+                  </span>
+                </label>
+              ))}
+            <button className="btn signup-submit" disabled={busy || (chosen === 'new' && Boolean(STRIPE_PUBLISHABLE_KEY) && !stripeCard)}>
               {busy ? 'Processing...' : `Pay ${formatMoney(cart.total)}`}
             </button>
           </form>

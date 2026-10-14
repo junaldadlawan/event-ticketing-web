@@ -15,9 +15,13 @@ export function BackButton() {
   const navigate = useNavigate();
   const { confirmLeave } = useUnsavedChangesApi();
 
-  // The top-level tabs (Home, Events, Manage) and the login and sign-up pages have nowhere to go back to. They line up with each other, so
-  // no placeholder is needed.
-  if (['/', '/events', '/home', '/manage', '/manage/team', '/orders', '/login', '/register', '/admin/posts', '/admin/organizations', '/admin/users', '/admin/payouts'].includes(location.pathname)) return null;
+  // A link that jumps from one tab to another sends the tab it came from as `state.from`. Opening a tab from the tab bar
+  // sends nothing, so the button goes away as soon as you switch tabs.
+  const from = (location.state as { from?: string } | null)?.from;
+
+  // The top-level tabs (Home, Events, Manage) and the login and sign-up pages have nowhere to go back to, unless
+  // another tab sent you here. They line up with each other, so no placeholder is needed.
+  if (!from && (location.pathname.startsWith('/admin/settings') || ['/', '/events', '/home', '/manage', '/manage/team', '/manage/settings', '/orders', '/login', '/register', '/admin/posts', '/admin/organizations', '/admin/users', '/admin/payouts', '/admin/settings'].includes(location.pathname))) return null;
 
   async function goBack() {
     // Unsaved edits on this page? Ask "Discard or continue editing" first.
@@ -25,7 +29,7 @@ export function BackButton() {
     // React Router gives the very first entry of a session the key "default",
     // so anything else means there is an in-app page to go back to.
     if (location.key !== 'default') navigate(-1);
-    else navigate(parentPath(location.pathname));
+    else navigate(from ?? parentPath(location.pathname));
   }
 
   return (

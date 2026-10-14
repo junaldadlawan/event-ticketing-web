@@ -36,12 +36,23 @@ function AuthRoute({ mode }: { mode: 'login' | 'register' }) {
 export const LoginPage = () => <AuthRoute mode="login" />;
 export const RegisterPage = () => <AuthRoute mode="register" />;
 
-export function LoginPanel({ onSuccess, onSwitch }: PanelProps) {
+export function LoginPanel({
+  onSuccess,
+  onSwitch,
+  fill,
+}: PanelProps & { /** Dev test users: fills the form each time a new object comes in. */ fill?: { email: string; password: string } | null }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!fill) return;
+    setEmail(fill.email);
+    setPassword(fill.password);
+    setError(null);
+  }, [fill]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

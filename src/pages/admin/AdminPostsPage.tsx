@@ -1,3 +1,4 @@
+import { isAdmin as isAdminRole } from '../../auth/roles';
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
@@ -16,7 +17,7 @@ import { useAsync } from '../../utils/useAsync';
 /** Admin tab: write sales and announcements (for everyone on Home, or for one event) and remove old ones. */
 export function AdminPostsPage() {
   const { user, loading: authLoading } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = isAdminRole(user?.role);
   const [page, setPage] = useState(0);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [view, setView] = usePostView();

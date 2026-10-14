@@ -68,6 +68,8 @@ export function localInputToIso(value: string): string {
 }
 
 export function humanize(enumValue: string): string {
+  // The organization role OWNER is always shown as "Organization Owner", so it is not mistaken for a ticket owner.
+  if (enumValue === 'OWNER') return 'Organization Owner';
   return enumValue
     .toLowerCase()
     .split('_')

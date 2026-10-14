@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../api/client';
 import { eventApi, ticketTypeApi, waitlistApi } from '../api/endpoints';
 import type { TicketType } from '../api/types';
@@ -98,6 +98,8 @@ function TicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: b
   const { user } = useAuth();
   const { addItem } = useCart();
   const { openAuth } = useAuthDialog();
+  const navigate = useNavigate();
+  const [buying, setBuying] = useState(false);
   const [qty, setQty] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,7 +125,7 @@ function TicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: b
 
   async function onJoinWaitlist() {
     if (!user) {
-      openAuth('login');
+      openAuth('login', `/events/${tt.eventId}`);
       return;
     }
     setBusy(true);
@@ -138,20 +140,24 @@ function TicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: b
     }
   }
 
-  async function onAdd() {
+  // "Add to cart" keeps the buyer here; "Buy now" adds the chosen quantity and goes straight to the cart, where they pay.
+  async function onAdd(buyNow = false) {
     if (!user) {
-      openAuth('login');
+      openAuth('login', `/events/${tt.eventId}`);
       return;
     }
     setBusy(true);
+    setBuying(buyNow);
     setError(null);
     try {
       await addItem(tt.id, qty);
-      setAdded(true);
+      if (buyNow) navigate('/cart');
+      else setAdded(true);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setBusy(false);
+      setBuying(false);
     }
   }
 
@@ -197,9 +203,14 @@ function TicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: b
             {waitPosition !== null ? `On the waitlist (#${waitPosition})` : busy ? 'Joining...' : 'Join waitlist'}
           </button>
         ) : (
-          <button className="btn signup-submit ticket-cta" disabled={disabled || busy} onClick={onAdd}>
-            {busy ? 'Adding...' : 'Add to cart'}
-          </button>
+          <>
+            <button className="btn ticket-cta" disabled={disabled || busy} onClick={() => void onAdd()}>
+              {busy && !buying ? 'Adding...' : 'Add to cart'}
+            </button>
+            <button className="btn signup-submit ticket-cta" disabled={disabled || busy} onClick={() => void onAdd(true)}>
+              {buying ? 'Opening...' : 'Buy now'}
+            </button>
+          </>
         )}
       </div>
     </div>
