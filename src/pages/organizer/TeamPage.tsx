@@ -7,7 +7,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { Avatar } from '../../components/Avatar';
 import { UserPicker } from '../../components/UserPicker';
 import { Empty, ErrorBox, Spinner, SuccessBox } from '../../components/ui';
-import { formatDateTime, humanize } from '../../utils/format';
+import { formatDateTime, fullName, humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 
 const ASSIGNABLE: OrganizationRole[] = ['ORGANIZER', 'CHECK_IN_STAFF'];
@@ -94,7 +94,7 @@ export function TeamPage() {
         <ul className="plain-list">
           {list.map((m) => {
             const isMe = m.userId === user?.id;
-            const name = m.name ?? (isMe ? user?.name : null) ?? `Member ${m.userId.slice(0, 8)}`;
+            const name = m.name ?? (isMe && user ? fullName(user) : null) ?? `Member ${m.userId.slice(0, 8)}`;
             return (
               <li key={m.userId} className="row-between admin-member">
                 <span className="admin-person">

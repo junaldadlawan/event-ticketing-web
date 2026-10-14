@@ -2,7 +2,9 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { Event } from '../api/types';
-import { formatDateTime } from '../utils/format';
+import { formatDateTime, humanize } from '../utils/format';
+import { isDaytime } from '../utils/timeOfDay';
+import { MoonIcon, SunIcon } from './DesignerIcons';
 import { EventImage } from './EventImage';
 import { StatusBadge } from './ui';
 
@@ -76,6 +78,7 @@ export function EventCollection({
   hrefFor,
   extra,
   tag,
+  tickets = false,
 }: {
   events: Event[];
   view: EventView;
@@ -84,7 +87,48 @@ export function EventCollection({
   extra?: (e: Event) => ReactNode;
   /** Optional small tag shown before the status (e.g. "You manage" on the public list). */
   tag?: (e: Event) => ReactNode;
+  /** Show each event as a ticket (sun or moon stub by time of day) instead of a picture card. */
+  tickets?: boolean;
 }) {
+  if (tickets) {
+    return (
+      <ul className={`event-tickets${view === 'list' ? ' is-list' : ''}`}>
+        {events.map((ev) => {
+          const day = isDaytime(ev);
+          const image = ev.images?.[0];
+          // The picture goes on top; the day / night gradient behind it shows if the picture is missing or fails to load.
+          const sky = day ? 'linear-gradient(160deg, #ffd37a, #ff8e7a)' : 'linear-gradient(160deg, #8c6bea, #1b1b5e)';
+          return (
+            <li key={ev.id}>
+              <Link to={hrefFor(ev)} className={`event-ticket ${day ? 'is-day' : 'is-night'}`}>
+                <span
+                  className={`event-ticket-stub${image ? ' has-image' : ''}`}
+                  style={image ? { backgroundImage: `url("${image}"), ${sky}` } : undefined}
+                  title={day ? 'Daytime event' : 'Evening event'}
+                >
+                  {day ? <SunIcon /> : <MoonIcon />}
+                  <span className="sr-only">{day ? 'Daytime event' : 'Evening event'}</span>
+                </span>
+                <span className="event-ticket-body">
+                  <span className="event-ticket-top">
+                    <span className="muted small">{humanize(ev.category)}</span>
+                    <span className="card-tags">
+                      {tag?.(ev)}
+                      <StatusBadge status={ev.status} />
+                    </span>
+                  </span>
+                  <strong className="event-ticket-title">{ev.title}</strong>
+                  <span className="muted small">{formatDateTime(ev.startAt, ev.timezone)}</span>
+                  <span className="muted small">{ev.venue ? ev.venue.name : 'Online'}</span>
+                  {extra && <span className="muted small">{extra(ev)}</span>}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
   return (
     <div className={view === 'grid' ? 'event-grid' : 'event-list'}>
       {events.map((ev) => (

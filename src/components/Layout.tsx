@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
+import { fullName, isNewAccount } from '../utils/format';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { useAuthDialog } from '../auth/AuthDialog';
 import { useManagementHidden, useViewMode } from '../auth/ViewMode';
 import type { ViewMode } from '../auth/ViewMode';
 import { useIsHost } from '../auth/useCanManage';
 import { useCart } from '../cart/CartContext';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { Avatar } from './Avatar';
-import { TicketIcon } from './DesignerIcons';
+import { SparkleIcon, TicketIcon } from './DesignerIcons';
 import { BackButton } from './BackButton';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useUnsavedChangesApi } from './UnsavedChanges';
@@ -35,6 +37,7 @@ function CartIcon() {
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const { openAuth } = useAuthDialog();
   const { itemCount } = useCart();
   const navigate = useNavigate();
   const { confirmLeave } = useUnsavedChangesApi();
@@ -44,13 +47,18 @@ export function Layout() {
   const [switchingTo, setSwitchingTo] = useState<ViewMode | null>(null);
   const isHost = useIsHost();
   const { mode, setMode } = useViewMode();
-  const managementHidden = useManagementHidden();
+  // Management tabs are for people who run events (or admins): a plain customer never sees them. While that is
+  // still being checked (isHost === null) they stay hidden too.
+  const hideManagement = useManagementHidden() || isHost !== true;
   const { pathname } = useLocation();
 
   // Switching to the customer view while on a management page takes you to the customer side.
   useEffect(() => {
-    if (managementHidden && /^\/(manage|admin)(\/|$)/.test(pathname)) navigate('/home', { replace: true });
-  }, [managementHidden, pathname, navigate]);
+    // A customer (or a host browsing as one) who lands on a management address is sent to the home page.
+    if (isHost === false || (isHost === true && hideManagement)) {
+      if (/^\/(manage|admin)(\/|$)/.test(pathname)) navigate('/', { replace: true });
+    }
+  }, [isHost, hideManagement, pathname, navigate]);
 
   async function confirmSwitch() {
     const next = switchingTo;
@@ -72,13 +80,13 @@ export function Layout() {
     <div className="app">
       <header className="topbar">
         <div className="container topbar-inner">
-          <NavLink to="/home" className="brand">
+          <NavLink to="/" end className="brand">
             Home
           </NavLink>
-          <NavLink to="/" end className="brand">
+          <NavLink to="/events" end className="brand">
             Events
           </NavLink>
-          {user && !managementHidden && (
+          {user && !hideManagement && (
             <nav className="nav" aria-label="Organizer">
               {/* the Team tab lives under /manage too, so Manage is not highlighted there */}
               <NavLink to="/manage" className={({ isActive }) => (isActive && pathname !== '/manage/team' ? 'active' : '')}>
@@ -126,8 +134,15 @@ export function Layout() {
             {user ? (
               <>
                 <NavLink to="/profile" className="nav-user">
-                  <Avatar src={user.avatarUrl} name={user.name} size={26} />
-                  {user.name.trim().split(/\s+/)[0]}
+                  <span className="nav-avatar">
+                    <Avatar src={user.avatarUrl} name={fullName(user)} size={26} />
+                    {isNewAccount(user.createdAt) && (
+                      <span className="nav-new" role="img" aria-label="New user" data-tip="New user">
+                        <SparkleIcon />
+                      </span>
+                    )}
+                  </span>
+                  {user.firstName}
                 </NavLink>
                 <button className="btn btn-link" onClick={() => setConfirmingLogout(true)}>
                   Log out
@@ -135,10 +150,25 @@ export function Layout() {
               </>
             ) : (
               <>
-                <NavLink to="/login">Log in</NavLink>
-                <Link to="/register" className="btn btn-cta btn-sm">
+                <a
+                  href="/login"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openAuth('login');
+                  }}
+                >
+                  Log in
+                </a>
+                <a
+                  href="/register"
+                  className="btn btn-cta btn-sm"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openAuth('register');
+                  }}
+                >
                   Sign up
-                </Link>
+                </a>
               </>
             )}
           </div>
@@ -174,18 +204,34 @@ export function Layout() {
         <div className="container footer-inner">
           <span>© {new Date().getFullYear()} events</span>
           <nav className="footer-links" aria-label="Footer">
-            <Link to="/">Events</Link>
+            <Link to="/events">Events</Link>
             <Link to="/apply">Host an event</Link>
             {user ? (
               <>
                 <Link to="/orders">Orders</Link>
-                {!managementHidden && <Link to="/manage">Manage</Link>}
+                {!hideManagement && <Link to="/manage">Manage</Link>}
                 <Link to="/profile">Profile</Link>
               </>
             ) : (
               <>
-                <Link to="/login">Log in</Link>
-                <Link to="/register">Sign up</Link>
+                <a
+                  href="/login"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openAuth('login');
+                  }}
+                >
+                  Log in
+                </a>
+                <a
+                  href="/register"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openAuth('register');
+                  }}
+                >
+                  Sign up
+                </a>
               </>
             )}
           </nav>

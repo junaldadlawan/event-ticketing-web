@@ -20,7 +20,7 @@ export function OrdersPage() {
         <Spinner />
       ) : data && data.content.length === 0 ? (
         <Empty>
-          No orders yet. <Link to="/">Find an event</Link>
+          No orders yet. <Link to="/events">Find an event</Link>
         </Empty>
       ) : (
         data && (

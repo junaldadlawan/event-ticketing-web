@@ -1,19 +1,24 @@
 import { Link } from 'react-router-dom';
 import { eventApi, postApi, ticketTypeApi } from '../api/endpoints';
 import type { Event, TicketType } from '../api/types';
+import { MoonIcon, SunIcon } from '../components/DesignerIcons';
 import { EventPostsFeed } from '../components/EventPostsFeed';
+import { HomeSky } from '../components/HomeSky';
 import { Empty, ErrorBox, Spinner } from '../components/ui';
-import { formatMoney } from '../utils/format';
+import { formatDateTime, formatMoney } from '../utils/format';
 import { useLivePosts } from '../utils/livePosts';
+import { isDaytime } from '../utils/timeOfDay';
 import { useAsync } from '../utils/useAsync';
-import { saleNote, saleState } from './EventLandingPage';
+import { saleState } from './EventLandingPage';
 
 interface OnSale {
   event: Event;
   live: TicketType[];
 }
 
-/** Home: what is on sale right now and the latest posts. Admins write posts in the Posts tab. */
+const cheapest = (live: TicketType[]) => live.reduce((a, b) => (b.price.amount < a.price.amount ? b : a));
+
+/** Home: what is on sale right now, with the next event as a ticket in the banner, and the latest posts. */
 export function HomePage() {
   const { data, error, loading } = useAsync(async (): Promise<OnSale[]> => {
     const page = await eventApi.search({ page: 0, size: 12, sort: 'startAt,asc' });
@@ -35,30 +40,73 @@ export function HomePage() {
   if (error || !data) return <ErrorBox message={error ?? 'Could not load the home page'} />;
 
   const onSale = data.filter((d) => d.live.length > 0);
+  const next = onSale[0]; // events come soonest first
 
   return (
     <>
-      <h1>Home</h1>
+      <section className="home-hero">
+        <HomeSky />
+        <div className="home-hero-copy">
+          <h1>Tickets for every hour of the day</h1>
+          <p>
+            {onSale.length > 0
+              ? "From the dawn run to the midnight set, see what's on sale right now."
+              : 'Nothing is on sale at the moment. New events show up here as soon as tickets open.'}
+          </p>
+          <Link to="/events" className="home-hero-cta">
+            Browse all events
+          </Link>
+        </div>
+        {next && (
+          <Link to={`/events/${next.event.id}`} className="home-ticket" aria-label={`Get tickets for ${next.event.title}`}>
+            <div className="home-ticket-main">
+              <h2>{next.event.title}</h2>
+              <p>{formatDateTime(next.event.startAt, next.event.timezone)}</p>
+              <p className="home-ticket-where">{next.event.venue ? next.event.venue.name : 'Online'}</p>
+            </div>
+            <div className="home-ticket-stub">
+              <span>From</span>
+              <strong>{formatMoney(cheapest(next.live).price)}</strong>
+              <span className="home-ticket-go">Get tickets</span>
+            </div>
+          </Link>
+        )}
+      </section>
 
       <h2>On sale now</h2>
       {onSale.length === 0 ? (
-        <Empty>Nothing on sale right now.</Empty>
+        <Empty>
+          Nothing on sale right now. <Link to="/events">See all events</Link>
+        </Empty>
       ) : (
-        <ul className="landing-sales">
-          {onSale.flatMap(({ event, live }) =>
-            live.map((tt) => (
-              <li key={tt.id} className="landing-sale sale-live">
-                <div>
-                  <Link to={`/events/${event.id}`}>
-                    <strong>{event.title}</strong>
-                  </Link>{' '}
-                  · {tt.name}
-                  <span className="landing-sale-note">{saleNote(tt, 'live')}</span>
-                </div>
-                <span className="landing-sale-price">{formatMoney(tt.price)}</span>
+        <ul className="home-events">
+          {onSale.map(({ event, live }) => {
+            const day = isDaytime(event);
+            const left = live.reduce((n, tt) => n + tt.quantityAvailable, 0);
+            return (
+              <li key={event.id}>
+                <Link to={`/events/${event.id}`} className={`event-ticket ${day ? 'is-day' : 'is-night'}`}>
+                  <span className="event-ticket-stub" title={day ? 'Daytime event' : 'Evening event'}>
+                    {day ? <SunIcon /> : <MoonIcon />}
+                    <span className="sr-only">{day ? 'Daytime event' : 'Evening event'}</span>
+                  </span>
+                  <span className="event-ticket-body">
+                    <strong className="event-ticket-title">{event.title}</strong>
+                    <span className="muted small">{formatDateTime(event.startAt, event.timezone)}</span>
+                    <span className="muted small">{event.venue ? event.venue.name : 'Online'}</span>
+                    <span className="event-ticket-types">
+                      {live.map((tt) => (
+                        <span key={tt.id}>
+                          {tt.name} {formatMoney(tt.price)}
+                        </span>
+                      ))}
+                    </span>
+                    <span className="small muted">{left} left</span>
+                  </span>
+                </Link>
               </li>
-            )),
-          )}
+            );
+          })}
         </ul>
       )}
 

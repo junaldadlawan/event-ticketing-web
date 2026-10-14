@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './auth/AuthContext';
+import { AuthDialogProvider } from './auth/AuthDialog';
 import { ViewModeProvider } from './auth/ViewMode';
 import { CartProvider } from './cart/CartContext';
 import { UnsavedChangesProvider } from './components/UnsavedChanges';
@@ -15,7 +16,9 @@ createRoot(document.getElementById('root')!).render(
         <AuthProvider>
           <CartProvider>
             <ViewModeProvider>
-              <App />
+              <AuthDialogProvider>
+                <App />
+              </AuthDialogProvider>
             </ViewModeProvider>
           </CartProvider>
         </AuthProvider>

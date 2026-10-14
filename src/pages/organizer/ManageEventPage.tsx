@@ -8,7 +8,7 @@ import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKi
 import { CategorySelect } from '../../components/CategorySelect';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DeleteEventDialog } from '../../components/DeleteEventDialog';
-import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon } from '../../components/DesignerIcons';
+import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon, TrashIcon } from '../../components/DesignerIcons';
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../components/ui';
 import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso } from '../../utils/format';
 import { sortTicketTypes } from '../../utils/ticketTypes';
@@ -491,21 +491,32 @@ function discountText(p: PromoCode, currency: string): string {
     : `${formatMoney({ amount: p.discountValue, currency })} off`;
 }
 
-/** The promo codes that apply to one ticket type, and a form to make a new one for it. */
+/** Where a promo code is in its life, in plain words. */
+function promoState(p: PromoCode, now = Date.now()): { label: string; tone: string } {
+  if (p.paused) return { label: 'Paused', tone: 'warn' };
+  if (new Date(p.validUntil).getTime() < now) return { label: 'Expired', tone: 'bad' };
+  if (p.usageLimitTotal && (p.usedCount ?? 0) >= p.usageLimitTotal) return { label: 'Used up', tone: 'bad' };
+  if (new Date(p.validFrom).getTime() > now) return { label: 'Scheduled', tone: 'info' };
+  return { label: 'Active', tone: 'good' };
+}
+
+/** The promo codes that apply to one ticket type: read them at a glance, edit, pause / resume, delete, or add a new one. */
 function PromoCodesDialog({
   eventId,
   ticketType,
   codes,
   onClose,
-  onCreated,
+  onChanged,
 }: {
   eventId: string;
   ticketType: TicketType | null;
   codes: PromoCode[];
   onClose: () => void;
-  onCreated: () => void;
+  onChanged: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const [editing, setEditing] = useState<PromoCode | null>(null);
+  const [pending, setPending] = useState<{ promo: PromoCode; action: 'pause' | 'resume' | 'delete' } | null>(null);
   const [code, setCode] = useState('');
   const [type, setType] = useState<PromoCodeCreateRequest['discountType']>('PERCENTAGE');
   const [value, setValue] = useState('');
@@ -516,24 +527,47 @@ function PromoCodesDialog({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const open = ticketType !== null;
+  const currency = ticketType?.price.currency ?? 'USD';
+  // A code that was already used keeps its code and discount type (the API refuses changing them).
+  const locked = editing !== null && (editing.usedCount ?? 0) > 0;
+
+  function blankForm() {
+    setEditing(null);
+    setCode('');
+    setType('PERCENTAGE');
+    setValue('');
+    setLimitTotal('');
+    setLimitPerBuyer('');
+    setFrom(ticketType ? isoToLocalInput(ticketType.saleStartAt) : '');
+    setUntil(ticketType ? isoToLocalInput(ticketType.saleEndAt) : '');
+  }
+
+  function startEdit(promo: PromoCode) {
+    setEditing(promo);
+    setCode(promo.code);
+    setType(promo.discountType);
+    setValue(promo.discountType === 'PERCENTAGE' ? String(promo.discountValue) : String(promo.discountValue / 100));
+    setFrom(isoToLocalInput(promo.validFrom));
+    setUntil(isoToLocalInput(promo.validUntil));
+    setLimitTotal(promo.usageLimitTotal ? String(promo.usageLimitTotal) : '');
+    setLimitPerBuyer(promo.usageLimitPerBuyer ? String(promo.usageLimitPerBuyer) : '');
+    setErr(null);
+  }
 
   useEffect(() => {
     const d = dialog.current;
     if (!d) return;
     if (open && !d.open) {
-      setCode('');
-      setType('PERCENTAGE');
-      setValue('');
-      setLimitTotal('');
-      setLimitPerBuyer('');
-      setFrom(ticketType ? isoToLocalInput(ticketType.saleStartAt) : '');
-      setUntil(ticketType ? isoToLocalInput(ticketType.saleEndAt) : '');
+      blankForm();
       setErr(null);
       d.showModal();
     } else if (!open && d.open) {
       d.close();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ticketType]);
+
+  const amount = () => (type === 'PERCENTAGE' ? Number(value) : Math.round(Number(value) * 100));
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -541,23 +575,50 @@ function PromoCodesDialog({
     setBusy(true);
     setErr(null);
     try {
-      await promoApi.create(eventId, {
-        code: code.trim().toUpperCase(),
-        discountType: type,
-        discountValue: type === 'PERCENTAGE' ? Number(value) : Math.round(Number(value) * 100),
-        applicableTicketTypeIds: [ticketType.id],
-        usageLimitTotal: limitTotal ? Number(limitTotal) : undefined,
-        usageLimitPerBuyer: limitPerBuyer ? Number(limitPerBuyer) : undefined,
-        validFrom: localInputToIso(from),
-        validUntil: localInputToIso(until),
-      });
-      setCode('');
-      setValue('');
-      onCreated();
+      if (editing) {
+        await promoApi.update(editing.id, {
+          code: code.trim().toUpperCase() !== editing.code ? code.trim().toUpperCase() : undefined,
+          discountType: type !== editing.discountType ? type : undefined,
+          discountValue: amount(),
+          // 0 removes a limit the code had; an empty box leaves a code with no limit as it is
+          usageLimitTotal: limitTotal ? Number(limitTotal) : editing.usageLimitTotal ? 0 : undefined,
+          usageLimitPerBuyer: limitPerBuyer ? Number(limitPerBuyer) : editing.usageLimitPerBuyer ? 0 : undefined,
+          validFrom: localInputToIso(from),
+          validUntil: localInputToIso(until),
+        });
+      } else {
+        await promoApi.create(eventId, {
+          code: code.trim().toUpperCase(),
+          discountType: type,
+          discountValue: amount(),
+          applicableTicketTypeIds: [ticketType.id],
+          usageLimitTotal: limitTotal ? Number(limitTotal) : undefined,
+          usageLimitPerBuyer: limitPerBuyer ? Number(limitPerBuyer) : undefined,
+          validFrom: localInputToIso(from),
+          validUntil: localInputToIso(until),
+        });
+      }
+      blankForm();
+      onChanged();
     } catch (ex) {
       setErr(errorMessage(ex));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function confirmPending() {
+    const c = pending;
+    setPending(null);
+    if (!c) return;
+    setErr(null);
+    try {
+      if (c.action === 'delete') await promoApi.remove(c.promo.id);
+      else await promoApi.setStatus(c.promo.id, c.action === 'pause' ? 'PAUSED' : 'ACTIVE');
+      if (editing?.id === c.promo.id) blankForm();
+      onChanged();
+    } catch (ex) {
+      setErr(errorMessage(ex));
     }
   }
 
@@ -577,33 +638,90 @@ function PromoCodesDialog({
       {codes.length === 0 ? (
         <p className="muted small">No promo codes apply to this ticket type yet.</p>
       ) : (
-        <ul className="plain-list promo-list">
-          {codes.map((p) => (
-            <li key={p.id} className="row-between">
-              <span>
-                <code>{p.code}</code> <strong>{discountText(p, ticketType?.price.currency ?? 'USD')}</strong>
-                <span className="muted small">
-                  {' '}
-                  · {p.applicableTicketTypeIds?.length ? 'this type only' : 'every ticket type'} · until{' '}
-                  {formatDateTime(p.validUntil)}
-                  {p.usageLimitTotal ? ` · ${p.usageLimitTotal} uses` : ''}
-                </span>
-              </span>
-            </li>
-          ))}
+        <ul className="promo-cards">
+          {codes.map((pc) => {
+            const state = promoState(pc);
+            const used = pc.usedCount ?? 0;
+            return (
+              <li key={pc.id} className={`promo-card${pc.paused ? ' is-paused' : ''}${editing?.id === pc.id ? ' is-editing' : ''}`}>
+                <div className="promo-main">
+                  <div className="promo-title">
+                    <code>{pc.code}</code>
+                    <strong>{discountText(pc, currency)}</strong>
+                    <span className={`status-chip status-${state.tone}`}>{state.label}</span>
+                  </div>
+                  <div className="muted small">
+                    {formatDateTime(pc.validFrom)} to {formatDateTime(pc.validUntil)}
+                  </div>
+                  <div className="muted small">
+                    {used}
+                    {pc.usageLimitTotal ? ` of ${pc.usageLimitTotal}` : ''} used
+                    {pc.usageLimitPerBuyer ? ` · ${pc.usageLimitPerBuyer} per buyer` : ''}
+                    {' · '}
+                    {pc.applicableTicketTypeIds?.length
+                      ? pc.applicableTicketTypeIds.length === 1
+                        ? 'one ticket type'
+                        : `${pc.applicableTicketTypeIds.length} ticket types`
+                      : 'every ticket type'}
+                  </div>
+                </div>
+                <div className="promo-actions">
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title="Edit"
+                    aria-label={`Edit ${pc.code}`}
+                    onClick={() => startEdit(pc)}
+                  >
+                    <EditIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title={pc.paused ? 'Resume: let buyers use it again' : 'Pause: buyers can not use it'}
+                    aria-label={`${pc.paused ? 'Resume' : 'Pause'} ${pc.code}`}
+                    onClick={() => setPending({ promo: pc, action: pc.paused ? 'resume' : 'pause' })}
+                  >
+                    {pc.paused ? <PlayIcon /> : <PauseIcon />}
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button icon-button-danger"
+                    title={used > 0 ? 'Already used, so it can not be deleted. Pause it instead.' : 'Delete'}
+                    aria-label={`Delete ${pc.code}`}
+                    disabled={used > 0}
+                    onClick={() => setPending({ promo: pc, action: 'delete' })}
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
       <ErrorBox message={err} />
-      <h3 className="promo-new">New promo code for this type</h3>
+      <h3 className="promo-new">{editing ? `Edit ${editing.code}` : 'New promo code for this type'}</h3>
       <form className="form" onSubmit={onSubmit}>
         <label>
           Code
-          <input required maxLength={50} value={code} onChange={(e) => setCode(e.target.value)} placeholder="EARLYBIRD" />
+          <input
+            required
+            maxLength={50}
+            disabled={locked}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="EARLYBIRD"
+          />
         </label>
         <div className="two-col">
           <label>
             Discount
-            <select value={type} onChange={(e) => setType(e.target.value as PromoCodeCreateRequest['discountType'])}>
+            <select
+              value={type}
+              disabled={locked}
+              onChange={(e) => setType(e.target.value as PromoCodeCreateRequest['discountType'])}
+            >
               <option value="PERCENTAGE">Percent off</option>
               <option value="FIXED">Amount off</option>
             </select>
@@ -621,6 +739,11 @@ function PromoCodesDialog({
             />
           </label>
         </div>
+        {locked && (
+          <small className="muted">
+            This code was already used, so its code and discount type are fixed. Pause it and make a new one to change them.
+          </small>
+        )}
         <div className="two-col">
           <label>
             Valid from
@@ -645,11 +768,38 @@ function PromoCodesDialog({
           <button type="button" className="btn" disabled={busy} onClick={onClose}>
             Close
           </button>
+          {editing && (
+            <button type="button" className="btn" disabled={busy} onClick={blankForm}>
+              Cancel edit
+            </button>
+          )}
           <button className="btn btn-primary" disabled={busy}>
-            {busy ? 'Adding...' : 'Add promo code'}
+            {busy ? 'Saving...' : editing ? 'Save changes' : 'Add promo code'}
           </button>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={pending !== null}
+        title={
+          pending?.action === 'delete'
+            ? `Delete ${pending.promo.code}?`
+            : pending?.action === 'resume'
+              ? `Resume ${pending.promo.code}?`
+              : `Pause ${pending?.promo.code ?? 'this code'}?`
+        }
+        confirmLabel={pending?.action === 'delete' ? 'Delete' : pending?.action === 'resume' ? 'Resume' : 'Pause'}
+        cancelLabel="Cancel"
+        danger={pending?.action === 'delete'}
+        onCancel={() => setPending(null)}
+        onConfirm={() => void confirmPending()}
+      >
+        {pending?.action === 'delete'
+          ? 'The code is removed for good. It has not been used, so no order is affected.'
+          : pending?.action === 'resume'
+            ? 'Buyers can use this code again, within its dates and limits.'
+            : 'Buyers can not use this code, and a cart that already has it can not check out until you resume it. Orders that used it are not affected.'}
+      </ConfirmDialog>
     </dialog>
   );
 }
@@ -1117,7 +1267,7 @@ function TicketTypes({
         ticketType={promoFor}
         codes={promoFor ? promosFor(promoFor) : []}
         onClose={() => setPromoFor(null)}
-        onCreated={promoQuery.reload}
+        onChanged={promoQuery.reload}
       />
 
       {/* Same safeguard as deleting an event: type the ticket name and re-enter the password. */}

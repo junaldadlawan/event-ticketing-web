@@ -5,8 +5,10 @@ import { errorMessage } from '../api/client';
 import { eventApi, ticketTypeApi } from '../api/endpoints';
 import type { Event, TicketType } from '../api/types';
 import { useCart } from '../cart/CartContext';
-import { Empty, ErrorBox } from '../components/ui';
+import { MoonIcon, SunIcon } from '../components/DesignerIcons';
+import { ErrorBox } from '../components/ui';
 import { formatDateTime, formatMoney, newIdempotencyKey } from '../utils/format';
+import { isDaytime } from '../utils/timeOfDay';
 import { useAsync } from '../utils/useAsync';
 
 interface ItemDetails {
@@ -76,9 +78,28 @@ export function CartPage() {
     return (
       <>
         <h1>Your cart</h1>
-        <Empty>
-          Your cart is empty. <Link to="/">Browse events</Link>
-        </Empty>
+        <div className="cart-empty">
+          <svg viewBox="0 0 260 130" width="260" height="130" aria-hidden="true">
+            <path
+              className="cart-empty-ticket"
+              d="M26 14h208a14 14 0 0 1 14 14v18a16 16 0 0 0 0 38v18a14 14 0 0 1-14 14H26a14 14 0 0 1-14-14V84a16 16 0 0 0 0-38V28a14 14 0 0 1 14-14z"
+            />
+            <path className="cart-empty-tear" d="M178 20v90" />
+            <g className="cart-empty-sun">
+              <circle cx="78" cy="65" r="17" />
+              <path d="M78 36v7M78 87v7M49 65h7M100 65h7M57 44l5 5M94 81l5 5M99 44l-5 5M62 81l-5 5" />
+            </g>
+            <path
+              className="cart-empty-moon"
+              d="M222 78a19 19 0 0 1-17-30 19 19 0 1 0 17 30z"
+            />
+          </svg>
+          <h2>Nothing here yet</h2>
+          <p className="muted">Tickets you add are held for you while you check out.</p>
+          <Link to="/events" className="btn signup-submit cart-empty-cta">
+            Browse events
+          </Link>
+        </div>
       </>
     );
   }
@@ -92,7 +113,13 @@ export function CartPage() {
           {cart.items.map((item) => {
             const d = details?.get(item.ticketTypeId);
             return (
-              <div key={item.id} className="card ticket-row">
+              <div key={item.id} className="card ticket-row cart-ticket">
+                <span
+                  className={`cart-stub ${d ? (isDaytime(d.event) ? 'is-day' : 'is-night') : ''}`}
+                  aria-hidden="true"
+                >
+                  {d && !isDaytime(d.event) ? <MoonIcon /> : <SunIcon />}
+                </span>
                 <div>
                   <h3>{d ? d.ticketType.name : 'Ticket'}</h3>
                   {d && (
@@ -101,9 +128,7 @@ export function CartPage() {
                       {formatDateTime(d.event.startAt, d.event.timezone)}
                     </p>
                   )}
-                  <p className="muted small">
-                    Held until {formatDateTime(item.holdExpiresAt)}
-                  </p>
+                  <p className="cart-hold small">Held for you until {formatDateTime(item.holdExpiresAt)}</p>
                 </div>
                 <div className="ticket-buy">
                   <span>
@@ -181,7 +206,7 @@ export function CartPage() {
                 <code>tok_fail</code> are declined.
               </span>
             </label>
-            <button className="btn btn-primary" disabled={busy}>
+            <button className="btn signup-submit" disabled={busy}>
               {busy ? 'Processing...' : `Pay ${formatMoney(cart.total)}`}
             </button>
           </form>

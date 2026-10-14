@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import { errorMessage } from '../api/client';
 import { organizationApi } from '../api/endpoints';
 import type { Organization, OrganizationDocument } from '../api/types';
@@ -42,12 +41,8 @@ export function ApplyOrganizerPage() {
         <h1>Application sent</h1>
         <p>
           Thanks! <strong>{submitted.name}</strong> is now <StatusBadge status={submitted.status} />.
-          An admin will review your documents. Once approved you can create events from{' '}
-          <Link to="/manage">Manage</Link>.
-        </p>
-        <p className="muted small">
-          Keep your organization ID, you'll need it when creating events:{' '}
-          <code>{submitted.id}</code>
+          An admin will review your documents. Once approved, a Manage tab appears at the top and you can create
+          events from there.
         </p>
       </div>
     );

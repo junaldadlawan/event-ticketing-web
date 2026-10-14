@@ -30,7 +30,13 @@ export type Role = 'CUSTOMER' | 'ADMIN';
 
 export interface User {
   id: UUID;
-  name: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  /** YYYY-MM-DD; absent on accounts made before the API asked for it. */
+  birthDate?: string | null;
+  /** International format (+ and 8 to 15 digits), or empty / absent. */
+  phoneNumber?: string | null;
   email: string;
   role: Role;
   /** Profile picture (an /api/v1/uploads/files/ URL), or null/absent when none. */
@@ -385,6 +391,10 @@ export interface PromoCode {
   usageLimitPerBuyer?: number | null;
   validFrom: string;
   validUntil: string;
+  /** The organizer switched it off: it can not be applied to a cart. */
+  paused?: boolean;
+  /** How many orders used it; a used code keeps its code and discount type, and can only be paused. */
+  usedCount?: number;
 }
 
 export interface PromoCodeCreateRequest {
@@ -535,9 +545,25 @@ export interface Payout {
 }
 
 export interface UserUpdateRequest {
-  name?: string;
+  firstName?: string;
+  /** '' removes the middle name. */
+  middleName?: string;
+  lastName?: string;
+  birthDate?: string;
+  phoneNumber?: string;
   email?: string;
   role?: Role;
+}
+
+/** What the sign-up form sends (besides email and password). */
+export interface RegisterDetails {
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  /** YYYY-MM-DD, required. */
+  birthDate: string;
+  /** Optional, international format. */
+  phoneNumber?: string;
 }
 
 export interface EventAnalytics {
@@ -553,4 +579,16 @@ export interface PayoutGenerateRequest {
   periodStart: string;
   /** Last day included (UTC); not in the future. */
   periodEnd: string;
+}
+
+/** Fields of a promo code that can be changed; leave a field out to keep it. 0 clears a usage limit. */
+export interface PromoCodeUpdateRequest {
+  code?: string;
+  discountType?: DiscountType;
+  discountValue?: number;
+  applicableTicketTypeIds?: UUID[];
+  usageLimitTotal?: number;
+  usageLimitPerBuyer?: number;
+  validFrom?: string;
+  validUntil?: string;
 }

@@ -8,7 +8,7 @@ import { EditIcon, SearchIcon, StatsIcon } from '../../components/DesignerIcons'
 import { FormDialog } from '../../components/FormDialog';
 import { UserPicker } from '../../components/UserPicker';
 import { Empty, ErrorBox, Spinner, SuccessBox } from '../../components/ui';
-import { formatDateTime, humanize } from '../../utils/format';
+import { formatDateTime, humanize, fullName } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
 import { OrgStats } from './OrgStats';
@@ -179,7 +179,7 @@ function OrganizationsManager() {
                       </span>
                     </div>
                     <div className="muted small">
-                      {own ? `${own.name} (${own.email})` : o.ownerId ? 'Owner not found' : 'No owner yet'} · applied{' '}
+                      {own ? `${fullName(own)} (${own.email})` : o.ownerId ? 'Owner not found' : 'No owner yet'} · applied{' '}
                       {formatDateTime(o.createdAt)}
                     </div>
                   </div>
@@ -430,7 +430,7 @@ function MembersPanel({ org, users, onClose }: { org: Organization; users: User[
             return (
               <li key={m.userId} className="row-between admin-member">
                 <span>
-                  <strong>{u?.name ?? 'Unknown user'}</strong>
+                  <strong>{u ? fullName(u) : 'Unknown user'}</strong>
                   <span className="muted small"> {u?.email ?? m.userId}</span>
                 </span>
                 <span>
