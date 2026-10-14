@@ -9,7 +9,9 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { EditIcon, SearchIcon, TrashIcon } from '../../components/DesignerIcons';
 import { FormDialog } from '../../components/FormDialog';
 import { Empty, ErrorBox, Spinner, SuccessBox } from '../../components/ui';
-import { formatDateTime } from '../../utils/format';
+import { formatDateTime, fullName } from '../../utils/format';
+import { BirthdateField } from '../../components/BirthdateField';
+import { PhoneField } from '../../components/PhoneField';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
 import { ReasonForm } from './ReasonForm';
@@ -40,8 +42,8 @@ function UsersManager() {
     const q = query.trim().toLowerCase();
     return (users.data ?? [])
       .filter((u) => role === 'ALL' || u.role === role)
-      .filter((u) => !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .filter((u) => !q || fullName(u).toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+      .sort((a, b) => fullName(a).localeCompare(fullName(b)));
   }, [users.data, query, role]);
 
   async function confirmDelete() {
@@ -52,7 +54,7 @@ function UsersManager() {
     setMsg(null);
     try {
       await adminUserApi.remove(u.id);
-      setMsg(`${u.name} was deleted.`);
+      setMsg(`${fullName(u)} was deleted.`);
       users.reload();
     } catch (e) {
       setErr(errorMessage(e));
@@ -109,9 +111,9 @@ function UsersManager() {
                 <tr key={u.id} className={suspended ? 'is-suspended' : undefined}>
                   <td>
                     <div className="admin-person">
-                      <Avatar src={u.avatarUrl} name={u.name} size={32} />
+                      <Avatar src={u.avatarUrl} name={fullName(u)} size={32} />
                       <div>
-                        <strong>{u.name}</strong>
+                        <strong>{fullName(u)}</strong>
                         {isMe && <span className="muted small"> (you)</span>}
                         {suspended && <span className="status-chip status-bad admin-chip">Suspended</span>}
                         <div className="muted small">{u.email}</div>
@@ -130,7 +132,7 @@ function UsersManager() {
                         type="button"
                         className="icon-button"
                         title="Edit user"
-                        aria-label={`Edit ${u.name}`}
+                        aria-label={`Edit ${fullName(u)}`}
                         onClick={() => setEditing(u)}
                       >
                         <EditIcon />
@@ -148,7 +150,7 @@ function UsersManager() {
                             type="button"
                             className="icon-button icon-button-danger"
                             title="Delete user"
-                            aria-label={`Delete ${u.name}`}
+                            aria-label={`Delete ${fullName(u)}`}
                             onClick={() => setDeleting(u)}
                           >
                             <TrashIcon />
@@ -188,8 +190,8 @@ function UsersManager() {
           <ReasonForm
             intro={
               moderating.action === 'REINSTATE'
-                ? `${moderating.user.name} will be able to sign in again.`
-                : `${moderating.user.name} will not be able to sign in until you reinstate the account.`
+                ? `${fullName(moderating.user)} will be able to sign in again.`
+                : `${fullName(moderating.user)} will not be able to sign in until you reinstate the account.`
             }
             confirmLabel={moderating.action === 'REINSTATE' ? 'Reinstate' : 'Suspend'}
             danger={moderating.action === 'SUSPEND'}
@@ -211,7 +213,7 @@ function UsersManager() {
 
       <ConfirmDialog
         open={deleting !== null}
-        title={`Delete ${deleting?.name ?? 'this user'}?`}
+        title={`Delete ${deleting ? fullName(deleting) : 'this user'}?`}
         confirmLabel="Delete"
         cancelLabel="Keep"
         danger
@@ -236,7 +238,11 @@ function EditUserForm({
   onCancel: () => void;
   onSaved: () => void;
 }) {
-  const [name, setName] = useState(user.name);
+  const [firstName, setFirstName] = useState(user.firstName);
+  const [middleName, setMiddleName] = useState(user.middleName ?? '');
+  const [lastName, setLastName] = useState(user.lastName);
+  const [birthDate, setBirthDate] = useState(user.birthDate ?? '');
+  const [phone, setPhone] = useState(user.phoneNumber ?? '');
   const [email, setEmail] = useState(user.email);
   const [role, setRole] = useState<Role>(user.role);
   const [busy, setBusy] = useState(false);
@@ -248,7 +254,11 @@ function EditUserForm({
     setError(null);
     try {
       await adminUserApi.update(user.id, {
-        name: name.trim() !== user.name ? name.trim() : undefined,
+        firstName: firstName.trim() !== user.firstName ? firstName.trim() : undefined,
+        middleName: middleName.trim() !== (user.middleName ?? '') ? middleName.trim() : undefined,
+        lastName: lastName.trim() !== user.lastName ? lastName.trim() : undefined,
+        birthDate: birthDate && birthDate !== (user.birthDate ?? '') ? birthDate : undefined,
+        phoneNumber: phone.trim() !== (user.phoneNumber ?? '') ? phone.trim() : undefined,
         email: email.trim() !== user.email ? email.trim() : undefined,
         role: role !== user.role ? role : undefined,
       });
@@ -262,10 +272,30 @@ function EditUserForm({
 
   return (
     <form className="form" onSubmit={submit}>
+      <div className="two-col payout-dates">
+        <label>
+          First name
+          <input required maxLength={150} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+        </label>
+        <label>
+          Last name
+          <input required maxLength={150} value={lastName} onChange={(e) => setLastName(e.target.value)} />
+        </label>
+      </div>
       <label>
-        Name
-        <input required maxLength={150} value={name} onChange={(e) => setName(e.target.value)} />
+        Middle name <span className="muted">(optional)</span>
+        <input maxLength={150} value={middleName} onChange={(e) => setMiddleName(e.target.value)} />
       </label>
+      <div className="birth-field">
+        <span>Birthdate</span>
+        <BirthdateField value={birthDate} onChange={setBirthDate} />
+      </div>
+      <div className="birth-field">
+        <span>
+          Phone <span className="muted">(optional)</span>
+        </span>
+        <PhoneField value={phone} onChange={setPhone} />
+      </div>
       <label>
         Email
         <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} />

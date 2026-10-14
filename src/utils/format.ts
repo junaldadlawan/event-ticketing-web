@@ -85,3 +85,23 @@ export function isoToLocalInput(iso: string): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+/** A person's full name: first, optional middle, last. */
+export function fullName(u: { firstName: string; middleName?: string | null; lastName: string }): string {
+  return [u.firstName, u.middleName, u.lastName].filter(Boolean).join(' ');
+}
+
+/** A date-only value (YYYY-MM-DD) as "March 5, 1995" (no time zone shifts). */
+export function formatDate(isoDate: string | null | undefined): string {
+  if (!isoDate) return '-';
+  const [y, mo, d] = isoDate.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(new Date(y!, (mo ?? 1) - 1, d ?? 1));
+}
+
+const NEW_ACCOUNT_DAYS = 7;
+
+/** True while an account is less than a week old (createdAt is an ISO timestamp). */
+export function isNewAccount(createdAt: string | null | undefined, now: number = Date.now()): boolean {
+  const created = createdAt ? Date.parse(createdAt) : NaN;
+  return Number.isFinite(created) && now - created >= 0 && now - created < NEW_ACCOUNT_DAYS * 24 * 60 * 60 * 1000;
+}

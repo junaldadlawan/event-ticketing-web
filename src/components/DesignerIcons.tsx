@@ -404,3 +404,25 @@ export const StatsIcon = () => (
     <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
   </Icon>
 );
+
+/** A four-point sparkle (gold via the surrounding CSS color), used as the "new user" mark on the profile picture. */
+export const SparkleIcon = () => (
+  <Icon width="14" height="14" fill="currentColor" strokeWidth="1">
+    <path d="M12 1.5c.7 5.6 2.9 8.8 10.5 10.5-7.6 1.7-9.8 4.9-10.5 10.5C11.3 16.9 9.1 13.7 1.5 12 9.1 10.3 11.3 7.1 12 1.5z" />
+  </Icon>
+);
+
+/** Sun: a daytime event. */
+export const SunIcon = () => (
+  <Icon width={28} height={28}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6" />
+  </Icon>
+);
+
+/** Moon: an evening or night event. */
+export const MoonIcon = () => (
+  <Icon width={28} height={28}>
+    <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+  </Icon>
+);

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { fullName } from '../utils/format';
 import type { User } from '../api/types';
 import { parseUserQr, readQrFromImage } from '../utils/userQr';
 import { Avatar } from './Avatar';
@@ -35,8 +36,8 @@ export function UserPicker({
     if (!q) return [];
     const skip = new Set(excludeIds);
     return users
-      .filter((u) => !skip.has(u.id) && (u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)))
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .filter((u) => !skip.has(u.id) && (fullName(u).toLowerCase().includes(q) || u.email.toLowerCase().includes(q)))
+      .sort((a, b) => fullName(a).localeCompare(fullName(b)))
       .slice(0, 8);
   }, [users, query, excludeIds]);
 
@@ -66,13 +67,13 @@ export function UserPicker({
       }
       const user =
         users.find((u) => u.id === id) ??
-        (qrOnly ? ({ id, name: 'Scanned member', email: `ID ${id.slice(0, 8)}…`, role: 'CUSTOMER', createdAt: '' } as User) : undefined);
+        (qrOnly ? ({ id, firstName: 'Scanned', lastName: 'member', email: `ID ${id.slice(0, 8)}…`, role: 'CUSTOMER', createdAt: '' } as User) : undefined);
       if (!user) {
         onError?.('No account was found for that QR code.');
         return;
       }
       if (excludeIds.includes(user.id)) {
-        onError?.(`${user.name} is already a member.`);
+        onError?.(`${fullName(user)} is already a member.`);
         return;
       }
       pick(user);
@@ -85,9 +86,9 @@ export function UserPicker({
     <div className="user-picker" ref={root}>
       {value ? (
         <div className="user-picker-chosen">
-          <Avatar src={value.avatarUrl} name={value.name} size={28} />
+          <Avatar src={value.avatarUrl} name={fullName(value)} size={28} />
           <span className="user-picker-who">
-            <strong>{value.name}</strong>
+            <strong>{fullName(value)}</strong>
             <small className="muted">{value.email}</small>
           </span>
           <button type="button" className="btn-link" onClick={() => onChange(null)}>
@@ -164,9 +165,9 @@ export function UserPicker({
                       onMouseEnter={() => setActive(i)}
                       onClick={() => pick(u)}
                     >
-                      <Avatar src={u.avatarUrl} name={u.name} size={28} />
+                      <Avatar src={u.avatarUrl} name={fullName(u)} size={28} />
                       <span className="user-picker-who">
-                        <strong>{u.name}</strong>
+                        <strong>{fullName(u)}</strong>
                         <small className="muted">{u.email}</small>
                       </span>
                     </button>
