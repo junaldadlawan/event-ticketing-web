@@ -40,3 +40,9 @@ export const PAYMONGO_PUBLIC_KEY = (import.meta.env.VITE_PAYMONGO_PUBLIC_KEY ?? 
  * todo.md). While this is false the checkbox is shown but switched off, and no save request is sent.
  */
 export const CARD_SAVING_AVAILABLE = false;
+
+/**
+ * The "Test users" shortcut in the log in window (demo accounts with their passwords). Always on in the dev server; in a built
+ * site only when VITE_SHOW_TEST_USERS is "true" (for a demo or staging site, never a real one).
+ */
+export const SHOW_TEST_USERS = import.meta.env.DEV || String(import.meta.env.VITE_SHOW_TEST_USERS ?? '').trim().toLowerCase() === 'true';

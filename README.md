@@ -49,6 +49,8 @@ Requires **Node.js 18+** (`winget install OpenJS.NodeJS.LTS`).
   API must list the site's origin in `app.cors.allowed-origins`. On Netlify, set
   `VITE_API_BASE_URL` under Site settings > Environment variables; `netlify.toml`
   holds the build settings and sends every page to `index.html`.
+- The log in window's "Test users" shortcut shows in development. For a demo site set `VITE_SHOW_TEST_USERS=true` at build
+  time (the demo accounts must exist in that API's database).
 - Staging on Netlify while the API only has an `http://` address: `netlify.toml` forwards `/api/*` to the API, so leave
   `VITE_API_BASE_URL` empty there (a secure page cannot call an `http` address from the browser). The proxy hop to the API is
   not encrypted, so use an HTTPS address for the API before going live.

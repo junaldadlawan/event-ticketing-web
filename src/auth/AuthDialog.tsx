@@ -1,3 +1,4 @@
+import { SHOW_TEST_USERS } from '../config';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -122,7 +123,7 @@ export function AuthDialogProvider({ children }: { children: ReactNode }) {
             ) : (
               <RegisterPanel onSuccess={done} onSwitch={() => setMode('login')} />
             )}
-            {import.meta.env.DEV && mode === 'login' && <TestUsers onPick={(f) => setFill({ ...f })} />}
+            {SHOW_TEST_USERS && mode === 'login' && <TestUsers onPick={(f) => setFill({ ...f })} />}
           </>
         )}
       </dialog>
