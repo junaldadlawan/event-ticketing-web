@@ -30,8 +30,23 @@ function TestUsers({ onPick }: { onPick: (fill: Fill) => void }) {
 
   useEffect(() => {
     const el = box.current;
-    el?.showPopover?.();
-    return () => el?.hidePopover?.();
+    // Show it a frame later: the log in window is opened (as a modal) in the same render, and whatever enters the top layer
+    // last is drawn on top. Shown first, the panel ended up behind the window's dimmed, blurred backdrop in a built site.
+    const frame = requestAnimationFrame(() => {
+      try {
+        el?.showPopover?.();
+      } catch {
+        // already showing
+      }
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      try {
+        el?.hidePopover?.();
+      } catch {
+        // not showing
+      }
+    };
   }, []);
 
   return (
