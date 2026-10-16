@@ -1,3 +1,4 @@
+import { assetUrl } from '../api/client';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Event } from '../api/types';
@@ -5,7 +6,7 @@ import { EventImage } from './EventImage';
 
 /** The event's picture over its title block, or the sky when it has no picture or the picture fails to load. */
 export function EventCover({ event, day, children }: { event: Event; day: boolean; children: ReactNode }) {
-  const src = event.images?.find((u) => u && u.trim()) ?? null;
+  const src = assetUrl(event.images?.find((u) => u && u.trim())) ?? null;
   const [ok, setOk] = useState(false);
   useEffect(() => {
     setOk(false);

@@ -1,5 +1,20 @@
 import type { ProblemDetail, TokenPair } from './types';
 
+/**
+ * Where the API lives. Empty (the default) keeps calls on this site's own origin, which is how the dev server works (Vite
+ * proxies /api to the API). In production set VITE_API_BASE_URL to the API's public HTTPS address, for example
+ * https://api.example.com (no trailing slash); the API then has to allow this site's origin in its CORS settings.
+ */
+const API_BASE = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '').trim().replace(/\/+$/, '');
+
+/** A path that starts with /api/v1 (or /api) as a full URL on the API's address. */
+export const apiUrl = (path: string): string => `${API_BASE}${path}`;
+
+/** An uploaded file the API returns as "/api/v1/uploads/files/..." works from any origin; other URLs are left as they are. */
+export function assetUrl<T extends string | null | undefined>(url: T): T {
+  return (url && url.startsWith('/api/') ? `${API_BASE}${url}` : url) as T;
+}
+
 const ACCESS_KEY = 'et.accessToken';
 const REFRESH_KEY = 'et.refreshToken';
 
@@ -69,7 +84,7 @@ function refreshAccessToken(): Promise<boolean> {
   if (!refreshToken) return Promise.resolve(false);
   refreshInFlight ??= (async () => {
     try {
-      const res = await fetch('/api/v1/auth/refresh', {
+      const res = await fetch(apiUrl('/api/v1/auth/refresh'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
@@ -104,7 +119,7 @@ function buildUrl(path: string, query?: Query) {
     if (v !== undefined && v !== null && v !== '') params.append(k, String(v));
   }
   const qs = params.toString();
-  return `/api/v1${path}${qs ? `?${qs}` : ''}`;
+  return apiUrl(`/api/v1${path}${qs ? `?${qs}` : ''}`);
 }
 
 function send(path: string, opts: RequestOptions): Promise<Response> {

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 import { ApiError } from '../api/client';
 import { cartApi } from '../api/endpoints';
-import type { Cart, Order, UUID } from '../api/types';
+import type { Cart, CheckoutPayment, CheckoutStart, Order, UUID } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 
 const CART_KEY = 'et.cartId';
@@ -13,9 +13,14 @@ interface CartState {
   refresh: () => Promise<void>;
   addItem: (ticketTypeId: UUID, quantity: number) => Promise<void>;
   removeItem: (itemId: UUID) => Promise<void>;
+  /** Changes how many tickets a line holds (the API keeps the hold's expiry). */
+  setQuantity: (itemId: UUID, quantity: number) => Promise<void>;
   applyPromo: (code: string) => Promise<void>;
   removePromo: () => Promise<void>;
-  checkout: (payment: { paymentMethodToken: string } | { paymentMethodId: string }, idempotencyKey: string) => Promise<Order>;
+  /** Pays at once (an Order), or with PayMongo only starts the payment (a CheckoutStart: the order comes after the webhook). */
+  checkout: (payment: CheckoutPayment, idempotencyKey: string, itemIds?: UUID[]) => Promise<Order | CheckoutStart>;
+  /** An order exists: look at the cart again. If everything was paid it is gone; if only some items were, the rest are still there. */
+  afterPurchase: () => void;
 }
 
 const CartContext = createContext<CartState | null>(null);
@@ -78,6 +83,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [cart, refresh],
   );
 
+  const setQuantity = useCallback(
+    async (itemId: UUID, quantity: number) => {
+      if (cart) setCart(await cartApi.setQuantity(cart.id, itemId, quantity));
+    },
+    [cart],
+  );
+
   const applyPromo = useCallback(
     async (code: string) => {
       if (cart) setCart(await cartApi.applyPromo(cart.id, code));
@@ -90,20 +102,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [cart]);
 
   const checkout = useCallback(
-    async (payment: { paymentMethodToken: string } | { paymentMethodId: string }, idempotencyKey: string) => {
+    async (payment: CheckoutPayment, idempotencyKey: string, itemIds?: UUID[]) => {
       if (!cart) throw new Error('Your cart is empty');
-      const order = await cartApi.checkout(cart.id, payment, idempotencyKey);
-      forget();
-      return order;
+      const result = await cartApi.checkout(cart.id, payment, idempotencyKey, itemIds);
+      // An order spends the paid items. A started PayMongo payment keeps the cart until it is paid.
+      if (!('checkoutId' in result)) await refresh().catch(() => forget());
+      return result;
     },
-    [cart, forget],
+    [cart, forget, refresh],
   );
+
+  const afterPurchase = useCallback(() => {
+    void refresh().catch(() => forget());
+  }, [refresh, forget]);
 
   const itemCount = cart?.items.reduce((n, i) => n + i.quantity, 0) ?? 0;
 
   const value = useMemo(
-    () => ({ cart, itemCount, refresh, addItem, removeItem, applyPromo, removePromo, checkout }),
-    [cart, itemCount, refresh, addItem, removeItem, applyPromo, removePromo, checkout],
+    () => ({ cart, itemCount, refresh, addItem, removeItem, setQuantity, applyPromo, removePromo, checkout, afterPurchase }),
+    [cart, itemCount, refresh, addItem, removeItem, setQuantity, applyPromo, removePromo, checkout, afterPurchase],
   );
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

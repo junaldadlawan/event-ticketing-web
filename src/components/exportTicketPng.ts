@@ -1,3 +1,4 @@
+import { assetUrl } from '../api/client';
 import type { CodePlacement, TextField } from '../api/types';
 import type { BackgroundRect, TicketSize } from './TicketCanvas';
 
@@ -128,7 +129,8 @@ export async function exportTicketPng(d: ExportDesign): Promise<{ blob: Blob; sk
     ctx.fillStyle = d.backgroundColor ?? '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (withImage && d.backgroundUrl) {
-      const img = await loadImage(d.backgroundUrl, !d.backgroundUrl.startsWith('/') && !d.backgroundUrl.startsWith(location.origin));
+      const bg = assetUrl(d.backgroundUrl);
+      const img = await loadImage(bg, !bg.startsWith('/') && !bg.startsWith(location.origin));
       drawBackground(ctx, img, d);
     }
     await document.fonts?.ready;

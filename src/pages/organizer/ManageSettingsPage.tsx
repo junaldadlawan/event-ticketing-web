@@ -71,8 +71,9 @@ function PayoutCards({ orgId }: { orgId: string }) {
       key={orgId}
       calls={calls}
       canEdit={isOwner}
-      intro="Payouts are sent to the primary card."
-      emptyText="No card yet. Add one to receive payouts."
+      intro="Payouts are sent to the primary payout account."
+      emptyText="No payout account yet. Add one to receive payouts."
+      addLabel="Add payout account"
     />
   );
 }

@@ -1,3 +1,4 @@
+import { assetUrl } from '../api/client';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -95,7 +96,7 @@ export function EventCollection({
       <ul className={`event-tickets${view === 'list' ? ' is-list' : ''}`}>
         {events.map((ev) => {
           const day = isDaytime(ev);
-          const image = ev.images?.[0];
+          const image = assetUrl(ev.images?.[0]);
           // The picture goes on top; the day / night gradient behind it shows if the picture is missing or fails to load.
           const sky = day ? 'linear-gradient(160deg, #ffd37a, #ff8e7a)' : 'linear-gradient(160deg, #8c6bea, #1b1b5e)';
           return (

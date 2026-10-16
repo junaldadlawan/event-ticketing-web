@@ -1,3 +1,4 @@
+import { assetUrl } from '../api/client';
 import type { Post } from '../api/types';
 import { formatDateTime, formatPostFull, formatPostTime } from '../utils/format';
 import { useNow } from '../utils/useNow';
@@ -101,7 +102,7 @@ export function EventPostsFeed({
         {posts.map((p) => (
           <li key={p.id} className={`post-row post-${p.kind.toLowerCase()}${statusClass(p)}`}>
             {p.imageUrl ? (
-              <img className="post-thumb" src={p.imageUrl} alt="" loading="lazy" />
+              <img className="post-thumb" src={assetUrl(p.imageUrl)} alt="" loading="lazy" />
             ) : (
               <span className="post-thumb post-thumb-empty" aria-hidden="true" />
             )}
@@ -127,7 +128,7 @@ export function EventPostsFeed({
           </div>
           {meta(p)}
           {p.body && <p>{p.body}</p>}
-          {p.imageUrl && <img className="post-image" src={p.imageUrl} alt="" loading="lazy" />}
+          {p.imageUrl && <img className="post-image" src={assetUrl(p.imageUrl)} alt="" loading="lazy" />}
         </li>
       ))}
     </ul>

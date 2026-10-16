@@ -42,10 +42,13 @@ Requires **Node.js 18+** (`winget install OpenJS.NodeJS.LTS`).
 
 ## How it talks to the API
 
-- The API has no CORS configuration, so the Vite dev server proxies `/api/*`
-  to `http://localhost:8081` (override with `VITE_API_TARGET` in `.env`).
-  A production build must be served behind the same origin as the API or
-  the API needs CORS enabled.
+- In development the Vite dev server proxies `/api/*` to `http://localhost:8081`
+  (override with `VITE_API_TARGET` in `.env`), so the browser stays on one origin.
+- A production build calls the API directly: set `VITE_API_BASE_URL` to the API's
+  public HTTPS address (for example `https://api.example.com`) when you build. The
+  API must list the site's origin in `app.cors.allowed-origins`. On Netlify, set
+  `VITE_API_BASE_URL` under Site settings > Environment variables; `netlify.toml`
+  holds the build settings and sends every page to `index.html`.
 - Auth: access + refresh JWTs from `/auth/login` are kept in `localStorage`.
   On a `401` the client calls `/auth/refresh` once and retries; if that
   fails the user is logged out.

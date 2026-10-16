@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { errorMessage } from '../../api/client';
+import { errorMessage, assetUrl } from '../../api/client';
 import { adminUserApi, eventApi, moderationApi, organizationApi } from '../../api/endpoints';
 import type { Organization, OrganizationRole, OrganizationStatus, User } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -248,7 +248,7 @@ function OrganizationsManager() {
                     {o.documents.map((d, i) => (
                       <span key={`${d.url}-${i}`}>
                         {i > 0 && ', '}
-                        <a href={d.url} target="_blank" rel="noreferrer">
+                        <a href={assetUrl(d.url)} target="_blank" rel="noreferrer">
                           {d.type}
                         </a>
                       </span>

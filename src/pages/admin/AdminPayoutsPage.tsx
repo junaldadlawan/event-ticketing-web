@@ -2,17 +2,19 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { FormEvent } from 'react';
 import { errorMessage } from '../../api/client';
-import { organizationApi, payoutApi } from '../../api/endpoints';
-import type { Payout, PayoutStatus } from '../../api/types';
-import { SearchIcon } from '../../components/DesignerIcons';
+import { analyticsApi, organizationApi, payoutApi, payoutWalletApi } from '../../api/endpoints';
+import type { Money, Payout, PayoutStatus } from '../../api/types';
+import { RefreshIcon, SearchIcon } from '../../components/DesignerIcons';
+import { PeriodFields, StatGroup, money, useFinancePeriod } from '../../components/FinanceStats';
 import { Empty, ErrorBox, Pagination, Spinner } from '../../components/ui';
 import { formatMoney, humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
 
-const PAYOUT_TONE: Record<string, string> = {
+export const PAYOUT_TONE: Record<string, string> = {
   PAID: 'status-good',
   SCHEDULED: 'status-warn',
+  PROCESSING: 'status-info',
   FAILED: 'status-bad',
 };
 
@@ -39,11 +41,182 @@ function PayoutsManager() {
       <p className="muted">What each organization has earned, the platform fee, and what was paid out.</p>
       <ErrorBox message={orgs.error} />
 
+      <PlatformFinance />
+
+      <WalletBalance />
+
       <section className="admin-section">
         <h2>Organization payouts</h2>
         <PayoutsList orgs={orgs.data ?? []} loading={orgs.loading && !orgs.data} />
       </section>
     </>
+  );
+}
+
+/** The platform's money for a period: sales, what the platform keeps, gateway costs, the organizers' share and the payouts. */
+function PlatformFinance() {
+  const period = useFinancePeriod();
+  const { from, to } = period;
+  const fin = useAsync(() => analyticsApi.platformFinance({ from, to }), [from, to]);
+  const f = fin.data;
+  const p = f?.payouts;
+  const count = (t: { count: number } | undefined) => `${t?.count ?? 0} ${t?.count === 1 ? 'payout' : 'payouts'}`;
+  return (
+    <section className="admin-section">
+      <h2>Finance summary</h2>
+      <PeriodFields period={period} />
+      <ErrorBox message={fin.error} />
+      {fin.loading && !f ? (
+        <Spinner />
+      ) : f ? (
+        <>
+          <div className="org-stats finance-stats">
+            <div className="org-stat">
+              <span className="org-stat-label">Gross sales</span>
+              <strong className="org-stat-value">{money(f.sales.gross)}</strong>
+              <span className="org-stat-hint">{f.orders.count} orders</span>
+            </div>
+            <div className={`org-stat${f.platform.netIncome.amount >= 0 ? ' org-stat-good' : ''}`}>
+              <span className="org-stat-label">Platform net income</span>
+              <strong className="org-stat-value">{money(f.platform.netIncome)}</strong>
+              <span className="org-stat-hint">Fee kept minus gateway cost</span>
+            </div>
+            <div className="org-stat">
+              <span className="org-stat-label">Owed to organizers</span>
+              <strong className="org-stat-value">{money(f.organizers.share)}</strong>
+              <span className="org-stat-hint">{money(f.organizers.owedNotYetInPayout)} not in a payout yet</span>
+            </div>
+            <div className="org-stat">
+              <span className="org-stat-label">Paid out</span>
+              <strong className="org-stat-value">{money(f.organizers.paidOut)}</strong>
+              <span className="org-stat-hint">{money(f.organizers.inPayouts)} in payouts</span>
+            </div>
+          </div>
+          <details className="finance-details">
+            <summary>Show all figures</summary>
+          <div className="finance-grid">
+          <StatGroup
+            title="Sales"
+            stats={[
+              { label: 'Gross sales', value: money(f.sales.gross), hint: `${f.orders.count} orders · ${f.orders.refunded} refunded` },
+              { label: 'Refunds', value: money(f.sales.refunds) },
+              { label: 'Net sales', value: money(f.sales.net) },
+            ]}
+          />
+          <StatGroup
+            title="Platform income"
+            stats={[
+              { label: 'Platform fee kept', value: money(f.platform.feeIncome) },
+              { label: 'Gateway cost borne', value: money(f.platform.gatewayCostBorne), hint: 'Paid by the platform' },
+              { label: 'Net income', value: money(f.platform.netIncome), good: f.platform.netIncome.amount >= 0 },
+            ]}
+          />
+          <StatGroup
+            title="Gateway fees"
+            stats={[
+              { label: 'Charged by gateway', value: money(f.gatewayFees.charged), hint: `${f.gatewayFees.foreignCardOrders} foreign-card orders` },
+              { label: 'Paid by customers', value: money(f.gatewayFees.paidByCustomer) },
+              { label: 'Borne by organizations', value: money(f.gatewayFees.borneByOrganization) },
+              { label: 'Borne by platform', value: money(f.gatewayFees.borneByPlatform) },
+            ]}
+          />
+          <StatGroup
+            title="Organizers' share"
+            stats={[
+              { label: 'Owed in all', value: money(f.organizers.share) },
+              { label: 'Paid out', value: money(f.organizers.paidOut), good: true },
+              { label: 'In payouts', value: money(f.organizers.inPayouts), hint: 'Scheduled, processing or failed' },
+              { label: 'Not in a payout yet', value: money(f.organizers.owedNotYetInPayout) },
+            ]}
+          />
+          <StatGroup
+            title="Payouts created in this period"
+            stats={[
+              { label: 'Scheduled', value: money(p?.scheduled.net), hint: count(p?.scheduled) },
+              { label: 'Processing', value: money(p?.processing.net), hint: count(p?.processing) },
+              { label: 'Paid', value: money(p?.paid.net), hint: count(p?.paid) },
+              { label: 'Failed', value: money(p?.failed.net), hint: count(p?.failed) },
+            ]}
+          />
+          </div>
+          </details>
+          <p className="muted small">
+            Figures are in {f.currency}, for orders placed {f.from} to {f.to} (UTC days).
+            {f.otherCurrencies.length > 0 && ` Left out: orders in ${f.otherCurrencies.join(', ')}.`}
+          </p>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+/** PayMongo reports this amount for a limit it does not set. */
+const NO_LIMIT = 999_999_999_999_999_999;
+const limitText = (m: Money) => (m.amount >= NO_LIMIT ? 'No limit' : formatMoney(m));
+
+/** The wallet organizers are paid from: what can be sent now, what is still on its way, and what limits apply. */
+function WalletBalance() {
+  const wallet = useAsync(() => payoutWalletApi.get(), []);
+  // After a failed refresh (for example no wallet on the account) do not keep showing the old numbers.
+  const w = wallet.error ? null : wallet.data;
+  return (
+    <section className="admin-section wallet">
+      <div className="row-between">
+        <h2>Payout wallet</h2>
+        <span className="admin-actions">
+          {w && (
+            <>
+              <span className={`status-chip ${w.activated ? 'status-good' : 'status-warn'}`}>{humanize(w.status)}</span>
+              <span className="status-chip status-info">{w.provider === 'PAYMONGO' ? 'PayMongo' : 'Simulated'}</span>
+            </>
+          )}
+          <button
+            type="button"
+            className={`icon-button wallet-refresh${wallet.loading ? ' is-spinning' : ''}`}
+            title="Refresh the balance"
+            aria-label="Refresh the balance"
+            disabled={wallet.loading}
+            onClick={wallet.reload}
+          >
+            <RefreshIcon />
+          </button>
+        </span>
+      </div>
+      <ErrorBox message={wallet.error} />
+      {wallet.loading && !w ? (
+        <Spinner />
+      ) : w ? (
+        <>
+          <div className="org-stats wallet-stats">
+            <div className="org-stat org-stat-good">
+              <span className="org-stat-label">Available balance</span>
+              <strong className="org-stat-value">{formatMoney(w.balance.available)}</strong>
+              <span className="org-stat-hint">Can be sent now</span>
+            </div>
+            <div className="org-stat">
+              <span className="org-stat-label">Pending</span>
+              <strong className="org-stat-value">{formatMoney(w.balance.pending)}</strong>
+              <span className="org-stat-hint">Still on its way</span>
+            </div>
+            <div className="org-stat">
+              <span className="org-stat-label">Sent today</span>
+              <strong className="org-stat-value">{formatMoney(w.usage.outwardDaily)}</strong>
+              <span className="org-stat-hint">Limit {limitText(w.limits.outwardDaily)}</span>
+            </div>
+            <div className="org-stat">
+              <span className="org-stat-label">Sent this month</span>
+              <strong className="org-stat-value">{formatMoney(w.usage.outwardMonthly)}</strong>
+              <span className="org-stat-hint">Limit {limitText(w.limits.outwardMonthly)}</span>
+            </div>
+          </div>
+          <p className="muted small">
+            {w.account ? `${w.account.accountName} · ${w.account.accountNumber}` : 'No account details'}
+            {w.matchesConfiguredAccount === false && ' · Not the wallet set in the API settings'}
+            {!w.activated && ' · Only an activated wallet can send payouts'}
+          </p>
+        </>
+      ) : null}
+    </section>
   );
 }
 

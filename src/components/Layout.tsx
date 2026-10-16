@@ -1,3 +1,5 @@
+import { CustomerNotificationBell } from './CustomerNotificationBell';
+import { NotificationBell } from './NotificationBell';
 import { isAdmin as isAdminRole } from '../auth/roles';
 import { useEffect, useState } from 'react';
 import { fullName, isNewAccount } from '../utils/format';
@@ -53,6 +55,8 @@ export function Layout() {
   // still being checked (isHost === null) they stay hidden too.
   const hideManagement = useManagementHidden() || isHost !== true;
   const { pathname } = useLocation();
+  // An owner or organizer (not an admin) looking at the management view.
+  const orgMemberView = Boolean(user) && !isAdminRole(user?.role) && isHost === true && !hideManagement;
 
   // Switching to the customer view while on a management page takes you to the customer side.
   useEffect(() => {
@@ -82,19 +86,25 @@ export function Layout() {
     <div className="app">
       <header className="topbar">
         <div className="container topbar-inner">
-          <NavLink to="/" end className="brand">
-            Home
-          </NavLink>
-          <NavLink to="/events" end className="brand">
-            Events
-          </NavLink>
+          {/* Organization members (owner, organizer) in their management view work from Event Management, Team and Settings. */}
+          {!orgMemberView && (
+            <>
+              <NavLink to="/" end className="brand">
+                Home
+              </NavLink>
+              <NavLink to="/events" end className="brand">
+                Events
+              </NavLink>
+            </>
+          )}
           {user && !hideManagement && (
             <nav className="nav" aria-label="Organizer">
               {/* Team and Settings live under /manage too, so Event Management is not highlighted there */}
-              <NavLink to="/manage" className={({ isActive }) => (isActive && pathname !== '/manage/team' && pathname !== '/manage/settings' ? 'active' : '')}>
+              <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/settings', '/manage/finance'].includes(pathname) ? 'active' : '')}>
                 Event Management
               </NavLink>
               {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/team">Team</NavLink>}
+              {!isAdminRole(user.role) && position === 'Organization Owner' && <NavLink to="/manage/finance">Finance &amp; Payouts</NavLink>}
               {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/settings">Settings</NavLink>}
               {isAdminRole(user.role) && (
                 <>
@@ -102,6 +112,7 @@ export function Layout() {
                   <NavLink to="/admin/organizations">Organizations</NavLink>
                   <NavLink to="/admin/users">Users</NavLink>
                   <NavLink to="/admin/payouts">Finance &amp; Payouts</NavLink>
+                  <NavLink to="/admin/disputes">Disputes</NavLink>
                   <NavLink to="/admin/settings">Settings</NavLink>
                 </>
               )}
@@ -111,8 +122,11 @@ export function Layout() {
             {user && isHost === true && (
               <ViewSwitcher mode={mode} position={position} onChoose={setSwitchingTo} />
             )}
+            {user && isAdminRole(user.role) && !hideManagement && <NotificationBell />}
+            {user && hideManagement && <CustomerNotificationBell userId={user.id} />}
             <ThemeToggle />
-            {user && (
+            {/* Cart and orders are the customer view's: no management view (admin, owner, organizer) shows them. */}
+            {user && hideManagement && (
               <>
                 <span className="nav-divider" aria-hidden="true" />
                 <nav className="nav" aria-label="Buyer">

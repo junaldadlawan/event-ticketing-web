@@ -1,7 +1,18 @@
-import { ApiError, api } from './client';
+import { ApiError, api, apiUrl } from './client';
 import type {
   BackgroundFit,
+  AppNotification,
   Cart,
+  CheckoutPayment,
+  Dispute,
+  DisputeCreateRequest,
+  DisputeStatus,
+  EarningsInterval,
+  OrgTransaction,
+  OrganizationEarnings,
+  FinanceSummary,
+  OrganizationFinance,
+  DisputeUpdateRequest,
   Category,
   Event,
   EventCreateRequest,
@@ -20,7 +31,12 @@ import type {
   OrganizationRole,
   OrganizationStatus,
   Payout,
+  CheckoutStart,
+  GatewayFeeCheck,
+  GatewayFeeRequest,
+  GatewayFeeSetting,
   PayoutBatchRequest,
+  PayoutWallet,
   PayoutCard,
   PayoutCardRequest,
   PayoutGenerateRequest,
@@ -78,7 +94,7 @@ export const authApi = {
    * means "wrong password".
    */
   verifyPassword: async (email: string, password: string): Promise<boolean> => {
-    const res = await fetch('/api/v1/auth/login', {
+    const res = await fetch(apiUrl('/api/v1/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -94,7 +110,7 @@ export const authApi = {
       throw new ApiError(res.status, problem);
     }
     const { refreshToken } = (await res.json()) as TokenPair;
-    fetch('/api/v1/auth/logout', {
+    fetch(apiUrl('/api/v1/auth/logout'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
@@ -262,6 +278,18 @@ export const platformFeeApi = {
 export const analyticsApi = {
   /** Owner / organizer of the event's organization, or an admin. */
   event: (eventId: UUID) => api<EventAnalytics>(`/events/${eventId}/analytics`),
+  /** Admin only. Dates are UTC days (YYYY-MM-DD); the period is at most 366 days. */
+  platformFinance: (q: { from?: string; to?: string; currency?: string } = {}) =>
+    api<FinanceSummary>('/analytics/platform/finance', { query: { ...q } }),
+  /** The organization's owner, or an admin. */
+  organizationFinance: (orgId: UUID, q: { from?: string; to?: string; currency?: string } = {}) =>
+    api<OrganizationFinance>(`/organizations/${orgId}/finance`, { query: { ...q } }),
+  /** The organization's owner, or an admin: income per day or month for the chart. */
+  organizationEarnings: (orgId: UUID, q: { interval: EarningsInterval; from?: string; to?: string }) =>
+    api<OrganizationEarnings>(`/organizations/${orgId}/finance/earnings`, { query: { ...q } }),
+  /** The organization's owner, or an admin: sales, refunds and payouts, newest first. */
+  organizationTransactions: (orgId: UUID, q: PageQuery & { from?: string; to?: string } = {}) =>
+    api<PageResponse<OrgTransaction>>(`/organizations/${orgId}/transactions`, { query: { ...q } }),
 };
 
 /** The signed-in customer's saved payment methods. Needs the payment-method endpoints on the API (see the API prompt). */
@@ -282,6 +310,33 @@ export const payoutCardApi = {
     api<PayoutCard>(`/organizations/${orgId}/payout-cards`, { method: 'POST', body }),
   setPrimary: (cardId: UUID) => api<PayoutCard>(`/payout-cards/${cardId}/primary`, { method: 'PUT' }),
   remove: (cardId: UUID) => api<void>(`/payout-cards/${cardId}`, { method: 'DELETE' }),
+};
+
+/** Admin only: the payment gateway's fee, and who pays it. */
+export const gatewayFeeApi = {
+  get: () => api<GatewayFeeSetting>('/payment-gateway-fee'),
+  update: (body: GatewayFeeRequest) => api<GatewayFeeSetting>('/payment-gateway-fee', { method: 'PUT', body }),
+  /** The setting next to what the gateway really charged on its latest paid payments (limit 1-20). */
+  check: (limit = 5) => api<GatewayFeeCheck>('/payment-gateway-fee/check', { query: { limit } }),
+};
+
+/** Admin only: the wallet organizers are paid from (balance, limits, usage, account). 404 when PayMongo has no wallet yet. */
+export const payoutWalletApi = {
+  get: () => api<PayoutWallet>('/payout-wallet'),
+};
+
+export const notificationApi = {
+  /** The signed-in user's notifications (any role). The API has no read flag. */
+  mine: () => api<AppNotification[]>('/users/me/notifications'),
+};
+
+export const disputeApi = {
+  /** Any signed-in user: report a problem with an order or ticket. */
+  create: (body: DisputeCreateRequest) => api<Dispute>('/disputes', { method: 'POST', body }),
+  /** Admin only. */
+  list: (q: PageQuery & { status?: DisputeStatus } = {}) => api<PageResponse<Dispute>>('/disputes', { query: { ...q } }),
+  /** Admin only: move it to investigating, resolved or dismissed, with the outcome. Resolved/dismissed are final (409 after). */
+  update: (id: UUID, body: DisputeUpdateRequest) => api<Dispute>(`/disputes/${id}`, { method: 'PATCH', body }),
 };
 
 export const payoutApi = {
@@ -325,21 +380,30 @@ export const venueApi = {
 
 export const cartApi = {
   create: () => api<Cart>('/carts', { method: 'POST' }),
-  get: (id: UUID) => api<Cart>(`/carts/${id}`),
+  /** With itemIds: the cart priced for only those items, exactly what checkout with the same itemIds will charge. */
+  get: (id: UUID, itemIds?: UUID[]) => api<Cart>(`/carts/${id}`, itemIds ? { query: { itemIds: itemIds.join(',') } } : {}),
   addItem: (id: UUID, ticketTypeId: UUID, quantity: number) =>
     api<Cart>(`/carts/${id}/items`, { method: 'POST', body: { ticketTypeId, quantity } }),
+  /** Sets the quantity of a general-admission line; held inventory moves by the difference and the hold's expiry is kept. */
+  setQuantity: (id: UUID, itemId: UUID, quantity: number) =>
+    api<Cart>(`/carts/${id}/items/${itemId}`, { method: 'PATCH', body: { quantity } }),
   removeItem: (id: UUID, itemId: UUID) =>
     api<void>(`/carts/${id}/items/${itemId}`, { method: 'DELETE' }),
   applyPromo: (id: UUID, code: string) =>
     api<Cart>(`/carts/${id}/promo-code`, { method: 'POST', body: { code } }),
   removePromo: (id: UUID) => api<Cart>(`/carts/${id}/promo-code`, { method: 'DELETE' }),
   /** Pay with a one-off token (a new card) or with a card the customer saved (paymentMethodId). */
-  checkout: (id: UUID, payment: { paymentMethodToken: string } | { paymentMethodId: UUID }, idempotencyKey: string) =>
-    api<Order>(`/carts/${id}/checkout`, {
+  checkout: (id: UUID, payment: CheckoutPayment, idempotencyKey: string, itemIds?: UUID[]) =>
+    api<Order | CheckoutStart>(`/carts/${id}/checkout`, {
       method: 'POST',
-      body: payment,
+      body: itemIds ? { ...payment, itemIds } : payment,
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
+};
+
+/** With PayMongo: where a started checkout stands (only the buyer who started it can read it). */
+export const checkoutApi = {
+  status: (id: UUID) => api<CheckoutStart>(`/checkouts/${id}`),
 };
 
 export const orderApi = {

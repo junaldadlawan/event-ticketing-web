@@ -6147,6 +6147,13 @@ button.code-warning:focus-visible {
 .cart-ticket .ticket-buy {
   padding-right: 18px;
 }
+/* Only the cart page stacks quantity, price and Remove; the event page keeps its row of buy controls. */
+.cart-ticket .ticket-buy.cart-buy {
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+}
 .cart-stub {
   align-self: stretch;
   display: flex;
@@ -6829,4 +6836,404 @@ button.code-warning:focus-visible {
 .profile-tabs .settings-panel > h1,
 .profile-tabs .profile-page > h1 {
   margin-top: 0;
+}
+
+/* Expiry and security code side by side inside the narrow payment box (.two-col is for wide forms). */
+.card-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.card-pair input {
+  width: 100%;
+  min-width: 0;
+}
+
+/* An amount and its currency on one line inside a dialog (.two-col needs a wide page). */
+.amount-pair {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+  align-items: end;
+}
+.amount-pair input {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Cart: tick tickets to remove several at once. */
+.cart-bulk {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  min-height: 32px;
+}
+.cart-bulk .check-row {
+  margin: 0;
+}
+.cart-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.cart-pick h3 {
+  margin: 0;
+}
+.cart-pick input,
+.cart-bulk input {
+  width: auto;
+  margin: 0;
+}
+
+/* The payment box in the cart: tighter, so the whole form fits without scrolling. */
+.summary .form {
+  gap: 10px;
+}
+.summary .form label {
+  gap: 4px;
+}
+.summary .form input,
+.summary .form select {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.summary .total {
+  margin: 10px 0 14px;
+  padding-top: 10px;
+}
+
+/* Cart selection: a clear gap between each tick box and its text. */
+.cart-bulk .check-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.cart-bulk input,
+.cart-pick input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: #a071fd;
+}
+
+/* Payout wallet balance on Finance & Payouts. */
+.wallet-stats {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin: 12px 0 8px;
+}
+
+/* The refresh icon turns while the balance is being read. */
+.wallet-refresh.is-spinning svg {
+  animation: wallet-spin 0.9s linear infinite;
+}
+@keyframes wallet-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wallet-refresh.is-spinning svg {
+    animation: none;
+  }
+}
+
+/* Gateway fee check on Settings > Finance & Payouts. */
+.gateway-check {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.gateway-check .row-between {
+  margin-bottom: 6px;
+}
+.gateway-samples {
+  margin-top: 8px;
+}
+
+.gateway-payer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 10px;
+  font-size: 0.9rem;
+}
+.gateway-payer select {
+  width: auto;
+  min-width: 260px;
+}
+.card-rates {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.card-rates li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.card-rates li span:first-child {
+  min-width: 110px;
+  color: var(--muted);
+}
+
+/* Notification bell (admins) and the flagged gateway fee row it opens. */
+.notification-bell {
+  position: relative;
+}
+.notification-bell .icon-button {
+  position: relative;
+}
+.bell-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ff5a5a;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.bell-panel {
+  right: 0;
+  left: auto;
+  width: 320px;
+  padding: 10px;
+}
+.bell-title {
+  display: block;
+  padding: 2px 6px 8px;
+}
+.bell-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--subtle);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bell-item.is-unread {
+  border-color: #ff8e7a;
+}
+.bell-item:hover {
+  border-color: #a071fd;
+}
+.bell-link {
+  color: #a071fd;
+  font-weight: 600;
+}
+.bell-empty {
+  padding: 4px 6px;
+  margin: 0;
+}
+.setting-row.is-flagged {
+  border-radius: 12px;
+  outline: 2px solid #ff8e7a;
+  outline-offset: 4px;
+}
+.fee-issue {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed #ff8e7a;
+  background: rgb(255 142 122 / 0.12);
+}
+
+/* Gateway fee form: one rate (percentage + fixed amount) per card type. */
+.rate-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 6px;
+}
+.rate-group legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+/* "!" next to a gateway fee that is not PayMongo's rate; hover for the difference. */
+.fee-warn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: #ff8e7a;
+  color: #1a1020;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: help;
+}
+
+/* Finance summaries (admin and organization owner): a few panels, one row per figure. */
+.finance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.finance-group {
+  padding: 12px 16px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  min-width: 0;
+}
+.finance-group h3 {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+.finance-rows {
+  margin: 0;
+}
+.finance-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.finance-row dt {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.finance-row dt small {
+  display: block;
+  font-size: 0.75rem;
+}
+.finance-row dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.finance-row.is-good dd {
+  color: #55cca2;
+}
+
+/* Earnings chart (owner's Financial overview). */
+.earnings-chart {
+  width: 100%;
+  height: auto;
+  max-height: 240px;
+}
+.chart-bar {
+  fill: #a071fd;
+}
+.chart-bar:hover,
+.chart-bar:focus {
+  fill: #55cca2;
+  outline: none;
+}
+.chart-axis {
+  stroke: var(--border);
+}
+.chart-label {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.select-auto {
+  width: auto;
+  min-width: 120px;
+}
+
+.bell-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+/* "Show all figures": the detail panels stay folded until asked for. */
+.finance-details {
+  margin-top: 12px;
+}
+.finance-details > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.finance-details[open] > summary {
+  margin-bottom: 4px;
+}
+/* Checkout window: each ticket, then the amounts that make up the total. */
+.breakdown {
+  display: grid;
+  gap: 6px;
+}
+.breakdown-tickets {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 4px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+.breakdown-tickets li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.breakdown-tickets small {
+  display: block;
+}
+
+/* Cart: change a line's quantity with - and +. */
+.qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.qty-stepper output {
+  min-width: 1.5em;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* "Show all figures" on an order: a chip like the facts above it that opens the payment breakdown. */
+.order-breakdown {
+  margin-top: 10px;
+  max-width: 420px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.75);
+  border: 1px solid rgb(48 54 63 / 0.1);
+  color: #30363f;
+}
+.order-breakdown > summary {
+  padding: 8px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.order-breakdown[open] > summary {
+  border-bottom: 1px solid rgb(48 54 63 / 0.1);
+}
+.order-breakdown .plain-list,
+.order-breakdown .row-between {
+  margin: 0;
+  padding: 6px 14px;
+}
+.order-breakdown .plain-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.order-breakdown .total {
+  border-top: 1px solid rgb(48 54 63 / 0.1);
+  padding-bottom: 10px;
 }

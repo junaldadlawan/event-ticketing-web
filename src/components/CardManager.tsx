@@ -20,6 +20,8 @@ export interface SavedCard {
   expMonth: number;
   expYear: number;
   primary: boolean;
+  /** False when the card must be typed again to pay with it. */
+  canChargeAgain?: boolean;
 }
 
 /** What the API gets for a new card. With Stripe only the payment method id (and primary) is sent. */
@@ -42,12 +44,18 @@ export function CardManager({
   canEdit,
   intro,
   emptyText,
+  addLabel = 'Add card',
+  comingSoon = false,
   stripe,
 }: {
   calls: CardCalls;
   canEdit: boolean;
   intro: string;
   emptyText: string;
+  /** The add button and its dialog title (for example "Add payout account"). */
+  addLabel?: string;
+  /** A future feature: the add button is shown but switched off (see todo.md). Cards already saved can still be removed. */
+  comingSoon?: boolean;
   stripe?: { publishableKey: string; clientSecret: () => Promise<string> };
 }) {
   const cards = useAsync(() => calls.list(), []);
@@ -75,8 +83,15 @@ export function CardManager({
       <div className="row-between">
         <p className="muted small">{intro}</p>
         {canEdit && (
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>
-            Add card
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={comingSoon}
+            title={comingSoon ? 'Not available yet' : undefined}
+            onClick={() => setAdding(true)}
+          >
+            {addLabel}
+            {comingSoon && ' (coming soon)'}
           </button>
         )}
       </div>
@@ -126,10 +141,11 @@ export function CardManager({
         </ul>
       )}
 
-      <FormDialog open={adding} title="Add a card" onClose={() => setAdding(false)}>
+      <FormDialog open={adding} title={addLabel === 'Add card' ? 'Add a card' : addLabel} onClose={() => setAdding(false)}>
         {adding && (
           <AddCardForm
             first={list.length === 0}
+            submitLabel={addLabel}
             stripe={stripe}
             onCancel={() => setAdding(false)}
             onSubmit={async (body, last4) => {
@@ -164,11 +180,13 @@ export function CardManager({
 
 function AddCardForm({
   first,
+  submitLabel,
   stripe,
   onCancel,
   onSubmit,
 }: {
   first: boolean;
+  submitLabel: string;
   stripe?: { publishableKey: string; clientSecret: () => Promise<string> };
   onCancel: () => void;
   onSubmit: (body: NewCard, last4: string | null) => Promise<void>;
@@ -277,7 +295,7 @@ function AddCardForm({
           Cancel
         </button>
         <button className="btn btn-primary" disabled={busy || (Boolean(stripe) && !stripeApi)}>
-          {busy ? 'Adding…' : 'Add card'}
+          {busy ? 'Adding…' : submitLabel}
         </button>
       </div>
     </form>
