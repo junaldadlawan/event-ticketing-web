@@ -1,11 +1,23 @@
 # Netlify: build the Vite app and serve it as a single-page app.
-# Set VITE_API_BASE_URL (the API's public HTTPS address) in Site settings > Environment variables.
+#
+# The staging API only has a plain-http address (the load balancer has no certificate), and a secure page may not call an
+# http address from the browser. So Netlify forwards /api/* to the API itself and the browser only ever talks to this site.
+# For that, leave VITE_API_BASE_URL empty (or delete it) in Site settings > Environment variables.
+# When the API has an HTTPS address, either point VITE_API_BASE_URL at it (and allow this site in the API's CORS settings),
+# or change the "to" below to the https address.
 [build]
   command = "npm run build"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "20"
+
+# The API (first match wins, so this comes before the page fallback).
+[[redirects]]
+  from = "/api/*"
+  to = "http://event-ticketing-api-staging-1302422394.us-east-1.elb.amazonaws.com/api/:splat"
+  status = 200
+  force = true
 
 # Every page is index.html (the router reads the address), so a refresh on /orders/123 works.
 [[redirects]]

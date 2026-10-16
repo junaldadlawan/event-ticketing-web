@@ -49,6 +49,9 @@ Requires **Node.js 18+** (`winget install OpenJS.NodeJS.LTS`).
   API must list the site's origin in `app.cors.allowed-origins`. On Netlify, set
   `VITE_API_BASE_URL` under Site settings > Environment variables; `netlify.toml`
   holds the build settings and sends every page to `index.html`.
+- Staging on Netlify while the API only has an `http://` address: `netlify.toml` forwards `/api/*` to the API, so leave
+  `VITE_API_BASE_URL` empty there (a secure page cannot call an `http` address from the browser). The proxy hop to the API is
+  not encrypted, so use an HTTPS address for the API before going live.
 - Auth: access + refresh JWTs from `/auth/login` are kept in `localStorage`.
   On a `401` the client calls `/auth/refresh` once and retries; if that
   fails the user is logged out.
