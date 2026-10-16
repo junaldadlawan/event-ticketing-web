@@ -1,3 +1,4 @@
+import { assetUrl } from '../api/client';
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Event } from '../api/types';
@@ -41,7 +42,7 @@ export function EventImage({
   size?: Size;
   className?: string;
 }) {
-  const src = event.images?.find((u) => u && u.trim()) ?? null;
+  const src = assetUrl(event.images?.find((u) => u && u.trim())) ?? null;
   // Remember which URL failed, so a different URL gets a fresh attempt.
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
 

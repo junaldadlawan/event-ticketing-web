@@ -426,3 +426,21 @@ export const MoonIcon = () => (
     <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
   </Icon>
 );
+
+/** Two arrows chasing each other: "refresh". */
+export const RefreshIcon = () => (
+  <Icon>
+    <path d="M20 11a8 8 0 0 0-14.3-4.6L4 8" />
+    <path d="M4 4v4h4" />
+    <path d="M4 13a8 8 0 0 0 14.3 4.6L20 16" />
+    <path d="M20 20v-4h-4" />
+  </Icon>
+);
+
+/** A bell: "notifications". */
+export const BellIcon = () => (
+  <Icon>
+    <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />
+    <path d="M10 20a2 2 0 0 0 4 0" />
+  </Icon>
+);

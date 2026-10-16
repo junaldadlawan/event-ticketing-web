@@ -329,6 +329,8 @@ export interface Cart {
   appliedPromoCode: { code: string; discountAmount: Money } | null;
   /** The platform fee added on top of the tickets (0 or absent when none applies). */
   platformFee?: Money | null;
+  /** The payment gateway's fee, when management made the customer pay it (0 or absent otherwise). Included in `total`. */
+  gatewayFee?: Money | null;
   /** Tickets - promo discount + platform fee: what the buyer pays. */
   total: Money;
   createdAt: string;
@@ -361,6 +363,8 @@ export interface Order {
   promoCode: string | null;
   /** The platform fee that was added on top of the tickets (it is included in `total`). */
   platformFee?: Money | null;
+  /** The payment gateway's fee the buyer paid on top (included in `total`); 0 when the customer did not bear it. */
+  gatewayFee?: Money | null;
   total: Money;
   tickets: Ticket[];
   createdAt: string;
@@ -503,7 +507,11 @@ export interface ModerationAction {
 
 /** Platform fee ("overhead") rule: one per scope; the most specific one applies to a purchase. */
 export type FeeScope = 'PLATFORM' | 'ORGANIZATION' | 'EVENT';
-export type FeeType = 'PERCENTAGE' | 'FLAT';
+/** Who shoulders the platform fee: the same choices as the gateway fee. */
+export type FeePayer = GatewayFeePayer;
+
+/** COMBINED is a percentage plus a fixed amount per ticket. */
+export type FeeType = 'PERCENTAGE' | 'FLAT' | 'COMBINED';
 
 export interface PlatformFeeRule {
   id: UUID;
@@ -511,10 +519,12 @@ export interface PlatformFeeRule {
   /** Null for the platform default. */
   scopeId?: UUID | null;
   type: FeeType;
-  /** 0-100, for PERCENTAGE. */
+  /** 0-100, for PERCENTAGE and COMBINED. */
   percentage?: number | null;
-  /** Minor units + currency, for FLAT. */
+  /** Minor units + currency, for FLAT and COMBINED. */
   flatAmount?: Money | null;
+  /** Who shoulders the fee. Absent until the API stores it (then the customer pays, as before). */
+  payer?: FeePayer | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -523,6 +533,7 @@ export interface PlatformFeeRuleRequest {
   type: FeeType;
   percentage?: number;
   flatAmount?: Money;
+  payer?: FeePayer;
 }
 
 export interface EffectivePlatformFee {
@@ -532,7 +543,7 @@ export interface EffectivePlatformFee {
   rule?: PlatformFeeRule | null;
 }
 
-export type PayoutStatus = 'SCHEDULED' | 'PAID' | 'FAILED';
+export type PayoutStatus = 'SCHEDULED' | 'PROCESSING' | 'PAID' | 'FAILED';
 
 export interface Payout {
   id: UUID;
@@ -545,6 +556,8 @@ export interface Payout {
   /** The event this payout settles (the "after the event" method); absent for period payouts. */
   eventTitle?: string | null;
   status: PayoutStatus;
+  /** Why a FAILED payout failed. */
+  failureReason?: string | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -581,6 +594,117 @@ export interface EventAnalytics {
 
 /** One line of "what can be paid out now": an organization (and its event) with the amount ready or held back. */
 /** A card an organization is paid out to. Only the last four digits are kept; the primary card receives payouts. */
+/** With PayMongo, checkout only STARTS the payment: no order exists until the webhook marks it PAID. */
+export interface CheckoutStart {
+  checkoutId: UUID;
+  status: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+  /** Secret for this one payment (never log it): the card is attached with it, from the browser. */
+  clientKey?: string | null;
+  amount: number;
+  currency: string;
+  orderId?: UUID | null;
+  failureReason?: string | null;
+  /** Only when a saved card was paid with from the server: NONE = the webhook completes the order, REDIRECT = 3-D Secure at `redirectUrl`. */
+  nextAction?: 'NONE' | 'REDIRECT' | null;
+  redirectUrl?: string | null;
+  /** Saving the card was asked for: REQUESTED = it will be saved, UNAVAILABLE = the payment goes on but the card cannot be saved. */
+  cardSaving?: 'REQUESTED' | 'UNAVAILABLE' | 'NOT_REQUESTED' | null;
+}
+
+/** What the buyer pays with, in the body of POST /carts/{id}/checkout. A saved card on PayMongo also needs its security code and a return URL. */
+export interface CheckoutPayment {
+  paymentMethodToken?: string;
+  paymentMethodId?: UUID;
+  /** PayMongo, saved card: set on the payment method for this one payment. Never stored. */
+  securityCode?: string;
+  /** PayMongo, saved card: where the bank sends the buyer back after 3-D Secure. */
+  returnUrl?: string;
+  /** PayMongo, new card: keep it for next time (saved once the payment succeeds). */
+  saveCard?: boolean;
+}
+
+/** Who bears the payment gateway's processing fee (PayMongo, Stripe...). */
+export type GatewayFeePayer = 'CUSTOMER' | 'ORGANIZATION' | 'PLATFORM';
+
+export interface GatewayFeeSetting {
+  /** 0-100, up to two decimals. */
+  percentage: number;
+  /** Minor units + currency; amount 0 means no flat part. */
+  flatAmount: Money | null;
+  payer: GatewayFeePayer;
+  /** The whole rate for a card issued abroad; null when a foreign card costs the domestic rate. */
+  foreignPercentage?: number | null;
+  foreignFlatAmount?: Money | null;
+  updatedAt?: string | null;
+}
+
+/** Body of PUT /payment-gateway-fee: the fee numbers as they are, and who pays. */
+export interface GatewayFeeRequest {
+  percentage: number;
+  /** Leave out for no fixed amount. */
+  flatAmount?: Money;
+  payer: GatewayFeePayer;
+  /** Foreign card rate; leave both out and a foreign card costs the domestic rate. */
+  foreignPercentage?: number;
+  foreignFlatAmount?: Money;
+}
+
+/** The fee setting next to what the payment gateway really charged on its latest paid payments. */
+export interface GatewayFeeCheck {
+  /** PAYMONGO, or MOCK outside PayMongo mode (no samples then). */
+  provider: string;
+  configured: {
+    percentage: number;
+    flatAmount: Money | null;
+    payer: GatewayFeePayer;
+    foreignPercentage?: number | null;
+    foreignFlatAmount?: Money | null;
+  };
+  samples: {
+    paymentId: string;
+    amount: Money;
+    fee: Money;
+    foreignFee: Money;
+    totalFee: Money;
+    netAmount: Money;
+    effectivePercent: number;
+    sourceType: string;
+    cardBrand: string | null;
+    cardCountry: string | null;
+    /** DOMESTIC (issued in the Philippines) or FOREIGN: decides which configured rate the payment is compared with. */
+    cardOrigin?: 'DOMESTIC' | 'FOREIGN' | null;
+    paidAt: string | null;
+    /** DOMESTIC_CARD (3.5% + PHP 15.00), INTERNATIONAL_CARD (4.5% + PHP 15.00) or null when neither fits. */
+    matchedRate: string | null;
+    expectedWithConfigured: Money;
+    differenceFromConfigured: Money;
+    matchesConfigured: boolean;
+  }[];
+  allSamplesMatchConfigured: boolean;
+  /** The rate of the newest recognised payment. */
+  suggestedSetting: { basedOn: string; percentage: number; flatAmount: Money | null } | null;
+  note?: string | null;
+}
+
+/** The wallet organizers are paid from (PayMongo, or a simulated one in mock mode). Admin only. */
+export interface PayoutWallet {
+  /** PAYMONGO, or MOCK outside PayMongo mode. */
+  provider: string;
+  id: string;
+  /** PayMongo's word; only an "activated" wallet can send. */
+  status: string;
+  activated: boolean;
+  livemode: boolean;
+  balance: { available: Money; pending: Money };
+  /** An amount of 999999999999999999 means PayMongo sets no limit. */
+  limits: { balance: Money; inwardDaily: Money; inwardMonthly: Money; outwardDaily: Money; outwardMonthly: Money };
+  usage: { inwardDaily: Money; inwardMonthly: Money; outwardDaily: Money; outwardMonthly: Money };
+  account: { provider: string; accountName: string; accountNumber: string; currency: string } | null;
+  updatedAt?: string | null;
+  /** True when this is the wallet named in the API's PAYMONGO_WALLET_ACCOUNT_NUMBER; null when nothing is set to compare. */
+  matchesConfiguredAccount?: boolean | null;
+}
+
 export interface PayoutCard {
   id: UUID;
   organizationId: UUID;
@@ -590,6 +714,8 @@ export interface PayoutCard {
   expMonth: number;
   expYear: number;
   primary: boolean;
+  /** A customer's saved card: false when it must be typed again (it was saved before the provider kept it). */
+  canChargeAgain?: boolean;
   createdAt: string;
 }
 
@@ -643,4 +769,133 @@ export interface PromoCodeUpdateRequest {
   usageLimitPerBuyer?: number;
   validFrom?: string;
   validUntil?: string;
+}
+
+export type DisputeStatus = 'OPEN' | 'INVESTIGATING' | 'RESOLVED' | 'DISMISSED';
+
+/** A problem a customer reported with an order or a ticket. RESOLVED and DISMISSED are final. */
+export interface Dispute {
+  id: UUID;
+  orderId: UUID | null;
+  ticketId: UUID | null;
+  raisedBy: UUID;
+  status: DisputeStatus;
+  reason: string;
+  resolution: string | null;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy: UUID | null;
+}
+
+/** Body of PATCH /disputes/{id} (admin): both optional. */
+export interface DisputeUpdateRequest {
+  status?: DisputeStatus;
+  resolution?: string;
+}
+
+/** Body of POST /disputes: an order and/or a ticket, and what went wrong (up to 1000 characters). */
+export interface DisputeCreateRequest {
+  orderId?: UUID;
+  ticketId?: UUID;
+  reason: string;
+}
+
+export interface FinancePayoutTotal {
+  count: number;
+  net: Money;
+}
+/** The payouts created in the period, by status. */
+export interface FinancePayouts {
+  scheduled: FinancePayoutTotal;
+  processing: FinancePayoutTotal;
+  paid: FinancePayoutTotal;
+  failed: FinancePayoutTotal;
+}
+
+/** GET /analytics/platform/finance (admin): the platform's money for a period. */
+export interface FinanceSummary {
+  from: string;
+  to: string;
+  currency: string;
+  /** Other currencies with orders in the period, left out of every figure. */
+  otherCurrencies: string[];
+  orders: { count: number; refunded: number };
+  sales: { gross: Money; refunds: Money; net: Money };
+  platform: { feeIncome: Money; gatewayCostBorne: Money; netIncome: Money };
+  gatewayFees: { charged: Money; paidByCustomer: Money; borneByOrganization: Money; borneByPlatform: Money; foreignCardOrders: number };
+  organizers: { share: Money; paidOut: Money; inPayouts: Money; owedNotYetInPayout: Money };
+  payouts: FinancePayouts;
+}
+
+/** GET /organizations/{id}/finance (owner or admin): the organization's own income, never the platform's figures. */
+export interface OrganizationFinance {
+  organizationId: UUID;
+  from: string;
+  to: string;
+  currency: string;
+  otherCurrencies: string[];
+  orders: number;
+  sales: { gross: Money; refunds: Money; net: Money };
+  deductions: { platformFee: Money; gatewayFee: Money; total: Money };
+  income: Money;
+  paidOut: Money;
+  inPayouts: Money;
+  owedNotYetInPayout: Money;
+  payouts: FinancePayouts;
+}
+
+export type EarningsInterval = 'DAY' | 'MONTH';
+/** One bar of the earnings chart: the organization's income for a day ("2026-10-15") or a month ("2026-10"). */
+export interface EarningsPoint {
+  period: string;
+  earnings: Money;
+}
+/** GET /organizations/{id}/finance/earnings. Needs the earnings endpoint on the API (see the API prompt). */
+export interface OrganizationEarnings {
+  interval: EarningsInterval;
+  from: string;
+  to: string;
+  currency: string;
+  points: EarningsPoint[];
+}
+
+/** One line of GET /organizations/{id}/transactions (newest first). Needs the transactions endpoint on the API. */
+export interface OrgTransaction {
+  id: UUID;
+  type: 'SALE' | 'REFUND' | 'PAYOUT';
+  occurredAt: string;
+  description: string;
+  eventTitle?: string | null;
+  orderId?: UUID | null;
+  /** What the buyer paid (0 for a payout). */
+  gross: Money;
+  /** Platform and gateway fees taken from it. */
+  fees: Money;
+  /** What it adds to (or, negative, takes from) the organization: a refund and a payout are negative. */
+  net: Money;
+  status?: string | null;
+}
+
+export type NotificationType =
+  | 'ORDER_CONFIRMATION'
+  | 'PAYMENT_RECEIPT'
+  | 'EVENT_REMINDER'
+  | 'EVENT_CHANGE'
+  | 'EVENT_CANCELLATION'
+  | 'WAITLIST_AVAILABILITY'
+  | 'REFUND_CONFIRMATION'
+  | 'DISPUTE_RESOLVED'
+  | 'ACCOUNT_MODERATION_ACTION';
+
+/** One notification sent to the signed-in user (GET /users/me/notifications). The API sends the kind, not the wording. */
+export interface AppNotification {
+  id: UUID;
+  type: NotificationType;
+  channel: 'EMAIL' | 'SMS' | 'PUSH';
+  /** What it is about: "Order", "Event", "Refund", "Dispute", "WaitlistEntry" or "ModerationAction". */
+  relatedObjectType: string | null;
+  relatedObjectId: UUID | null;
+  status: 'PENDING' | 'SENT' | 'FAILED';
+  sentAt: string | null;
+  createdAt: string;
 }

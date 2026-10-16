@@ -5,6 +5,7 @@ import { eventApi, ticketTypeApi, waitlistApi } from '../api/endpoints';
 import type { TicketType } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { useAuthDialog } from '../auth/AuthDialog';
+import { isAdmin } from '../auth/roles';
 import { useManagementHidden } from '../auth/ViewMode';
 import { useCanManage } from '../auth/useCanManage';
 import { EditIcon, MoonIcon, SunIcon } from '../components/DesignerIcons';
@@ -99,6 +100,9 @@ function TicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: b
   const { addItem } = useCart();
   const { openAuth } = useAuthDialog();
   const navigate = useNavigate();
+  // An admin in the admin view manages the platform and does not buy tickets; the customer view can.
+  const customerView = useManagementHidden();
+  const adminView = isAdmin(user?.role) && !customerView;
   const [buying, setBuying] = useState(false);
   const [qty, setQty] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -186,6 +190,7 @@ function TicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: b
       </div>
       <div className="ticket-buy">
         <strong className="price">{formatMoney(tt.price)}</strong>
+        {!adminView && (
         <select
           value={qty}
           onChange={(e) => setQty(Number(e.target.value))}
@@ -198,18 +203,25 @@ function TicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: b
             </option>
           ))}
         </select>
-        {soldOut && !paused && !ended && !notStarted ? (
-          <button className="btn signup-submit ticket-cta" disabled={busy || waitPosition !== null} onClick={onJoinWaitlist}>
-            {waitPosition !== null ? `On the waitlist (#${waitPosition})` : busy ? 'Joining...' : 'Join waitlist'}
-          </button>
+        )}
+        {adminView ? (
+          <span className="muted small">Admins can't buy tickets. Switch to Customer view to buy.</span>
         ) : (
           <>
-            <button className="btn ticket-cta" disabled={disabled || busy} onClick={() => void onAdd()}>
-              {busy && !buying ? 'Adding...' : 'Add to cart'}
+          {soldOut && !paused && !ended && !notStarted ? (
+            <button className="btn signup-submit ticket-cta" disabled={busy || waitPosition !== null} onClick={onJoinWaitlist}>
+              {waitPosition !== null ? `On the waitlist (#${waitPosition})` : busy ? 'Joining...' : 'Join waitlist'}
             </button>
-            <button className="btn signup-submit ticket-cta" disabled={disabled || busy} onClick={() => void onAdd(true)}>
-              {buying ? 'Opening...' : 'Buy now'}
-            </button>
+          ) : (
+            <>
+              <button className="btn ticket-cta" disabled={disabled || busy} onClick={() => void onAdd()}>
+                {busy && !buying ? 'Adding...' : 'Add to cart'}
+              </button>
+              <button className="btn signup-submit ticket-cta" disabled={disabled || busy} onClick={() => void onAdd(true)}>
+                {buying ? 'Opening...' : 'Buy now'}
+              </button>
+            </>
+          )}
           </>
         )}
       </div>

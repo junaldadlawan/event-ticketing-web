@@ -1,3 +1,4 @@
+import { assetUrl } from '../api/client';
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import type { CodePlacement, CodeType, TextField } from '../api/types';
@@ -932,7 +933,7 @@ export function TicketCanvas({
           <div className="ticket-canvas-clip">
             <img
               className={`ticket-canvas-bg${onBackgroundChange ? ' is-editable' : ''}${backgroundRect ? ' is-placed' : ''}`}
-              src={backgroundUrl!}
+              src={assetUrl(backgroundUrl!)}
               alt=""
               draggable={false}
               style={

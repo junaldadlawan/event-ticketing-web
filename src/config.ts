@@ -28,3 +28,15 @@ export function telHref(phone: string): string {
  * token field. Never put a secret key (sk_) anywhere in this app: card payments are completed by the API.
  */
 export const STRIPE_PUBLISHABLE_KEY = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? '').trim() || null;
+
+/**
+ * PayMongo's PUBLIC key (pk_test_... / pk_live_...), used to send the card straight to PayMongo from the browser.
+ * Set it when the API runs with PAYMENTS_GATEWAY=paymongo. Never put the secret key (sk_...) in this app.
+ */
+export const PAYMONGO_PUBLIC_KEY = (import.meta.env.VITE_PAYMONGO_PUBLIC_KEY ?? '').trim() || null;
+
+/**
+ * "Save this card for next time" is a future feature: PayMongo has to switch card vaulting on for the account first (see
+ * todo.md). While this is false the checkbox is shown but switched off, and no save request is sent.
+ */
+export const CARD_SAVING_AVAILABLE = false;

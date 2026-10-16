@@ -3,9 +3,11 @@ import { Layout } from './components/Layout';
 import { RequireAuth } from './components/RequireAuth';
 import { ApplyOrganizerPage } from './pages/ApplyOrganizerPage';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
+import { CheckoutReturnPage } from './pages/CheckoutReturnPage';
 import { CartPage } from './pages/CartPage';
 import { AdminOrganizationsPage } from './pages/admin/AdminOrganizationsPage';
 import { AdminGeneratePayoutPage } from './pages/admin/AdminGeneratePayoutPage';
+import { AdminDisputesPage } from './pages/admin/AdminDisputesPage';
 import { AdminPayoutsPage } from './pages/admin/AdminPayoutsPage';
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage';
 import { AdminPostsPage } from './pages/admin/AdminPostsPage';
@@ -20,6 +22,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { CreateEventPage } from './pages/organizer/CreateEventPage';
 import { ManageEventPage } from './pages/organizer/ManageEventPage';
 import { CustomerPaymentPage } from './pages/CustomerPaymentPage';
+import { ManageFinancePage } from './pages/organizer/ManageFinancePage';
 import { ManageSettingsPage } from './pages/organizer/ManageSettingsPage';
 import { TeamPage } from './pages/organizer/TeamPage';
 import { ManageEventsPage } from './pages/organizer/ManageEventsPage';
@@ -39,6 +42,7 @@ export default function App() {
         <Route path="register" element={<RegisterPage />} />
 
         <Route path="cart" element={<RequireAuth><CartPage /></RequireAuth>} />
+        <Route path="checkout/return" element={<RequireAuth><CheckoutReturnPage /></RequireAuth>} />
         <Route path="orders" element={<RequireAuth><OrdersPage /></RequireAuth>} />
         <Route path="orders/:orderId" element={<RequireAuth><OrderDetailPage /></RequireAuth>} />
         <Route path="profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
@@ -49,12 +53,14 @@ export default function App() {
         <Route path="admin/posts" element={<RequireAuth><AdminPostsPage /></RequireAuth>} />
         <Route path="admin/organizations" element={<RequireAuth><AdminOrganizationsPage /></RequireAuth>} />
         <Route path="admin/users" element={<RequireAuth><AdminUsersPage /></RequireAuth>} />
+        <Route path="admin/disputes" element={<RequireAuth><AdminDisputesPage /></RequireAuth>} />
         <Route path="admin/payouts" element={<RequireAuth><AdminPayoutsPage /></RequireAuth>} />
         <Route path="admin/payouts/generate" element={<RequireAuth><AdminGeneratePayoutPage /></RequireAuth>} />
         <Route path="admin/settings" element={<RequireAuth><AdminSettingsPage /></RequireAuth>} />
         <Route path="admin/settings/:section" element={<RequireAuth><AdminSettingsPage /></RequireAuth>} />
         <Route path="manage" element={<RequireAuth><ManageEventsPage /></RequireAuth>} />
         <Route path="manage/team" element={<RequireAuth><TeamPage /></RequireAuth>} />
+        <Route path="manage/finance" element={<RequireAuth><ManageFinancePage /></RequireAuth>} />
         <Route path="manage/settings" element={<RequireAuth><ManageSettingsPage /></RequireAuth>} />
         <Route path="manage/new" element={<RequireAuth><CreateEventPage /></RequireAuth>} />
         <Route

@@ -1,3 +1,4 @@
+import { assetUrl } from '../api/client';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { errorMessage } from '../api/client';
@@ -169,7 +170,7 @@ export function PostComposer({
           />
           {preview || imageUrl ? (
             <div className="post-picture-row">
-              <img src={preview ?? imageUrl ?? ''} alt="" />
+              <img src={preview ?? assetUrl(imageUrl) ?? ''} alt="" />
               <button type="button" className="btn btn-sm" disabled={busy} onClick={() => fileRef.current?.click()}>
                 Change
               </button>

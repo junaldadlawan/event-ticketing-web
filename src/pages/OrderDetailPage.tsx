@@ -7,6 +7,8 @@ import type { Event, Ticket, TicketType } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ChevronDownIcon, QrIcon } from '../components/DesignerIcons';
+import { CARD_NOT_SAVED_KEY } from '../utils/paymongo';
+import { ReportProblemDialog } from '../components/ReportProblemDialog';
 import { TicketViewer } from '../components/TicketViewer';
 import { parseUserQr, readQrFromImage } from '../utils/userQr';
 import { ErrorBox, Spinner, StatusBadge, SuccessBox } from '../components/ui';
@@ -33,15 +35,46 @@ export function OrderDetailPage() {
     };
   }, [orderId]);
 
+  // After a purchase whose card could not be saved: say so once.
+  const [cardNotSaved] = useState(() => {
+    try {
+      return Boolean(justPurchased) && sessionStorage.getItem(CARD_NOT_SAVED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    // read once, then forget it (done here, not while reading: React may run the initializer twice)
+    try {
+      if (justPurchased) sessionStorage.removeItem(CARD_NOT_SAVED_KEY);
+    } catch {
+      // nothing to clear
+    }
+  }, [justPurchased]);
+  const [reporting, setReporting] = useState(false);
+  const [reported, setReported] = useState(false);
+
   if (loading && !data) return <Spinner />;
   if (error || !data) return <ErrorBox message={error ?? 'Order not found'} />;
   const { order, types, events } = data;
   // The event the hero talks about: the first ticket's (an order is for one event).
+  // The payment breakdown: the tickets by type, then promo and fees. Without a promo the subtotal is exact (total minus fees);
+  // with one it comes from the ticket prices, and the discount is whatever is left over.
+  const money = (amount: number) => ({ amount, currency: order.total.currency });
+  const platformFee = order.platformFee?.amount ?? 0;
+  const gatewayFee = order.gatewayFee?.amount ?? 0;
+  const byType = new Map<string, number>();
+  for (const t of order.tickets) byType.set(t.ticketTypeId, (byType.get(t.ticketTypeId) ?? 0) + 1);
+  const lines = [...byType].map(([id, count]) => ({ id, count, type: types.get(id) }));
+  const fromPrices = lines.every((l) => l.type) ? lines.reduce((n, l) => n + l.count * l.type!.price.amount, 0) : null;
+  const subtotal = order.promoCode && fromPrices !== null ? fromPrices : order.total.amount - platformFee - gatewayFee;
+  const discount = order.promoCode ? Math.max(0, subtotal + platformFee + gatewayFee - order.total.amount) : 0;
   const heroEvent = order.tickets[0] ? events.get(order.tickets[0].eventId) : undefined;
 
   return (
     <>
       {justPurchased && <SuccessBox message="Payment successful — your tickets are below." />}
+      {cardNotSaved && <p className="small warn">Your card could not be saved. Your payment went through.</p>}
       <section className="order-hero">
         <div className="order-hero-text">
           <p className="order-kicker">
@@ -65,12 +98,6 @@ export function OrderDetailPage() {
               <small>Total</small>
               {formatMoney(order.total)}
             </span>
-            {order.platformFee && order.platformFee.amount > 0 && (
-              <span className="order-fact">
-                <small>Platform fee</small>
-                {formatMoney(order.platformFee)}
-              </span>
-            )}
             <span className="order-fact">
               <small>Tickets</small>
               {order.tickets.length}
@@ -82,6 +109,57 @@ export function OrderDetailPage() {
               </span>
             )}
           </div>
+          <details className="order-breakdown">
+            <summary>Show all figures</summary>
+            <ul className="plain-list">
+              {lines.map((l) => (
+                <li key={l.id}>
+                  <span>
+                    {l.type?.name ?? 'Ticket'} × {l.count}
+                  </span>
+                  <span>{l.type ? formatMoney(money(l.type.price.amount * l.count)) : ''}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="row-between">
+              <span>Subtotal</span>
+              <span>{formatMoney(money(subtotal))}</span>
+            </div>
+            {order.promoCode && (
+              <div className="row-between">
+                <span>
+                  Promo <code>{order.promoCode}</code>
+                </span>
+                <span>{discount > 0 ? `−${formatMoney(money(discount))}` : ''}</span>
+              </div>
+            )}
+            {platformFee > 0 && (
+              <div className="row-between">
+                <span>Platform fee</span>
+                <span>{formatMoney(money(platformFee))}</span>
+              </div>
+            )}
+            {gatewayFee > 0 && (
+              <div className="row-between">
+                <span>Payment processing fee</span>
+                <span>{formatMoney(money(gatewayFee))}</span>
+              </div>
+            )}
+            <div className="row-between total">
+              <span>Total</span>
+              <strong>{formatMoney(order.total)}</strong>
+            </div>
+          </details>
+          <ReportProblemDialog
+            orderId={order.id}
+            until={heroEvent?.startAt}
+            open={reporting}
+            onClose={() => setReporting(false)}
+            onReported={() => {
+              setReporting(false);
+              setReported(true);
+            }}
+          />
         </div>
         {heroEvent && <BigCountdown startAt={heroEvent.startAt} endAt={heroEvent.endAt} />}
       </section>
@@ -92,6 +170,15 @@ export function OrderDetailPage() {
           <span className="count-badge" aria-label={`${order.tickets.length} tickets`}>
             {order.tickets.length}
           </span>
+          {order.status === 'PAID' &&
+            !(heroEvent && new Date(heroEvent.startAt) <= new Date()) &&
+            (reported ? (
+              <p className="small muted report-note">Problem reported. We will let you know the outcome.</p>
+            ) : (
+              <button type="button" className="btn btn-sm report-button" onClick={() => setReporting(true)}>
+                Report a problem
+              </button>
+            ))}
         </div>
         <div className="stack">
           {order.tickets.map((t) => (

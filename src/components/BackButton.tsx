@@ -21,7 +21,7 @@ export function BackButton() {
 
   // The top-level tabs (Home, Events, Manage) and the login and sign-up pages have nowhere to go back to, unless
   // another tab sent you here. They line up with each other, so no placeholder is needed.
-  if (!from && (location.pathname.startsWith('/admin/settings') || ['/', '/events', '/home', '/manage', '/manage/team', '/manage/settings', '/orders', '/login', '/register', '/admin/posts', '/admin/organizations', '/admin/users', '/admin/payouts', '/admin/settings'].includes(location.pathname))) return null;
+  if (!from && (location.pathname.startsWith('/admin/settings') || ['/', '/events', '/home', '/manage', '/manage/team', '/manage/settings', '/manage/finance', '/orders', '/login', '/register', '/admin/posts', '/admin/organizations', '/admin/users', '/admin/payouts', '/admin/settings'].includes(location.pathname))) return null;
 
   async function goBack() {
     // Unsaved edits on this page? Ask "Discard or continue editing" first.

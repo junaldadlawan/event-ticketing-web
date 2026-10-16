@@ -1,0 +1,14 @@
+# Netlify: build the Vite app and serve it as a single-page app.
+# Set VITE_API_BASE_URL (the API's public HTTPS address) in Site settings > Environment variables.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Every page is index.html (the router reads the address), so a refresh on /orders/123 works.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
