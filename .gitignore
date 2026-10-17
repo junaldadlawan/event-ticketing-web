@@ -1,0 +1,12 @@
+node_modules
+dist
+*.log
+
+# Environment files: never committed. .env.example is the template to copy from.
+.env
+.env.*
+!.env.example
+
+# graphify: cost log and extraction cache are local
+graphify-out/cost.json
+graphify-out/cache/
