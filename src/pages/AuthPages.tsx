@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import { errorMessage } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { useAuthDialog } from '../auth/AuthDialog';
-import { AuthSky } from '../components/AuthSky';
 import { BirthdateField } from '../components/BirthdateField';
 import { PasswordStrength } from '../components/PasswordStrength';
 import { PhoneField } from '../components/PhoneField';
@@ -71,7 +70,6 @@ export function LoginPanel({
   return (
     <div className="signup">
       <aside className="signup-promo">
-        <AuthSky flipped />
         <div className="signup-copy">
           <h2>Pick up where the show left off</h2>
           <p className="signup-lede">Your tickets, orders and events are right where you left them.</p>
@@ -194,7 +192,6 @@ export function RegisterPanel({ onSuccess, onSwitch }: PanelProps) {
   return (
     <div className="signup">
       <aside className="signup-promo">
-        <AuthSky />
         <div className="signup-copy">
           <h2>From sunrise to the last song</h2>
           <p className="signup-lede">Tickets for the dawn run, the noon market and the midnight set.</p>

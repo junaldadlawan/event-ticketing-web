@@ -5,7 +5,7 @@ import { organizationApi, payoutApi } from '../../api/endpoints';
 import type { EligiblePayoutItem, Money } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { FormDialog } from '../../components/FormDialog';
-import { Empty, ErrorBox, Spinner, SuccessBox } from '../../components/ui';
+import { Empty, ErrorBox, Spinner, SuccessBox, PageHeader } from '../../components/ui';
 import { formatMoney } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
@@ -87,8 +87,7 @@ function GeneratePayout() {
         <span aria-hidden="true"> / </span>
         <span>Generate payout</span>
       </nav>
-      <h1>Generate payout</h1>
-      <p className="muted">Review the funds that can be paid out and generate the payout records.</p>
+      <PageHeader title="Generate payout" lede="Review the funds that can be paid out and generate the payout records." />
 
       <SuccessBox message={done} />
       <ErrorBox message={error} />

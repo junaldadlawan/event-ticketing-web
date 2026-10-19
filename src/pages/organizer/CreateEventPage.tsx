@@ -7,7 +7,7 @@ import { eventApi, organizationApi, venueApi } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthContext';
 import { CategorySelect } from '../../components/CategorySelect';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
-import { Empty, ErrorBox, Spinner } from '../../components/ui';
+import { Empty, ErrorBox, Spinner, PageHeader } from '../../components/ui';
 import { localInputToIso } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 
@@ -71,7 +71,7 @@ export function CreateEventPage() {
 
   return (
     <>
-      <h1>New event</h1>
+      <PageHeader title="New event" />
       <ErrorBox message={error} />
       {orgs.loading && !orgs.data ? (
         <Spinner />

@@ -83,7 +83,7 @@ export function OrderDetailPage() {
           <h1>
             {order.status === 'PAID' && heroEvent ? (
               <>
-                You're going to <span className="order-hero-event">{heroEvent.title}</span>!
+                You're going to {heroEvent.title}!
               </>
             ) : (
               <>Your order</>

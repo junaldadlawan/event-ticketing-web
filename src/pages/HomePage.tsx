@@ -3,7 +3,6 @@ import { eventApi, postApi, ticketTypeApi } from '../api/endpoints';
 import type { Event, TicketType } from '../api/types';
 import { MoonIcon, SunIcon } from '../components/DesignerIcons';
 import { EventPostsFeed } from '../components/EventPostsFeed';
-import { HomeSky } from '../components/HomeSky';
 import { Empty, ErrorBox, Spinner } from '../components/ui';
 import { formatDateTime, formatMoney } from '../utils/format';
 import { useLivePosts } from '../utils/livePosts';
@@ -45,8 +44,7 @@ export function HomePage() {
 
   return (
     <>
-      <section className="home-hero">
-        <HomeSky />
+      <section className={`slab home-hero${next ? ' has-stub' : ''}`}>
         <div className="home-hero-copy">
           <h1>Tickets for every hour of the day</h1>
           <p>
@@ -54,21 +52,29 @@ export function HomePage() {
               ? "From the dawn run to the midnight set, see what's on sale right now."
               : 'Nothing is on sale at the moment. New events show up here as soon as tickets open.'}
           </p>
-          <Link to="/events" className="home-hero-cta">
+          <Link to="/events" className="btn btn-invert">
             Browse all events
           </Link>
         </div>
         {next && (
-          <Link to={`/events/${next.event.id}`} className="home-ticket" aria-label={`Get tickets for ${next.event.title}`}>
-            <div className="home-ticket-main">
-              <h2>{next.event.title}</h2>
-              <p>{formatDateTime(next.event.startAt, next.event.timezone)}</p>
-              <p className="home-ticket-where">{next.event.venue ? next.event.venue.name : 'Online'}</p>
+          <Link
+            to={`/events/${next.event.id}`}
+            className="slab-stub home-next"
+            aria-label={`Get tickets for ${next.event.title}`}
+          >
+            <div>
+              <div className="home-next-title">{next.event.title}</div>
+              <div className="home-next-meta">
+                {formatDateTime(next.event.startAt, next.event.timezone)}
+                <br />
+                {next.event.venue ? next.event.venue.name : 'Online'}
+              </div>
             </div>
-            <div className="home-ticket-stub">
-              <span>From</span>
-              <strong>{formatMoney(cheapest(next.live).price)}</strong>
-              <span className="home-ticket-go">Get tickets</span>
+            <div>
+              <div className="home-next-price">
+                From <strong>{formatMoney(cheapest(next.live).price)}</strong>
+              </div>
+              <div className="home-next-go">Get tickets</div>
             </div>
           </Link>
         )}

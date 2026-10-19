@@ -2,6 +2,19 @@ import type { ReactNode } from 'react';
 import type { PageResponse } from '../api/types';
 import { humanize } from '../utils/format';
 
+/** The one page header every page uses: title, an optional line under it, and the page's actions on the right. */
+export function PageHeader({ title, lede, actions }: { title: ReactNode; lede?: ReactNode; actions?: ReactNode }) {
+  return (
+    <header className="page-header">
+      <div>
+        <h1>{title}</h1>
+        {lede && <p className="page-lede">{lede}</p>}
+      </div>
+      {actions && <div className="page-actions">{actions}</div>}
+    </header>
+  );
+}
+
 export function Spinner({ label = 'Loading...' }: { label?: string }) {
   return <p className="muted">{label}</p>;
 }

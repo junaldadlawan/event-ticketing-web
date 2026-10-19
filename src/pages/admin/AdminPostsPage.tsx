@@ -10,7 +10,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { EventPostsFeed } from '../../components/EventPostsFeed';
 import { PostComposer } from '../../components/PostComposer';
 import { PostViewToggle, usePostView } from '../../components/PostViewToggle';
-import { Empty, ErrorBox, Pagination, Spinner } from '../../components/ui';
+import { Empty, ErrorBox, Pagination, Spinner, PageHeader } from '../../components/ui';
 import { notifyPostsChanged } from '../../utils/livePosts';
 import { useAsync } from '../../utils/useAsync';
 
@@ -74,14 +74,16 @@ export function AdminPostsPage() {
 
   return (
     <>
-      <div className="row-between page-header">
-        <h1>Posts</h1>
-        <button type="button" className="btn btn-primary" onClick={() => setComposing(true)}>
-          <PlusIcon />
-          Create post
-        </button>
-      </div>
-      <p className="muted">Sales and announcements buyers see on the Home page and on each event's landing page.</p>
+      <PageHeader
+        title="Posts"
+        lede="Sales and announcements buyers see on the Home page and on each event's landing page."
+        actions={
+          <button type="button" className="btn btn-primary" onClick={() => setComposing(true)}>
+            <PlusIcon />
+            Create post
+          </button>
+        }
+      />
 
       <dialog
         ref={dialog}

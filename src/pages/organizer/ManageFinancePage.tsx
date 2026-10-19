@@ -5,7 +5,7 @@ import type { EarningsInterval, OrgTransaction } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { EarningsChart } from '../../components/EarningsChart';
 import { PeriodFields, money, useFinancePeriod } from '../../components/FinanceStats';
-import { Empty, ErrorBox, Spinner } from '../../components/ui';
+import { Empty, ErrorBox, Spinner, PageHeader } from '../../components/ui';
 import { formatDateTime, formatMoney, humanize } from '../../utils/format';
 import { downloadText, statementCsv } from '../../utils/statement';
 import { useAsync } from '../../utils/useAsync';
@@ -84,25 +84,27 @@ export function ManageFinancePage() {
   const rows = recent.data?.content ?? [];
   return (
     <>
-      <div className="row-between page-header">
-        <h1>Finance &amp; Payouts</h1>
-        <button type="button" className="btn btn-primary" disabled={!f || busy} onClick={() => void download()}>
-          {busy ? 'Preparing…' : 'Download statement'}
-        </button>
-      </div>
-      <p className="muted">
-        {orgs.data.length > 1 ? (
-          <select value={selected} onChange={(e) => setOrgId(e.target.value)} aria-label="Organization">
-            {orgs.data.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          orgs.data[0].name
-        )}
-      </p>
+      <PageHeader
+        title="Finance & Payouts"
+        lede={
+          orgs.data.length > 1 ? (
+            <select value={selected} onChange={(e) => setOrgId(e.target.value)} aria-label="Organization">
+              {orgs.data.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            orgs.data[0].name
+          )
+        }
+        actions={
+          <button type="button" className="btn btn-primary" disabled={!f || busy} onClick={() => void download()}>
+            {busy ? 'Preparing…' : 'Download statement'}
+          </button>
+        }
+      />
       <div className="finance-filters">
         <PeriodFields period={period} />
         <select
