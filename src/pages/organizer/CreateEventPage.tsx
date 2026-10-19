@@ -28,10 +28,11 @@ export function CreateEventPage() {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [venueId, setVenueId] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [endTime, setEndTime] = useState('');
+  // Starts as tomorrow, 12:00 AM to 1:00 AM.
+  const [startDate, setStartDate] = useState(tomorrow);
+  const [startTime, setStartTime] = useState('00:00');
+  const [endDate, setEndDate] = useState(tomorrow);
+  const [endTime, setEndTime] = useState('01:00');
   // A row's warning shows once focus has left that row (or on submit), not while it is being filled in.
   const [left, setLeft] = useState({ start: false, end: false });
   const leaveRow = (row: 'start' | 'end') => (e: FocusEvent<HTMLDivElement>) => {
@@ -162,7 +163,10 @@ export function CreateEventPage() {
       <form className="form card narrow" onSubmit={onSubmit}>
         {orgs.data && orgs.data.length > 1 && (
           <label>
-            Organization
+            <span>
+              Organization
+              <span className="required-mark" aria-hidden="true">*</span>
+            </span>
             <select value={organizationId} onChange={(e) => setOrgChoice(e.target.value)}>
               {orgs.data.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -178,11 +182,17 @@ export function CreateEventPage() {
           </p>
         )}
         <label>
-          Title
+          <span>
+            Title
+            <span className="required-mark" aria-hidden="true">*</span>
+          </span>
           <input required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
         </label>
         <label>
-          Description
+          <span>
+            Description
+            <span className="required-mark" aria-hidden="true">*</span>
+          </span>
           <textarea
             required
             maxLength={2000}
@@ -192,7 +202,10 @@ export function CreateEventPage() {
           />
         </label>
         <label>
-          Category
+          <span>
+            Category
+            <span className="required-mark" aria-hidden="true">*</span>
+          </span>
           <CategorySelect value={category} onChange={setCategory} required />
         </label>
         <label>
@@ -209,21 +222,33 @@ export function CreateEventPage() {
         {/* Date and time stay on one line at every width. */}
         <div className="date-time-row" onBlur={leaveRow('start')}>
           <label>
-            Start date
+            <span>
+              Start date
+              <span className="required-mark" aria-hidden="true">*</span>
+            </span>
             <input type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </label>
           <label>
-            Start time
+            <span>
+              Start time
+              <span className="required-mark" aria-hidden="true">*</span>
+            </span>
             <TimeField value={startTime} onChange={setStartTime} />
           </label>
         </div>
         <div className="date-time-row" onBlur={leaveRow('end')}>
           <label>
-            End date
+            <span>
+              End date
+              <span className="required-mark" aria-hidden="true">*</span>
+            </span>
             <input type="date" required min={startDate || undefined} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </label>
           <label>
-            End time
+            <span>
+              End time
+              <span className="required-mark" aria-hidden="true">*</span>
+            </span>
             <TimeField value={endTime} onChange={setEndTime} />
           </label>
         </div>
@@ -232,7 +257,10 @@ export function CreateEventPage() {
           {shownWarning ?? (duration ? `Duration: ${duration}` : '\u00a0')}
         </p>
         <label>
-          Timezone
+          <span>
+            Timezone
+            <span className="required-mark" aria-hidden="true">*</span>
+          </span>
           <select required value={timezone} onChange={(e) => setTimezone(e.target.value)}>
             {timezoneOptions(timezone).map((tz) => (
               <option key={tz.id} value={tz.id}>
@@ -354,6 +382,13 @@ function formatOffset(minutes: number): string {
   const sign = minutes < 0 ? '-' : '+';
   const abs = Math.abs(minutes);
   return `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+}
+
+/** Tomorrow's date on this computer, as "YYYY-MM-DD" (what a date input holds). */
+function tomorrow(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /** 788_100_000 ms -> "1 week, 2 days, 3 hrs, 15 min"; parts that are 0 are left out. */

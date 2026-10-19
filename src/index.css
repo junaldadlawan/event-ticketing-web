@@ -7218,3 +7218,9 @@ button.code-warning:focus-visible {
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
+
+/* The * after a required field's label (screen readers get "required" from the field itself). */
+.required-mark {
+  color: var(--danger);
+  margin-left: 2px;
+}
