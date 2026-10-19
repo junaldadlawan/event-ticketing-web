@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useMatch, useNavigate, useSearchParams } from 'react-router-dom';
 import { eventApi } from '../../api/endpoints';
 import type { EventStatus } from '../../api/types';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { CategorySelect } from '../../components/CategorySelect';
 import { PlusIcon, SearchIcon } from '../../components/DesignerIcons';
 import { EventCollection, ResultsBar, useEventView } from '../../components/EventCollection';
+import { EventFormDialog } from './CreateEventPage';
 import { Empty, ErrorBox, Pagination, Spinner, PageHeader } from '../../components/ui';
 import { humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
@@ -31,6 +32,9 @@ export function ManageEventsPage() {
   const page = Number(params.get('page') ?? 0);
 
   const [kw, setKw] = useState(keyword);
+  // /manage/new opens the New event window over this list.
+  const navigate = useNavigate();
+  const creating = useMatch('/manage/new') !== null;
   const [view, setView] = useEventView('et.manageView');
 
   const { data, error, loading } = useAsync(
@@ -63,6 +67,11 @@ export function ManageEventsPage() {
 
   return (
     <>
+      <EventFormDialog
+        open={creating}
+        onClose={() => navigate('/manage', { replace: true })}
+        onSaved={(created) => navigate(`/manage/events/${created.id}`, { replace: true })}
+      />
       <SuspendedOrgNotice organizationIds={(data?.content ?? []).map((e) => e.organizationId)} />
       <section className="hero">
         <PageHeader

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
 import { eventApi, promoApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
 import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKind, TicketTypeUpdateRequest } from '../../api/types';
-import { CategorySelect } from '../../components/CategorySelect';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DeleteEventDialog } from '../../components/DeleteEventDialog';
+import { EventFormDialog } from './CreateEventPage';
 import { SalesInsights } from '../../components/SalesInsights';
 import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon, TrashIcon } from '../../components/DesignerIcons';
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../components/ui';
@@ -25,6 +25,8 @@ const ENDED_TIP = 'This event has ended and can no longer be changed';
 export function ManageEventPage() {
   const { eventId = '' } = useParams();
   const navigate = useNavigate();
+  // /manage/events/<id>/edit opens the Edit event window over this page.
+  const editing = useMatch('/manage/events/:eventId/edit') !== null;
   const { data: event, setData: setEvent, error, loading } = useAsync(
     () => eventApi.get(eventId),
     [eventId],
@@ -39,7 +41,6 @@ export function ManageEventPage() {
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const [editingDetails, setEditingDetails] = useState(false);
   // Only the event's own owner / organizer may change ticket types; an admin sees them read-only.
   const canEditTickets = useIsOrgManager(event?.organizationId);
   const orgName = useOrgNames(event ? [event.organizationId] : []).get(event?.organizationId ?? '');
@@ -76,9 +77,9 @@ export function ManageEventPage() {
           <button
             type="button"
             className="icon-button hero-edit"
-            onClick={() => setEditingDetails(true)}
+            onClick={() => navigate(`/manage/events/${event.id}/edit`)}
             disabled={over}
-            title={over ? ENDED_TIP : 'Edit title, category and description'}
+            title={over ? ENDED_TIP : 'Edit event details'}
             aria-label="Edit event details"
           >
             <EditIcon />
@@ -182,11 +183,14 @@ export function ManageEventPage() {
         }}
       />
 
-      <EditDetailsDialog
-        event={event}
-        open={editingDetails}
-        onClose={() => setEditingDetails(false)}
-        onSaved={setEvent}
+      <EventFormDialog
+        open={editing}
+        existing={event}
+        onClose={() => navigate(`/manage/events/${event.id}`, { replace: true })}
+        onSaved={(updated) => {
+          setEvent(updated);
+          navigate(`/manage/events/${event.id}`, { replace: true });
+        }}
       />
 
       <TicketTypes
@@ -360,99 +364,6 @@ function LaunchChecklist({
 }
 
 /** Title, category and description, edited in a window opened by the pencil in the header card. */
-function EditDetailsDialog({
-  event,
-  open,
-  onClose,
-  onSaved,
-}: {
-  event: Event;
-  open: boolean;
-  onClose: () => void;
-  onSaved: (e: Event) => void;
-}) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const [title, setTitle] = useState(event.title);
-  const [description, setDescription] = useState(event.description);
-  const [category, setCategory] = useState(event.category);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    const d = dialog.current;
-    if (!d) return;
-    if (open && !d.open) {
-      // Start from what is saved, not from an abandoned edit.
-      setTitle(event.title);
-      setDescription(event.description);
-      setCategory(event.category);
-      setErr(null);
-      d.showModal();
-    } else if (!open && d.open) {
-      d.close();
-    }
-  }, [open, event]);
-
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setErr(null);
-    try {
-      onSaved(await eventApi.update(event.id, { title, description, category }));
-      onClose();
-    } catch (ex) {
-      setErr(errorMessage(ex));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <dialog
-      ref={dialog}
-      className="modal modal-wide"
-      aria-labelledby="edit-details-title"
-      onCancel={(e) => {
-        e.preventDefault(); // Escape closes it
-        if (!busy) onClose();
-      }}
-    >
-      <div className="modal-head">
-        <h2 id="edit-details-title">Edit event details</h2>
-      </div>
-      <ErrorBox message={err} />
-      <form className="form" onSubmit={onSubmit}>
-        <label>
-          Title
-          <input maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
-        </label>
-        <label>
-          Category
-          <CategorySelect value={category} onChange={setCategory} required />
-        </label>
-        <label>
-          Description
-          <textarea
-            rows={5}
-            maxLength={10000}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </label>
-        <p className="hint">Venue, dates and timezone can't be changed after creation.</p>
-        <div className="modal-actions">
-          <button type="button" className="btn" disabled={busy} onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn btn-primary" disabled={busy}>
-            {busy ? 'Saving...' : 'Save changes'}
-          </button>
-        </div>
-      </form>
-    </dialog>
-  );
-}
-
 /** A small "More" button that opens a short menu under it; closes on a click elsewhere or Escape. */
 function RowMenu({ label, children }: { label: string; children: (close: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false);
