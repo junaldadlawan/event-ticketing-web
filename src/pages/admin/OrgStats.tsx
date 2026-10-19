@@ -3,8 +3,8 @@ import { analyticsApi, eventApi } from '../../api/endpoints';
 import type { Event, Money, Organization } from '../../api/types';
 import { ErrorBox, Spinner } from '../../components/ui';
 import { formatMoney } from '../../utils/format';
+import { isEventOver, LIVE_STATUSES } from '../../utils/eventState';
 
-const LIVE = ['PUBLISHED', 'ON_SALE', 'SOLD_OUT'];
 /** How many events are counted (and asked for sales figures); the total shown is always the real total. */
 const MAX_EVENTS = 100;
 
@@ -25,13 +25,12 @@ function summarize(events: Event[], total: number, now: number): Omit<Stats, 'ti
   const out = { total, counted: events.length, ongoing: 0, upcoming: 0, completed: 0, draft: 0, cancelled: 0, suspended: 0 };
   for (const e of events) {
     const start = new Date(e.startAt).getTime();
-    const end = new Date(e.endAt).getTime();
     if (e.status === 'DRAFT') out.draft++;
     else if (e.status === 'CANCELLED') out.cancelled++;
     else if (e.status === 'SUSPENDED') out.suspended++;
-    else if (e.status === 'COMPLETED' || (LIVE.includes(e.status) && end < now)) out.completed++;
-    else if (LIVE.includes(e.status) && start <= now) out.ongoing++;
-    else if (LIVE.includes(e.status)) out.upcoming++;
+    else if (isEventOver(e, now)) out.completed++;
+    else if (LIVE_STATUSES.includes(e.status) && start <= now) out.ongoing++;
+    else if (LIVE_STATUSES.includes(e.status)) out.upcoming++;
   }
   return out;
 }

@@ -10,6 +10,7 @@ import { useLivePosts } from '../utils/livePosts';
 import { isDaytime } from '../utils/timeOfDay';
 import { useAsync } from '../utils/useAsync';
 import { saleState } from './EventLandingPage';
+import { isEventOver } from '../utils/eventState';
 
 interface OnSale {
   event: Event;
@@ -26,7 +27,7 @@ export function HomePage() {
     return Promise.all(
       page.content.map(async (event) => {
         const types = await ticketTypeApi.list(event.id).catch(() => [] as TicketType[]);
-        return { event, live: types.filter((tt) => saleState(tt, now) === 'live') };
+        return { event, live: types.filter((tt) => saleState(tt, now, isEventOver(event, now)) === 'live') };
       }),
     );
   }, []);

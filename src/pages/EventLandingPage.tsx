@@ -13,10 +13,12 @@ import { formatDateTime, formatMoney } from '../utils/format';
 import { sortTicketTypes } from '../utils/ticketTypes';
 import { useLivePosts } from '../utils/livePosts';
 import { useAsync } from '../utils/useAsync';
+import { isEventOver } from '../utils/eventState';
 
 type SaleState = 'live' | 'soon' | 'soldout' | 'paused' | 'ended';
 
-export function saleState(tt: TicketType, now: number): SaleState {
+export function saleState(tt: TicketType, now: number, eventOver = false): SaleState {
+  if (eventOver) return 'ended';
   if (tt.salesPaused) return 'paused';
   if (tt.quantityAvailable <= 0) return 'soldout';
   if (new Date(tt.saleStartAt).getTime() > now) return 'soon';
@@ -58,7 +60,8 @@ export function EventLandingPage() {
   const [event, ticketTypes] = data;
   const now = Date.now();
   const sorted = sortTicketTypes(ticketTypes);
-  const liveCount = sorted.filter((tt) => saleState(tt, now) === 'live').length;
+  const over = isEventOver(event, now);
+  const liveCount = sorted.filter((tt) => saleState(tt, now, over) === 'live').length;
 
   return (
     <article className="event-landing">
@@ -78,7 +81,7 @@ export function EventLandingPage() {
       ) : (
         <ul className="landing-sales">
           {sorted.map((tt) => {
-            const state = saleState(tt, now);
+            const state = saleState(tt, now, over);
             return (
               <li key={tt.id} className={`landing-sale sale-${state}`}>
                 <div>

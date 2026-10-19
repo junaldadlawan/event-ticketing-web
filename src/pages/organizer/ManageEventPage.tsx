@@ -16,6 +16,10 @@ import { useIsOrgManager } from '../../auth/useCanManage';
 import { useOrgNames } from '../../utils/useOrgNames';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { useAsync } from '../../utils/useAsync';
+import { isEventOver } from '../../utils/eventState';
+
+/** Tooltip on the controls an ended event greys out. */
+const ENDED_TIP = 'This event has ended and can no longer be changed';
 
 export function ManageEventPage() {
   const { eventId = '' } = useParams();
@@ -55,6 +59,8 @@ export function ManageEventPage() {
     }
   }
 
+  // A finished event is read-only: nothing about it or its tickets can change any more.
+  const over = isEventOver(event);
   const canPublish = event.status === 'DRAFT';
   const canCancel = !['CANCELLED', 'COMPLETED'].includes(event.status);
 
@@ -64,12 +70,13 @@ export function ManageEventPage() {
       <section className="event-hero">
         <div className="title-with-status">
           <h1>{event.title}</h1>
-          <StatusBadge status={event.status} />
+          <StatusBadge status={over ? 'COMPLETED' : event.status} />
           <button
             type="button"
             className="icon-button hero-edit"
             onClick={() => setEditingDetails(true)}
-            title="Edit title, category and description"
+            disabled={over}
+            title={over ? ENDED_TIP : 'Edit title, category and description'}
             aria-label="Edit event details"
           >
             <EditIcon />
@@ -91,18 +98,24 @@ export function ManageEventPage() {
           <EyeIcon />
           View public page
         </Link>
-        <Link
-          to={`/manage/events/${event.id}/ticket-design`}
-          className="btn"
-          title={templates && templates.length === 0 ? "No ticket layout yet - design one" : undefined}
-        >
-          Design ticket
-          {templates && templates.length === 0 && (
-            <span className="btn-badge" aria-label="No ticket layout yet">
-              !
-            </span>
-          )}
-        </Link>
+        {over ? (
+          <button type="button" className="btn" disabled title={ENDED_TIP}>
+            Design ticket
+          </button>
+        ) : (
+          <Link
+            to={`/manage/events/${event.id}/ticket-design`}
+            className="btn"
+            title={templates && templates.length === 0 ? "No ticket layout yet - design one" : undefined}
+          >
+            Design ticket
+            {templates && templates.length === 0 && (
+              <span className="btn-badge" aria-label="No ticket layout yet">
+                !
+              </span>
+            )}
+          </Link>
+        )}
         {canPublish && (
           <button
             className="btn btn-primary"
@@ -115,7 +128,8 @@ export function ManageEventPage() {
         {canCancel && (
           <button
             className="btn danger"
-            disabled={busy}
+            disabled={busy || over}
+            title={over ? ENDED_TIP : undefined}
             onClick={() => setConfirmingCancel(true)}
           >
             Cancel event
@@ -123,7 +137,8 @@ export function ManageEventPage() {
         )}
         <button
           className="btn btn-link danger"
-          disabled={busy}
+          disabled={busy || over}
+          title={over ? ENDED_TIP : undefined}
           onClick={() => setConfirmingDelete(true)}
         >
           Delete
@@ -133,6 +148,7 @@ export function ManageEventPage() {
 
       <LaunchChecklist
         event={event}
+        over={over}
         typeCount={typesQuery.data?.length ?? null}
         layoutCount={templates?.length ?? null}
         busy={busy}
@@ -174,6 +190,7 @@ export function ManageEventPage() {
       <TicketTypes
         eventId={event.id}
         canEdit={canEditTickets}
+        eventOver={over}
         query={typesQuery}
         promoQuery={promoQuery}
         ownDesignTypeIds={new Set((templates ?? []).map((t) => t.ticketTypeId).filter((id): id is string => Boolean(id)))}
@@ -189,6 +206,7 @@ export function ManageEventPage() {
  */
 function LaunchChecklist({
   event,
+  over,
   typeCount,
   layoutCount,
   busy,
@@ -196,6 +214,8 @@ function LaunchChecklist({
   onPublish,
 }: {
   event: Event;
+  /** The event has ended (see isEventOver). */
+  over: boolean;
   /** null = still loading */
   typeCount: number | null;
   layoutCount: number | null;
@@ -222,6 +242,17 @@ function LaunchChecklist({
     });
   }
 
+  if (over) {
+    return (
+      <section className="launch-card" aria-label="Event status">
+        <h2>This event has ended</h2>
+        <p>
+          It ended {formatDateTime(event.endAt, event.timezone)}. Tickets are no longer on sale and the event can't be
+          changed. Orders stay below.
+        </p>
+      </section>
+    );
+  }
   if (event.status === 'PUBLISHED') {
     return (
       <section className="launch-card launch-live" aria-label="Event status">
@@ -475,8 +506,9 @@ const CARD_COLOURS: { name: string; value: string | null }[] = [
 ];
 
 /** One word (and a colour) for where a ticket type is in its life: on sale, scheduled, paused, ended, sold out. */
-function ticketStatus(tt: TicketType): { label: string; tone: 'good' | 'warn' | 'bad' | 'info' | 'muted' } {
+function ticketStatus(tt: TicketType, eventOver: boolean): { label: string; tone: 'good' | 'warn' | 'bad' | 'info' | 'muted' } {
   const now = Date.now();
+  if (eventOver) return { label: 'Event ended', tone: 'muted' };
   if (tt.salesPaused) return { label: 'Paused', tone: 'warn' };
   if (tt.quantityAvailable <= 0) return { label: 'Sold out', tone: 'bad' };
   if (new Date(tt.saleStartAt).getTime() > now) return { label: 'Scheduled', tone: 'info' };
@@ -807,6 +839,7 @@ function PromoCodesDialog({
 function TicketTypes({
   eventId,
   canEdit,
+  eventOver,
   query,
   promoQuery,
   ownDesignTypeIds,
@@ -814,6 +847,8 @@ function TicketTypes({
   eventId: string;
   /** false = read-only (an admin who is not an organizer of this event): no add, edit, pause, reorder or delete. */
   canEdit: boolean;
+  /** The event has ended: every ticket type reads "Event ended" and the change controls are disabled. */
+  eventOver: boolean;
   query: ReturnType<typeof useAsync<TicketType[]>>;
   promoQuery: ReturnType<typeof useAsync<PromoCode[]>>;
   /** Ticket types that have a layout of their own (the others print with "All ticket types"). */
@@ -1083,7 +1118,13 @@ function TicketTypes({
           )}
         </div>
         {canEdit && (
-          <button type="button" className="btn btn-primary btn-sm" onClick={openAdd}>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={openAdd}
+            disabled={eventOver}
+            title={eventOver ? ENDED_TIP : undefined}
+          >
             + Add ticket type
           </button>
         )}
@@ -1103,7 +1144,7 @@ function TicketTypes({
         {sortedTypes.map((tt) => (
           <li
             key={tt.id}
-            className={`tt-row tt-${ticketStatus(tt).tone}${tt.salesPaused ? " is-paused" : ""}${colors[tt.id] ? " has-color" : ""}${dragId === tt.id ? " is-dragging" : ""}${overId === tt.id && dragId !== tt.id ? " is-drop-target" : ""}`}
+            className={`tt-row tt-${ticketStatus(tt, eventOver).tone}${tt.salesPaused ? " is-paused" : ""}${colors[tt.id] ? " has-color" : ""}${dragId === tt.id ? " is-dragging" : ""}${overId === tt.id && dragId !== tt.id ? " is-drop-target" : ""}`}
             data-tt-id={tt.id}
             style={
               {
@@ -1120,13 +1161,14 @@ function TicketTypes({
                     type="button"
                     className="btn btn-sm btn-icon tt-edit"
                     onClick={() => openEdit(tt)}
+                    disabled={eventOver}
                     aria-label={`Edit ${tt.name}`}
-                    title="Edit"
+                    title={eventOver ? ENDED_TIP : 'Edit'}
                   >
                     <EditIcon />
                   </button>
                 )}
-                <span className={`status-chip status-${ticketStatus(tt).tone}`}>{ticketStatus(tt).label}</span>
+                <span className={`status-chip status-${ticketStatus(tt, eventOver).tone}`}>{ticketStatus(tt, eventOver).label}</span>
                 <span
                   className="tt-design"
                   tabIndex={0}
@@ -1170,8 +1212,15 @@ function TicketTypes({
                   type="button"
                   className={`btn btn-sm btn-icon ${tt.salesPaused ? 'btn-resume' : 'btn-pause'}`}
                   onClick={() => setToggling(tt)}
+                  disabled={eventOver}
                   aria-label={tt.salesPaused ? `Resume sales for ${tt.name}` : `Pause sales for ${tt.name}`}
-                  title={tt.salesPaused ? 'Resume sales: let people buy this ticket type again' : 'Pause sales: stop new purchases without deleting anything'}
+                  title={
+                    eventOver
+                      ? ENDED_TIP
+                      : tt.salesPaused
+                        ? 'Resume sales: let people buy this ticket type again'
+                        : 'Pause sales: stop new purchases without deleting anything'
+                  }
                 >
                   {tt.salesPaused ? <PlayIcon /> : <PauseIcon />}
                 </button>
@@ -1194,16 +1243,24 @@ function TicketTypes({
                         />
                       ))}
                     </div>
-                    <Link
-                      className="menu-item"
-                      to={`/manage/events/${eventId}/ticket-design?type=${tt.id}`}
-                      onClick={close}
-                    >
-                      Design ticket
-                    </Link>
+                    {eventOver ? (
+                      <button type="button" className="menu-item" disabled title={ENDED_TIP}>
+                        Design ticket
+                      </button>
+                    ) : (
+                      <Link
+                        className="menu-item"
+                        to={`/manage/events/${eventId}/ticket-design?type=${tt.id}`}
+                        onClick={close}
+                      >
+                        Design ticket
+                      </Link>
+                    )}
                     <button
                       type="button"
                       className="menu-item"
+                      disabled={eventOver}
+                      title={eventOver ? ENDED_TIP : undefined}
                       onClick={() => {
                         close();
                         setPromoFor(tt);
@@ -1216,6 +1273,8 @@ function TicketTypes({
                         <button
                           type="button"
                           className="menu-item"
+                          disabled={eventOver}
+                          title={eventOver ? ENDED_TIP : undefined}
                           onClick={() => {
                             close();
                             openDuplicate(tt);
@@ -1226,6 +1285,8 @@ function TicketTypes({
                         <button
                           type="button"
                           className="menu-item menu-item-danger"
+                          disabled={eventOver}
+                          title={eventOver ? ENDED_TIP : undefined}
                           onClick={() => {
                             close();
                             setDeleting(tt);
@@ -1244,12 +1305,15 @@ function TicketTypes({
               <button
                 type="button"
                 className="tt-grip"
-                onPointerDown={(e) => beginDrag(e, tt.id)}
+                disabled={eventOver}
+                title={eventOver ? ENDED_TIP : undefined}
+                // Some browsers still deliver pointer events to a disabled button, so the drag checks it too.
+                onPointerDown={(e) => !eventOver && beginDrag(e, tt.id)}
                 onPointerMove={(e) => moveDrag(e)}
                 onPointerUp={() => endDrag()}
                 onPointerCancel={() => cancelDrag()}
                 onKeyDown={(e) => {
-                  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                  if (!eventOver && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
                     e.preventDefault();
                     moveBy(tt.id, e.key === 'ArrowUp' ? -1 : 1);
                   }

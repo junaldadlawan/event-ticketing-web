@@ -3895,6 +3895,11 @@ button.code-warning:focus-visible {
 .tt-grip:active {
   cursor: grabbing;
 }
+.tt-grip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: transparent;
+}
 .tt-row.is-dragging {
   opacity: 0.45;
   transform: scale(0.99);

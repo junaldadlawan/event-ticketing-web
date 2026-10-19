@@ -16,6 +16,7 @@ import { formatDateTime, formatMoney, humanize } from '../utils/format';
 import { isDaytime } from '../utils/timeOfDay';
 import { sortTicketTypes } from '../utils/ticketTypes';
 import { useAsync } from '../utils/useAsync';
+import { isEventOver } from '../utils/eventState';
 
 export function EventDetailPage() {
   const { eventId = '' } = useParams();
@@ -31,12 +32,13 @@ export function EventDetailPage() {
   if (error || !data) return <ErrorBox message={error ?? 'Event not found'} />;
   const [event, ticketTypes] = data;
   const day = isDaytime(event);
+  const over = isEventOver(event);
   // Category and status, then the big title (with the Manage shortcut): over the sky, or under a picture.
   const titleBlock = (
     <>
       <div className="row-between">
         <span className="eyebrow">{event.category}</span>
-        <StatusBadge status={event.status} />
+        <StatusBadge status={over ? 'COMPLETED' : event.status} />
       </div>
       <div className="row-between page-header event-title-row">
         <h1>{event.title}</h1>
@@ -87,7 +89,7 @@ export function EventDetailPage() {
       ) : (
         <div className="stack">
           {sortTicketTypes(ticketTypes).map((tt) => (
-            <TicketTypeRow key={tt.id} ticketType={tt} day={day} />
+            <TicketTypeRow key={tt.id} ticketType={tt} day={day} eventOver={over} />
           ))}
         </div>
       )}
@@ -95,7 +97,7 @@ export function EventDetailPage() {
   );
 }
 
-function TicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: boolean }) {
+function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketType; day: boolean; eventOver: boolean }) {
   const { user } = useAuth();
   const { addItem } = useCart();
   const { openAuth } = useAuthDialog();
@@ -113,7 +115,7 @@ function TicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: b
 
   const now = Date.now();
   const notStarted = new Date(tt.saleStartAt).getTime() > now;
-  const ended = new Date(tt.saleEndAt).getTime() < now;
+  const ended = eventOver || new Date(tt.saleEndAt).getTime() < now;
   const soldOut = tt.quantityAvailable <= 0;
   const reserved = tt.kind === 'RESERVED_SEATING';
   const max = Math.min(tt.maxPerOrder, tt.quantityAvailable);
@@ -121,7 +123,8 @@ function TicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: b
   const disabled = notStarted || ended || soldOut || reserved || paused;
 
   let note: string | null = null;
-  if (paused) note = 'Sales are paused for now';
+  if (eventOver) note = 'This event has ended';
+  else if (paused) note = 'Sales are paused for now';
   else if (soldOut) note = 'Sold out. Join the waitlist and we will tell you if tickets come back.';
   else if (notStarted) note = `On sale ${formatDateTime(tt.saleStartAt)}`;
   else if (ended) note = 'Sales ended';
