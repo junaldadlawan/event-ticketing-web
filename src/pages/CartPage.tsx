@@ -13,7 +13,7 @@ import { MoonIcon, SunIcon } from '../components/DesignerIcons';
 import { StripeCard, confirmCardAction } from '../components/StripeCard';
 import type { StripeCardApi } from '../components/StripeCard';
 import { FormDialog } from '../components/FormDialog';
-import { ErrorBox } from '../components/ui';
+import { ErrorBox, PageHeader } from '../components/ui';
 import { formatDateTime, formatMoney, newIdempotencyKey } from '../utils/format';
 import { isDaytime } from '../utils/timeOfDay';
 import { useAsync } from '../utils/useAsync';
@@ -212,7 +212,7 @@ export function CartPage() {
   if (!cart || cart.items.length === 0) {
     return (
       <>
-        <h1>Your cart</h1>
+        <PageHeader title="Your cart" />
         <div className="cart-empty">
           <svg viewBox="0 0 260 130" width="260" height="130" aria-hidden="true">
             <path
@@ -252,7 +252,7 @@ export function CartPage() {
 
   return (
     <>
-      <h1>Your cart</h1>
+      <PageHeader title="Your cart" />
       {!checkingOut && <ErrorBox message={error} />}
       <div className="cart-layout">
         <div className="stack">

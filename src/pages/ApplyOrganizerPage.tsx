@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { errorMessage } from '../api/client';
 import { organizationApi } from '../api/endpoints';
 import type { Organization, OrganizationDocument } from '../api/types';
-import { ErrorBox, StatusBadge } from '../components/ui';
+import { ErrorBox, StatusBadge, PageHeader } from '../components/ui';
 import { CONTACT_EMAIL, CONTACT_PHONE, telHref } from '../config';
 
 const DOCUMENT_TYPES = ['Business permit', 'Government ID', 'Tax registration', 'Other'];
@@ -38,7 +38,7 @@ export function ApplyOrganizerPage() {
   if (submitted) {
     return (
       <div className="narrow">
-        <h1>Application sent</h1>
+        <PageHeader title="Application sent" />
         <p>
           Thanks! <strong>{submitted.name}</strong> is now <StatusBadge status={submitted.status} />.
           An admin will review your documents. Once approved, a Manage tab appears at the top and you can create
@@ -50,20 +50,24 @@ export function ApplyOrganizerPage() {
 
   return (
     <div className="narrow">
-      <h1>Host your own events</h1>
-      <p className="muted">
-        Tell us about your organization and attach at least one verification document. An admin
-        reviews every application before you can publish events.
-        {(CONTACT_EMAIL || CONTACT_PHONE) && (
+      <PageHeader
+        title="Host your own events"
+        lede={
           <>
-            {' '}
-            Questions? Contact us at{' '}
-            {CONTACT_EMAIL && <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>}
-            {CONTACT_EMAIL && CONTACT_PHONE && ' or '}
-            {CONTACT_PHONE && <a href={telHref(CONTACT_PHONE)}>{CONTACT_PHONE}</a>}.
+            Tell us about your organization and attach at least one verification document. An admin
+            reviews every application before you can publish events.
+            {(CONTACT_EMAIL || CONTACT_PHONE) && (
+              <>
+                {' '}
+                Questions? Contact us at{' '}
+                {CONTACT_EMAIL && <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>}
+                {CONTACT_EMAIL && CONTACT_PHONE && ' or '}
+                {CONTACT_PHONE && <a href={telHref(CONTACT_PHONE)}>{CONTACT_PHONE}</a>}.
+              </>
+            )}
           </>
-        )}
-      </p>
+        }
+      />
       <ErrorBox message={error} />
       <form className="form" onSubmit={onSubmit}>
         <label>

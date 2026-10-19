@@ -5,7 +5,7 @@ import type { PayoutCardRequest } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { CardManager } from '../../components/CardManager';
 import type { NewCard } from '../../components/CardManager';
-import { Empty, ErrorBox, Spinner } from '../../components/ui';
+import { Empty, ErrorBox, Spinner, PageHeader } from '../../components/ui';
 import { useAsync } from '../../utils/useAsync';
 
 /** Settings tab for an organization's owner and organizers. For now: where payouts are sent (Payment). */
@@ -23,20 +23,22 @@ export function ManageSettingsPage() {
 
   return (
     <>
-      <h1>Settings</h1>
-      <p className="muted">
-        {orgs.data.length > 1 ? (
-          <select value={selected} onChange={(e) => setOrgId(e.target.value)} aria-label="Organization">
-            {orgs.data.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          orgs.data[0].name
-        )}
-      </p>
+      <PageHeader
+        title="Settings"
+        lede={
+          orgs.data.length > 1 ? (
+            <select value={selected} onChange={(e) => setOrgId(e.target.value)} aria-label="Organization">
+              {orgs.data.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            orgs.data[0].name
+          )
+        }
+      />
       <div className="settings-layout">
         <nav className="settings-nav" aria-label="Settings">
           <NavLink to="/manage/settings" end>

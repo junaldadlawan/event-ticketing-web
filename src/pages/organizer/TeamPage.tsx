@@ -6,7 +6,7 @@ import type { OrganizationRole, User } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { Avatar } from '../../components/Avatar';
 import { UserPicker } from '../../components/UserPicker';
-import { Empty, ErrorBox, Spinner, SuccessBox } from '../../components/ui';
+import { Empty, ErrorBox, Spinner, SuccessBox, PageHeader } from '../../components/ui';
 import { formatDateTime, fullName, humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 
@@ -60,10 +60,10 @@ export function TeamPage() {
 
   return (
     <>
-      <h1>Team</h1>
-      <p className="muted">
-        The people who run {org?.name ?? 'your organization'}: the owner, organizers and check-in staff.
-      </p>
+      <PageHeader
+        title="Team"
+        lede={<>The people who run {org?.name ?? 'your organization'}: the owner, organizers and check-in staff.</>}
+      />
 
       {orgs.data.length > 1 && (
         <div className="admin-toolbar">

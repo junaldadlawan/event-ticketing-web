@@ -543,7 +543,7 @@ export interface EffectivePlatformFee {
   rule?: PlatformFeeRule | null;
 }
 
-export type PayoutStatus = 'SCHEDULED' | 'PROCESSING' | 'PAID' | 'FAILED';
+export type PayoutStatus = 'SCHEDULED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED';
 
 export interface Payout {
   id: UUID;
@@ -590,6 +590,54 @@ export interface EventAnalytics {
   revenue: Money;
   remainingInventory: number;
   salesOverTime: { date: string; ticketsSold: number; revenue: Money }[];
+}
+
+/** Buyers by age group (age at their first order). A group of 1 to 4 buyers is hidden: buyers and tickets null. */
+export interface EventAudience {
+  eventId: UUID;
+  buyers: number;
+  unknownAge: number;
+  ageGroups: { label: string; buyers: number | null; tickets: number | null }[];
+}
+
+/** When tickets sell, in the event's time zone. byWeekday is Monday first (7), byHour 0-23 (24). */
+export interface EventSalesPatterns {
+  eventId: UUID;
+  timezone: string;
+  tickets: number;
+  orders: number;
+  promoOrders: number;
+  daily: { day: string; tickets: number }[];
+  byWeekday: number[];
+  byHour: number[];
+}
+
+/** Views, add-to-cart and checkout for the days from..to in the event's time zone. Rates are fractions (0.25 = 25%), null without a base. */
+export interface EventFunnel {
+  eventId: UUID;
+  timezone: string;
+  from: string;
+  to: string;
+  views: number;
+  uniqueVisitors: number;
+  addToCart: { actions: number; quantity: number; uniqueBuyers: number };
+  checkedOut: { quantity: number; uniqueBuyers: number };
+  viewToCartRate: number | null;
+  viewToPurchaseRate: number | null;
+  daily: { day: string; views: number; uniqueVisitors: number; addToCartQuantity: number; checkedOutQuantity: number }[];
+  ticketTypes: {
+    ticketTypeId: UUID;
+    name: string;
+    addToCartActions: number;
+    addedQuantity: number;
+    uniqueBuyersAdding: number;
+    checkedOutQuantity: number;
+    removedQuantity: number;
+    expiredQuantity: number;
+    cartConversionRate: number | null;
+  }[];
+  /** When the logs started on this server; nothing before it was recorded. */
+  trackingSince: string | null;
 }
 
 /** One line of "what can be paid out now": an organization (and its event) with the amount ready or held back. */
@@ -830,6 +878,8 @@ export interface FinanceSummary {
 /** GET /organizations/{id}/finance (owner or admin): the organization's own income, never the platform's figures. */
 export interface OrganizationFinance {
   organizationId: UUID;
+  /** The event the figures are limited to (null when not filtered). */
+  eventId?: UUID | null;
   from: string;
   to: string;
   currency: string;
@@ -850,16 +900,17 @@ export interface EarningsPoint {
   period: string;
   earnings: Money;
 }
-/** GET /organizations/{id}/finance/earnings. Needs the earnings endpoint on the API (see the API prompt). */
+/** GET /organizations/{id}/finance/earnings: every day or month of the range, oldest first (0 when empty). */
 export interface OrganizationEarnings {
   interval: EarningsInterval;
   from: string;
   to: string;
   currency: string;
+  eventId?: UUID | null;
   points: EarningsPoint[];
 }
 
-/** One line of GET /organizations/{id}/transactions (newest first). Needs the transactions endpoint on the API. */
+/** One line of GET /organizations/{id}/transactions (newest first). */
 export interface OrgTransaction {
   id: UUID;
   type: 'SALE' | 'REFUND' | 'PAYOUT';

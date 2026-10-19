@@ -2,12 +2,13 @@ import { paymentMethodApi } from '../api/endpoints';
 import { CardManager } from '../components/CardManager';
 import { ProfileTabs } from '../components/ProfileTabs';
 import { CARD_SAVING_AVAILABLE, PAYMONGO_PUBLIC_KEY, STRIPE_PUBLISHABLE_KEY } from '../config';
+import { PageHeader } from '../components/ui';
 
 /** A customer's Payment page (next to Profile): the cards they pay with. */
 export function CustomerPaymentPage() {
   return (
     <ProfileTabs>
-      <h1>Payment</h1>
+      <PageHeader title="Payment" />
       <CardManager
         calls={paymentMethodApi}
         canEdit

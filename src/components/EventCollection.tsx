@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import type { Event } from '../api/types';
 import { formatDateTime, humanize } from '../utils/format';
 import { isDaytime } from '../utils/timeOfDay';
+import { isEventOver } from '../utils/eventState';
 import { MoonIcon, SunIcon } from './DesignerIcons';
 import { EventImage } from './EventImage';
 import { StatusBadge } from './ui';
@@ -96,12 +97,13 @@ export function EventCollection({
       <ul className={`event-tickets${view === 'list' ? ' is-list' : ''}`}>
         {events.map((ev) => {
           const day = isDaytime(ev);
+          const over = isEventOver(ev);
           const image = assetUrl(ev.images?.[0]);
           // The picture goes on top; the day / night gradient behind it shows if the picture is missing or fails to load.
           const sky = day ? 'linear-gradient(160deg, #ffd37a, #ff8e7a)' : 'linear-gradient(160deg, #8c6bea, #1b1b5e)';
           return (
             <li key={ev.id}>
-              <Link to={hrefFor(ev)} className={`event-ticket ${day ? 'is-day' : 'is-night'}`}>
+              <Link to={hrefFor(ev)} className={`event-ticket ${day ? 'is-day' : 'is-night'}${over ? ' is-completed' : ''}`}>
                 <span
                   className={`event-ticket-stub${image ? ' has-image' : ''}`}
                   style={image ? { backgroundImage: `url("${image}"), ${sky}` } : undefined}
@@ -115,13 +117,14 @@ export function EventCollection({
                     <span className="muted small">{humanize(ev.category)}</span>
                     <span className="card-tags">
                       {tag?.(ev)}
-                      <StatusBadge status={ev.status} />
+                      <StatusBadge status={over ? 'COMPLETED' : ev.status} />
                     </span>
                   </span>
                   <strong className="event-ticket-title">{ev.title}</strong>
                   <span className="muted small">{formatDateTime(ev.startAt, ev.timezone)}</span>
                   <span className="muted small">{ev.venue ? ev.venue.name : 'Online'}</span>
                   {extra && <span className="muted small">{extra(ev)}</span>}
+                  {over && <CompletedStamp />}
                 </span>
               </Link>
             </li>
@@ -132,25 +135,38 @@ export function EventCollection({
   }
   return (
     <div className={view === 'grid' ? 'event-grid' : 'event-list'}>
-      {events.map((ev) => (
-        <Link key={ev.id} to={hrefFor(ev)} className="card event-card">
-          <EventImage event={ev} size={view === 'grid' ? 'md' : 'sm'} />
-          <div className="card-body">
-            <div className="row-between">
-              <span className="eyebrow">{ev.category}</span>
-              <span className="card-tags">
-                {tag?.(ev)}
-                <StatusBadge status={ev.status} />
-              </span>
+      {events.map((ev) => {
+        const over = isEventOver(ev);
+        return (
+          <Link key={ev.id} to={hrefFor(ev)} className={`card event-card${over ? ' is-completed' : ''}`}>
+            <EventImage event={ev} size={view === 'grid' ? 'md' : 'sm'} />
+            <div className="card-body">
+              <div className="row-between">
+                <span className="eyebrow">{ev.category}</span>
+                <span className="card-tags">
+                  {tag?.(ev)}
+                  <StatusBadge status={over ? 'COMPLETED' : ev.status} />
+                </span>
+              </div>
+              <h3>{ev.title}</h3>
+              <p className="muted small">{formatDateTime(ev.startAt, ev.timezone)}</p>
+              <p className="muted small">{ev.venue ? ev.venue.name : 'Online'}</p>
+              {extra && <p className="muted small">{extra(ev)}</p>}
             </div>
-            <h3>{ev.title}</h3>
-            <p className="muted small">{formatDateTime(ev.startAt, ev.timezone)}</p>
-            <p className="muted small">{ev.venue ? ev.venue.name : 'Online'}</p>
-            {extra && <p className="muted small">{extra(ev)}</p>}
-          </div>
-        </Link>
-      ))}
+            {over && <CompletedStamp />}
+          </Link>
+        );
+      })}
     </div>
+  );
+}
+
+/** A big rubber-stamp "Completed" across the card of an event that has ended (the badge carries the text for screen readers). */
+function CompletedStamp() {
+  return (
+    <span className="completed-stamp" aria-hidden="true">
+      Completed
+    </span>
   );
 }
 

@@ -10,7 +10,7 @@ import { Avatar } from '../../components/Avatar';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ChevronDownIcon, EditIcon, SearchIcon, TrashIcon } from '../../components/DesignerIcons';
 import { FormDialog } from '../../components/FormDialog';
-import { Empty, ErrorBox, Spinner, SuccessBox } from '../../components/ui';
+import { Empty, ErrorBox, Spinner, SuccessBox, PageHeader } from '../../components/ui';
 import { formatDateTime, fullName, humanize } from '../../utils/format';
 import { BirthdateField } from '../../components/BirthdateField';
 import { PhoneField } from '../../components/PhoneField';
@@ -100,8 +100,7 @@ function UsersManager() {
 
   return (
     <>
-      <h1>Users</h1>
-      <p className="muted">Everyone with an account. Change a name, email or role, suspend an account, or delete it.</p>
+      <PageHeader title="Users" lede="Everyone with an account. Change a name, email or role, suspend an account, or delete it." />
 
       <div className="admin-toolbar">
         <label className="admin-search">

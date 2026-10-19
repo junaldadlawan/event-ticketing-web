@@ -23,6 +23,9 @@ import type {
   OrganizationDocument,
   EffectivePlatformFee,
   EventAnalytics,
+  EventAudience,
+  EventFunnel,
+  EventSalesPatterns,
   FeeScope,
   ModerationAction,
   ModerationActionRequest,
@@ -156,6 +159,8 @@ export const eventApi = {
   managed: (q: ManagedEventSearch) =>
     api<PageResponse<Event>>('/events/managed', { query: { ...q } }),
   get: (id: UUID) => api<Event>(`/events/${id}`),
+  /** Public; always 204. Ignored for the event's own staff and admins, and visitorId is ignored when signed in. */
+  recordView: (id: UUID, visitorId: string) => api<void>(`/events/${id}/views`, { method: 'POST', body: { visitorId } }),
   create: (body: EventCreateRequest) => api<Event>('/events', { method: 'POST', body }),
   update: (id: UUID, body: EventUpdateRequest) =>
     api<Event>(`/events/${id}`, { method: 'PATCH', body }),
@@ -278,17 +283,24 @@ export const platformFeeApi = {
 export const analyticsApi = {
   /** Owner / organizer of the event's organization, or an admin. */
   event: (eventId: UUID) => api<EventAnalytics>(`/events/${eventId}/analytics`),
+  /** Owner / organizer of the event's organization, or an admin. Small age groups come back hidden (null). */
+  eventAudience: (eventId: UUID) => api<EventAudience>(`/events/${eventId}/analytics/audience`),
+  /** Owner / organizer of the event's organization, or an admin. */
+  eventSalesPatterns: (eventId: UUID) => api<EventSalesPatterns>(`/events/${eventId}/analytics/sales-patterns`),
+  /** Owner / organizer of the event's organization, or an admin. Days from..to (default: event creation to today) in the event's time zone. */
+  eventFunnel: (eventId: UUID, q: { from?: string; to?: string } = {}) =>
+    api<EventFunnel>(`/events/${eventId}/analytics/funnel`, { query: { ...q } }),
   /** Admin only. Dates are UTC days (YYYY-MM-DD); the period is at most 366 days. */
   platformFinance: (q: { from?: string; to?: string; currency?: string } = {}) =>
     api<FinanceSummary>('/analytics/platform/finance', { query: { ...q } }),
-  /** The organization's owner, or an admin. */
-  organizationFinance: (orgId: UUID, q: { from?: string; to?: string; currency?: string } = {}) =>
+  /** The organization's owner, or an admin. With `eventId`, every figure covers only that event. */
+  organizationFinance: (orgId: UUID, q: { from?: string; to?: string; currency?: string; eventId?: UUID } = {}) =>
     api<OrganizationFinance>(`/organizations/${orgId}/finance`, { query: { ...q } }),
-  /** The organization's owner, or an admin: income per day or month for the chart. */
-  organizationEarnings: (orgId: UUID, q: { interval: EarningsInterval; from?: string; to?: string }) =>
+  /** The organization's owner, or an admin: income per day or month for the chart (optionally one event's). */
+  organizationEarnings: (orgId: UUID, q: { interval: EarningsInterval; from?: string; to?: string; eventId?: UUID }) =>
     api<OrganizationEarnings>(`/organizations/${orgId}/finance/earnings`, { query: { ...q } }),
-  /** The organization's owner, or an admin: sales, refunds and payouts, newest first. */
-  organizationTransactions: (orgId: UUID, q: PageQuery & { from?: string; to?: string } = {}) =>
+  /** The organization's owner, or an admin: sales, refunds and payouts, newest first (optionally one event's). */
+  organizationTransactions: (orgId: UUID, q: PageQuery & { from?: string; to?: string; eventId?: UUID } = {}) =>
     api<PageResponse<OrgTransaction>>(`/organizations/${orgId}/transactions`, { query: { ...q } }),
 };
 
@@ -351,6 +363,8 @@ export const payoutApi = {
     api<EligiblePayouts>('/payouts/eligible', { query: { ...q } }),
   /** Admin only. Needs POST /payouts/batch on the API. One payout per organization among the chosen lines. */
   generateBatch: (body: PayoutBatchRequest) => api<Payout[]>('/payouts/batch', { method: 'POST', body }),
+  /** Admin only: cancel a SCHEDULED payout (409 otherwise). Its orders are released and owed again. Final. */
+  cancel: (id: UUID) => api<Payout>(`/payouts/${id}/cancel`, { method: 'POST' }),
 };
 
 export const categoryApi = {

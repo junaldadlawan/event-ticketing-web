@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { errorMessage } from '../api/client';
 import { useCart } from '../cart/CartContext';
-import { ErrorBox, Spinner } from '../components/ui';
+import { ErrorBox, Spinner, PageHeader } from '../components/ui';
 import { PENDING_KEY, waitForCheckout } from '../utils/paymongo';
 
 /**
@@ -41,7 +41,7 @@ export function CheckoutReturnPage() {
   if (problem) {
     return (
       <>
-        <h1>Payment</h1>
+        <PageHeader title="Payment" />
         <ErrorBox message={problem} />
         <p>
           <Link to="/cart">Back to your cart</Link> · <Link to="/orders">My orders</Link>
@@ -51,7 +51,7 @@ export function CheckoutReturnPage() {
   }
   return (
     <>
-      <h1>Confirming your payment</h1>
+      <PageHeader title="Confirming your payment" />
       <Spinner />
       <p className="muted">This takes a few seconds. Please don&apos;t close this page.</p>
     </>

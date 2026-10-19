@@ -4,9 +4,10 @@ import type { FormEvent } from 'react';
 import { errorMessage } from '../../api/client';
 import { analyticsApi, organizationApi, payoutApi, payoutWalletApi } from '../../api/endpoints';
 import type { Money, Payout, PayoutStatus } from '../../api/types';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { RefreshIcon, SearchIcon } from '../../components/DesignerIcons';
 import { PeriodFields, StatGroup, money, useFinancePeriod } from '../../components/FinanceStats';
-import { Empty, ErrorBox, Pagination, Spinner } from '../../components/ui';
+import { Empty, ErrorBox, Pagination, Spinner, PageHeader } from '../../components/ui';
 import { formatMoney, humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
@@ -16,6 +17,7 @@ export const PAYOUT_TONE: Record<string, string> = {
   SCHEDULED: 'status-warn',
   PROCESSING: 'status-info',
   FAILED: 'status-bad',
+  CANCELLED: 'status-bad',
 };
 
 /** Admin tab: every organization's payouts. (The platform fee lives under Settings.) */
@@ -32,13 +34,15 @@ function PayoutsManager() {
 
   return (
     <>
-      <div className="row-between page-header">
-        <h1>Finance &amp; Payouts</h1>
-        <Link to="/admin/payouts/generate" className="btn btn-primary">
-          Generate payout
-        </Link>
-      </div>
-      <p className="muted">What each organization has earned, the platform fee, and what was paid out.</p>
+      <PageHeader
+        title="Finance & Payouts"
+        lede="What each organization has earned, the platform fee, and what was paid out."
+        actions={
+          <Link to="/admin/payouts/generate" className="btn btn-primary">
+            Generate payout
+          </Link>
+        }
+      />
       <ErrorBox message={orgs.error} />
 
       <PlatformFinance />
@@ -83,13 +87,18 @@ function PlatformFinance() {
             </div>
             <div className="org-stat">
               <span className="org-stat-label">Owed to organizers</span>
-              <strong className="org-stat-value">{money(f.organizers.share)}</strong>
-              <span className="org-stat-hint">{money(f.organizers.owedNotYetInPayout)} not in a payout yet</span>
+              {/* Still to be sent: in a payout that has not been paid yet, or not in a payout at all. */}
+              <strong className="org-stat-value">
+                {money({ ...f.organizers.inPayouts, amount: f.organizers.inPayouts.amount + f.organizers.owedNotYetInPayout.amount })}
+              </strong>
+              <span className="org-stat-hint">
+                {money(f.organizers.inPayouts)} in payouts · {money(f.organizers.owedNotYetInPayout)} not in a payout yet
+              </span>
             </div>
             <div className="org-stat">
               <span className="org-stat-label">Paid out</span>
               <strong className="org-stat-value">{money(f.organizers.paidOut)}</strong>
-              <span className="org-stat-hint">{money(f.organizers.inPayouts)} in payouts</span>
+              <span className="org-stat-hint">of {money(f.organizers.share)} organizers' share</span>
             </div>
           </div>
           <details className="finance-details">
@@ -123,7 +132,7 @@ function PlatformFinance() {
           <StatGroup
             title="Organizers' share"
             stats={[
-              { label: 'Owed in all', value: money(f.organizers.share) },
+              { label: 'Share in all', value: money(f.organizers.share), hint: 'After platform and gateway fees' },
               { label: 'Paid out', value: money(f.organizers.paidOut), good: true },
               { label: 'In payouts', value: money(f.organizers.inPayouts), hint: 'Scheduled, processing or failed' },
               { label: 'Not in a payout yet', value: money(f.organizers.owedNotYetInPayout) },
@@ -228,12 +237,25 @@ function PayoutsList({ orgs, loading }: { orgs: { id: string; name: string }[]; 
   const [status, setStatus] = useState<'' | PayoutStatus>('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [cancelling, setCancelling] = useState<Payout | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const sorted = useMemo(() => orgs.slice().sort((a, b) => a.name.localeCompare(b.name)), [orgs]);
   const selected = orgId || sorted[0]?.id || '';
   const payouts = useAsync(
     () => (selected ? payoutApi.list(selected, { page, size: 20 }) : Promise.resolve(null)),
     [selected, page],
   );
+
+  async function cancelPayout(p: Payout) {
+    setCancelling(null);
+    setCancelError(null);
+    try {
+      await payoutApi.cancel(p.id);
+    } catch (e) {
+      setCancelError(errorMessage(e));
+    }
+    payouts.reload();
+  }
 
   if (loading) return <Spinner />;
   if (sorted.length === 0) return <Empty>No organizations yet.</Empty>;
@@ -291,6 +313,7 @@ function PayoutsList({ orgs, loading }: { orgs: { id: string; name: string }[]; 
           <option value="SCHEDULED">Scheduled</option>
           <option value="PAID">Paid</option>
           <option value="FAILED">Failed</option>
+          <option value="CANCELLED">Cancelled</option>
         </select>
         <label className="payout-date">
           Start date
@@ -306,7 +329,7 @@ function PayoutsList({ orgs, loading }: { orgs: { id: string; name: string }[]; 
           </button>
         )}
       </div>
-      <ErrorBox message={payouts.error} />
+      <ErrorBox message={payouts.error ?? cancelError} />
       {payouts.loading && !payouts.data ? (
         <Spinner />
       ) : rows.length === 0 ? (
@@ -322,6 +345,7 @@ function PayoutsList({ orgs, loading }: { orgs: { id: string; name: string }[]; 
                 <th>Fees</th>
                 <th>Net</th>
                 <th>Status</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -339,6 +363,13 @@ function PayoutsList({ orgs, loading }: { orgs: { id: string; name: string }[]; 
                   <td>
                     <span className={`status-chip ${PAYOUT_TONE[p.status] ?? 'status-info'}`}>{humanize(p.status)}</span>
                   </td>
+                  <td>
+                    {p.status === 'SCHEDULED' && (
+                      <button type="button" className="btn btn-link" onClick={() => setCancelling(p)}>
+                        Cancel
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -346,6 +377,18 @@ function PayoutsList({ orgs, loading }: { orgs: { id: string; name: string }[]; 
           {payouts.data && <Pagination page={payouts.data} onChange={setPage} />}
         </>
       )}
+      <ConfirmDialog
+        open={cancelling !== null}
+        title="Cancel this payout?"
+        confirmLabel="Cancel payout"
+        cancelLabel="Keep it"
+        danger
+        onCancel={() => setCancelling(null)}
+        onConfirm={() => cancelling && void cancelPayout(cancelling)}
+      >
+        {cancelling && formatMoney(cancelling.net)} will not be paid. Its orders are released and can be paid out in a new
+        payout. This cannot be undone.
+      </ConfirmDialog>
     </>
   );
 }
