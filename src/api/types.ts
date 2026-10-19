@@ -830,6 +830,8 @@ export interface FinanceSummary {
 /** GET /organizations/{id}/finance (owner or admin): the organization's own income, never the platform's figures. */
 export interface OrganizationFinance {
   organizationId: UUID;
+  /** The event the figures are limited to (null when not filtered). */
+  eventId?: UUID | null;
   from: string;
   to: string;
   currency: string;
@@ -850,16 +852,17 @@ export interface EarningsPoint {
   period: string;
   earnings: Money;
 }
-/** GET /organizations/{id}/finance/earnings. Needs the earnings endpoint on the API (see the API prompt). */
+/** GET /organizations/{id}/finance/earnings: every day or month of the range, oldest first (0 when empty). */
 export interface OrganizationEarnings {
   interval: EarningsInterval;
   from: string;
   to: string;
   currency: string;
+  eventId?: UUID | null;
   points: EarningsPoint[];
 }
 
-/** One line of GET /organizations/{id}/transactions (newest first). Needs the transactions endpoint on the API. */
+/** One line of GET /organizations/{id}/transactions (newest first). */
 export interface OrgTransaction {
   id: UUID;
   type: 'SALE' | 'REFUND' | 'PAYOUT';

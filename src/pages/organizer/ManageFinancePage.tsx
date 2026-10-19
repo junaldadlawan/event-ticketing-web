@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { analyticsApi, organizationApi } from '../../api/endpoints';
+import { analyticsApi, eventApi, organizationApi } from '../../api/endpoints';
 import type { EarningsInterval, OrgTransaction } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { EarningsChart } from '../../components/EarningsChart';
@@ -10,7 +10,7 @@ import { formatDateTime, formatMoney, humanize } from '../../utils/format';
 import { downloadText, statementCsv } from '../../utils/statement';
 import { useAsync } from '../../utils/useAsync';
 
-/** Finance & Payouts for an organization's owner: balances, earnings over time, and the latest transactions. */
+/** Finance & Payouts for an organization's owner: balances, earnings over time, and the latest transactions (all events or one). */
 export function ManageFinancePage() {
   const { user } = useAuth();
   const orgs = useAsync(
@@ -20,6 +20,20 @@ export function ManageFinancePage() {
   const [orgId, setOrgId] = useState('');
   const selected = orgId || orgs.data?.[0]?.id || '';
   const orgName = orgs.data?.find((o) => o.id === selected)?.name ?? '';
+  // '' = all events. Reset when the organization changes, since the event belongs to one organization.
+  const [eventFilter, setEventFilter] = useState({ orgId: '', eventId: '' });
+  const eventId = eventFilter.orgId === selected ? eventFilter.eventId : '';
+  const events = useAsync(
+    () =>
+      selected
+        ? eventApi.managed({ organizationId: selected, page: 0, size: 100, sort: 'startAt,desc' })
+        : Promise.resolve(null),
+    [selected],
+  );
+  // Drafts never sell, so they have nothing to show here.
+  const eventOptions = (events.data?.content ?? []).filter((e) => e.organizationId === selected && e.status !== 'DRAFT');
+  const eventTitle = eventOptions.find((e) => e.id === eventId)?.title ?? '';
+  const scope = eventId || undefined;
   const period = useFinancePeriod();
   const { from, to } = period;
   const [interval, setInterval] = useState<EarningsInterval>('DAY');
@@ -27,16 +41,16 @@ export function ManageFinancePage() {
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const fin = useAsync(
-    () => (selected ? analyticsApi.organizationFinance(selected, { from, to }) : Promise.resolve(null)),
-    [selected, from, to],
+    () => (selected ? analyticsApi.organizationFinance(selected, { from, to, eventId: scope }) : Promise.resolve(null)),
+    [selected, from, to, scope],
   );
   const earnings = useAsync(
-    () => (selected ? analyticsApi.organizationEarnings(selected, { interval, from, to }) : Promise.resolve(null)),
-    [selected, interval, from, to],
+    () => (selected ? analyticsApi.organizationEarnings(selected, { interval, from, to, eventId: scope }) : Promise.resolve(null)),
+    [selected, interval, from, to, scope],
   );
   const recent = useAsync(
-    () => (selected ? analyticsApi.organizationTransactions(selected, { page: 0, size: 10 }) : Promise.resolve(null)),
-    [selected],
+    () => (selected ? analyticsApi.organizationTransactions(selected, { page: 0, size: 10, eventId: scope }) : Promise.resolve(null)),
+    [selected, scope],
   );
   const f = fin.data;
 
@@ -48,11 +62,13 @@ export function ManageFinancePage() {
     try {
       const rows: OrgTransaction[] = [];
       for (let page = 0; page < 5; page++) {
-        const res = await analyticsApi.organizationTransactions(selected, { from, to, page, size: 100 });
+        const res = await analyticsApi.organizationTransactions(selected, { from, to, page, size: 100, eventId: scope });
         rows.push(...res.content);
         if (res.last) break;
       }
-      downloadText(`statement-${from}-to-${to}.csv`, statementCsv(orgName, f, rows));
+      const label = eventTitle ? `${orgName} · ${eventTitle}` : orgName;
+      const slug = eventTitle ? `-${eventTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}` : '';
+      downloadText(`statement${slug}-${from}-to-${to}.csv`, statementCsv(label, f, rows));
     } catch (e) {
       setDownloadError(e instanceof Error ? e.message : 'Could not build the statement.');
     } finally {
@@ -87,8 +103,24 @@ export function ManageFinancePage() {
           orgs.data[0].name
         )}
       </p>
-      <PeriodFields period={period} />
-      <ErrorBox message={fin.error ?? downloadError} />
+      <div className="finance-filters">
+        <PeriodFields period={period} />
+        <select
+          className="select-auto"
+          value={eventId}
+          onChange={(e) => setEventFilter({ orgId: selected, eventId: e.target.value })}
+          aria-label="Event"
+          disabled={events.loading && !events.data}
+        >
+          <option value="">All events</option>
+          {eventOptions.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.title}
+            </option>
+          ))}
+        </select>
+      </div>
+      <ErrorBox message={events.error ?? fin.error ?? downloadError} />
 
       {fin.loading && !f ? (
         <Spinner />

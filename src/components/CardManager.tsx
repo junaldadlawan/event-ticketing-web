@@ -29,7 +29,8 @@ export type NewCard = Pick<PayoutCardRequest, 'paymentToken' | 'primary'> & Part
 
 export interface CardCalls {
   list: () => Promise<SavedCard[]>;
-  add: (body: NewCard) => Promise<unknown>;
+  /** Resolves to the card as the API saved it (with a demo payout gateway that is a fixed test card, not the one typed). */
+  add: (body: NewCard) => Promise<Pick<SavedCard, 'brand' | 'last4'>>;
   setPrimary: (id: string) => Promise<unknown>;
   remove: (id: string) => Promise<unknown>;
 }
@@ -149,10 +150,15 @@ export function CardManager({
             stripe={stripe}
             onCancel={() => setAdding(false)}
             onSubmit={async (body, last4) => {
-              await calls.add(body);
+              // Report the card the API kept: the demo payout gateway saves its own test card whatever was typed.
+              const saved = await calls.add(body);
               setAdding(false);
               setErr(null);
-              setMsg(last4 ? `Card ending ${last4} added.` : 'Card added.');
+              setMsg(
+                last4 && saved.last4 !== last4
+                  ? `Demo payouts: the test card ${saved.brand} ending ${saved.last4} was saved instead of the card you typed.`
+                  : `Card ending ${saved.last4} added.`,
+              );
               cards.reload();
             }}
           />

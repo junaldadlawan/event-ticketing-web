@@ -83,13 +83,18 @@ function PlatformFinance() {
             </div>
             <div className="org-stat">
               <span className="org-stat-label">Owed to organizers</span>
-              <strong className="org-stat-value">{money(f.organizers.share)}</strong>
-              <span className="org-stat-hint">{money(f.organizers.owedNotYetInPayout)} not in a payout yet</span>
+              {/* Still to be sent: in a payout that has not been paid yet, or not in a payout at all. */}
+              <strong className="org-stat-value">
+                {money({ ...f.organizers.inPayouts, amount: f.organizers.inPayouts.amount + f.organizers.owedNotYetInPayout.amount })}
+              </strong>
+              <span className="org-stat-hint">
+                {money(f.organizers.inPayouts)} in payouts · {money(f.organizers.owedNotYetInPayout)} not in a payout yet
+              </span>
             </div>
             <div className="org-stat">
               <span className="org-stat-label">Paid out</span>
               <strong className="org-stat-value">{money(f.organizers.paidOut)}</strong>
-              <span className="org-stat-hint">{money(f.organizers.inPayouts)} in payouts</span>
+              <span className="org-stat-hint">of {money(f.organizers.share)} organizers' share</span>
             </div>
           </div>
           <details className="finance-details">
@@ -123,7 +128,7 @@ function PlatformFinance() {
           <StatGroup
             title="Organizers' share"
             stats={[
-              { label: 'Owed in all', value: money(f.organizers.share) },
+              { label: 'Share in all', value: money(f.organizers.share), hint: 'After platform and gateway fees' },
               { label: 'Paid out', value: money(f.organizers.paidOut), good: true },
               { label: 'In payouts', value: money(f.organizers.inPayouts), hint: 'Scheduled, processing or failed' },
               { label: 'Not in a payout yet', value: money(f.organizers.owedNotYetInPayout) },

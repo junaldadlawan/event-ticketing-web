@@ -1018,7 +1018,7 @@ p.designer-subtitle {
     border-color 0.15s,
     opacity 0.15s;
 }
-.btn:hover {
+.btn:hover:not(:disabled) {
   border-color: var(--text);
 }
 .btn:disabled {
@@ -1079,7 +1079,7 @@ p.designer-subtitle {
   color: var(--muted);
   padding: 4px 0;
 }
-.btn-link:hover {
+.btn-link:hover:not(:disabled) {
   color: var(--text);
 }
 .btn-sm {
@@ -1089,7 +1089,7 @@ p.designer-subtitle {
 .btn-link.danger {
   color: var(--danger);
 }
-.btn.danger:not(.btn-link):hover {
+.btn.danger:not(.btn-link):hover:not(:disabled) {
   border-color: var(--danger);
 }
 
@@ -1538,7 +1538,7 @@ select option {
   border-radius: var(--radius);
   cursor: pointer;
 }
-.icon-button:hover,
+.icon-button:hover:not(:disabled),
 .icon-button[aria-expanded='true'] {
   color: var(--text);
   background: var(--subtle);
@@ -1576,7 +1576,7 @@ select option {
   border-radius: 4px;
   cursor: pointer;
 }
-.menu-item:hover,
+.menu-item:hover:not(:disabled),
 .menu-item:focus-visible {
   outline: none;
   color: var(--text);
@@ -2930,7 +2930,7 @@ button.code-warning:focus-visible {
   color: var(--text);
   text-decoration: none;
 }
-.row-menu .menu-item:hover {
+.row-menu .menu-item:hover:not(:disabled) {
   background: var(--subtle);
 }
 .row-menu .menu-item-danger {
@@ -3284,7 +3284,7 @@ button.code-warning:focus-visible {
   width: 15px;
   height: 15px;
 }
-.btn.btn-icon.tt-edit:hover {
+.btn.btn-icon.tt-edit:hover:not(:disabled) {
   background: #f4f6fa;
   color: var(--text);
 }
@@ -3826,7 +3826,7 @@ button.code-warning:focus-visible {
 .btn.btn-icon.btn-resume svg {
   fill: currentColor;
 }
-.btn.btn-icon.btn-resume:hover {
+.btn.btn-icon.btn-resume:hover:not(:disabled) {
   background: linear-gradient(135deg, #3ccb9b, #25ad7f);
   transform: scale(1.1);
 }
@@ -3854,7 +3854,7 @@ button.code-warning:focus-visible {
 .btn.btn-icon.btn-pause svg {
   fill: currentColor;
 }
-.btn.btn-icon.btn-pause:hover {
+.btn.btn-icon.btn-pause:hover:not(:disabled) {
   background: linear-gradient(135deg, #ffb283, #f9994f);
   transform: scale(1.1);
   box-shadow: 0 6px 18px rgb(245 143 77 / 0.7);
@@ -3891,7 +3891,7 @@ button.code-warning:focus-visible {
   fill: currentColor;
   stroke: none;
 }
-.tt-grip:hover,
+.tt-grip:hover:not(:disabled),
 .tt-grip:focus-visible {
   color: var(--text);
   background: #f4f6fa;
@@ -3944,7 +3944,7 @@ button.code-warning:focus-visible {
   transform: none;
   box-shadow: 0 3px 14px rgb(48 54 63 / 0.08);
 }
-.tt-row:has(> .tt-grip:hover):not(.is-dragging),
+.tt-row:has(> .tt-grip:hover:not(:disabled)):not(.is-dragging),
 .tt-row:has(> .tt-grip:focus-visible):not(.is-dragging) {
   transform: translateY(-2px);
   box-shadow: 0 8px 22px rgb(48 54 63 / 0.14);
@@ -6556,6 +6556,53 @@ button.code-warning:focus-visible {
 .event-card .card-body {
   min-width: 0;
 }
+/* An event that has ended: faded picture and text, with a rubber stamp across the card. */
+.event-card.is-completed,
+.event-ticket.is-completed {
+  position: relative;
+  overflow: hidden;
+}
+.event-card.is-completed .event-image,
+.event-ticket.is-completed .event-ticket-stub {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+.event-card.is-completed .card-body,
+.event-ticket.is-completed .event-ticket-body {
+  opacity: 0.7;
+}
+.badge-completed {
+  font-weight: 700;
+  color: var(--danger);
+}
+.badge-completed::before {
+  background: var(--danger);
+}
+.completed-stamp {
+  position: absolute;
+  top: 50%;
+  right: 12%;
+  transform: translateY(-50%) rotate(-12deg);
+  padding: 6px 22px;
+  border: 4px double currentColor;
+  border-radius: 10px;
+  color: var(--danger);
+  opacity: 0.45;
+  font-size: clamp(1.4rem, 3.4vw, 2.4rem);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* Grid cards are narrow: the stamp sits in the middle and a bit smaller. */
+.event-grid .completed-stamp {
+  top: 38%;
+  right: 50%;
+  transform: translate(50%, -50%) rotate(-12deg);
+  font-size: 1.4rem;
+}
 .event-grid .event-card .card-body {
   padding: 0 6px;
 }
@@ -7245,4 +7292,71 @@ button.code-warning:focus-visible {
 .order-breakdown .total {
   border-top: 1px solid rgb(48 54 63 / 0.1);
   padding-bottom: 10px;
+}
+
+/* Finance & Payouts: the period controls and the event picker on one row. */
+.finance-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+.finance-filters > .admin-toolbar {
+  margin: 0;
+}
+.finance-filters select[aria-label='Event'] {
+  min-width: 200px;
+}
+
+/* Manage event: sales insights (charts and tips from the event's orders). */
+.sales-insights {
+  margin-top: 24px;
+}
+.sales-insights h3 {
+  margin: 24px 0 8px;
+  font-size: 1rem;
+}
+.insights-stats {
+  margin-top: 12px;
+}
+.insights-chart,
+.insights-bars {
+  width: 100%;
+  height: auto;
+}
+.insights-chart {
+  max-height: 220px;
+}
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px 32px;
+}
+.chart-area {
+  fill: rgb(160 113 253 / 0.14);
+}
+.chart-line {
+  fill: none;
+  stroke: #a071fd;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.chart-dot {
+  fill: #a071fd;
+}
+.chart-dot:hover,
+.chart-dot:focus {
+  fill: #55cca2;
+  outline: none;
+}
+.chart-bar.chart-bar-best {
+  fill: #55cca2;
+}
+.insights-tips {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
 }

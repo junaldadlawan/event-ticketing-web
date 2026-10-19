@@ -8,6 +8,7 @@ import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKi
 import { CategorySelect } from '../../components/CategorySelect';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DeleteEventDialog } from '../../components/DeleteEventDialog';
+import { SalesInsights } from '../../components/SalesInsights';
 import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon, TrashIcon } from '../../components/DesignerIcons';
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../components/ui';
 import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso } from '../../utils/format';
@@ -62,7 +63,8 @@ export function ManageEventPage() {
   // A finished event is read-only: nothing about it or its tickets can change any more.
   const over = isEventOver(event);
   const canPublish = event.status === 'DRAFT';
-  const canCancel = !['CANCELLED', 'COMPLETED'].includes(event.status);
+  // An ended event keeps the button (disabled) like its other controls.
+  const canCancel = over || !['CANCELLED', 'COMPLETED'].includes(event.status);
 
   return (
     <div className="manage-page">
@@ -195,6 +197,8 @@ export function ManageEventPage() {
         promoQuery={promoQuery}
         ownDesignTypeIds={new Set((templates ?? []).map((t) => t.ticketTypeId).filter((id): id is string => Boolean(id)))}
       />
+      {/* A draft has sold nothing yet. */}
+      {event.status !== 'DRAFT' && typesQuery.data && <SalesInsights event={event} ticketTypes={typesQuery.data} />}
       <EventOrders eventId={event.id} />
     </div>
   );

@@ -281,14 +281,14 @@ export const analyticsApi = {
   /** Admin only. Dates are UTC days (YYYY-MM-DD); the period is at most 366 days. */
   platformFinance: (q: { from?: string; to?: string; currency?: string } = {}) =>
     api<FinanceSummary>('/analytics/platform/finance', { query: { ...q } }),
-  /** The organization's owner, or an admin. */
-  organizationFinance: (orgId: UUID, q: { from?: string; to?: string; currency?: string } = {}) =>
+  /** The organization's owner, or an admin. With `eventId`, every figure covers only that event. */
+  organizationFinance: (orgId: UUID, q: { from?: string; to?: string; currency?: string; eventId?: UUID } = {}) =>
     api<OrganizationFinance>(`/organizations/${orgId}/finance`, { query: { ...q } }),
-  /** The organization's owner, or an admin: income per day or month for the chart. */
-  organizationEarnings: (orgId: UUID, q: { interval: EarningsInterval; from?: string; to?: string }) =>
+  /** The organization's owner, or an admin: income per day or month for the chart (optionally one event's). */
+  organizationEarnings: (orgId: UUID, q: { interval: EarningsInterval; from?: string; to?: string; eventId?: UUID }) =>
     api<OrganizationEarnings>(`/organizations/${orgId}/finance/earnings`, { query: { ...q } }),
-  /** The organization's owner, or an admin: sales, refunds and payouts, newest first. */
-  organizationTransactions: (orgId: UUID, q: PageQuery & { from?: string; to?: string } = {}) =>
+  /** The organization's owner, or an admin: sales, refunds and payouts, newest first (optionally one event's). */
+  organizationTransactions: (orgId: UUID, q: PageQuery & { from?: string; to?: string; eventId?: UUID } = {}) =>
     api<PageResponse<OrgTransaction>>(`/organizations/${orgId}/transactions`, { query: { ...q } }),
 };
 
