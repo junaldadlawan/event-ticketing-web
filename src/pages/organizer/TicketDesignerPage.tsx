@@ -15,6 +15,8 @@ import type {
   TicketTemplateFormat,
 } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { BackgroundMenu } from '../../components/BackgroundMenu';
+import { Popover } from '../../components/Popover';
 import {
   AlignCenterIcon,
   AutoFitIcon,
@@ -33,7 +35,6 @@ import {
   ImageIcon,
   LockIcon,
   InfoIcon,
-  LinkIcon,
   MagnetIcon,
   MinusIcon,
   PhoneIcon,
@@ -50,7 +51,6 @@ import {
   TicketSizeIcon,
   TrashIcon,
   UndoIcon,
-  UploadIcon,
   WarningIcon,
   WidthIcon,
 } from '../../components/DesignerIcons';
@@ -2786,62 +2786,6 @@ function PreviewMenu({
 }
 
 /** Menu behind the copy button: take in another saved design, or save this one to every ticket type. */
-/** Menu behind the background button: upload a file, or reveal a box for an image link. */
-function BackgroundMenu({
-  url,
-  onUrlChange,
-  onUpload,
-  onUseUrl,
-}: {
-  url: string;
-  onUrlChange: (v: string) => void;
-  onUpload: () => void;
-  onUseUrl: () => void;
-}) {
-  const [showUrl, setShowUrl] = useState(false);
-  return (
-    <div className="bg-menu">
-      <button type="button" className="menu-item" onClick={onUpload}>
-        <UploadIcon />
-        <span>
-          Upload image
-          <small>PNG, JPEG, WebP or GIF, up to 5 MB</small>
-        </span>
-      </button>
-      <button
-        type="button"
-        className="menu-item"
-        aria-expanded={showUrl}
-        onClick={() => setShowUrl((s) => !s)}
-      >
-        <LinkIcon />
-        <span>From URL</span>
-      </button>
-      {showUrl && (
-        <form
-          className="popover-form"
-          onSubmit={(e: FormEvent) => {
-            e.preventDefault();
-            onUseUrl();
-          }}
-        >
-          <input
-            type="url"
-            autoFocus
-            placeholder="https://example.com/ticket.png"
-            aria-label="Background image URL"
-            value={url}
-            onChange={(e) => onUrlChange(e.target.value)}
-          />
-          <button className="icon-button" aria-label="Use this image" title="Use this image" disabled={!url.trim()}>
-            <CheckIcon />
-          </button>
-        </form>
-      )}
-    </div>
-  );
-}
-
 /** Icon-only button; the label becomes the tooltip and the accessible name. */
 function IconButton({
   label,
@@ -2860,109 +2804,6 @@ function IconButton({
     <button type="button" className={`icon-button ${className}`} title={label} aria-label={label} {...rest}>
       {children}
     </button>
-  );
-}
-
-/** Icon button that opens a small panel below it; closes on outside click or Escape. */
-function Popover({
-  label,
-  icon,
-  disabled,
-  pressed,
-  floating = false,
-  compact = false,
-  children,
-}: {
-  label: string;
-  icon: ReactNode;
-  /** Shrink the panel to its content (a short row of buttons) instead of the usual menu width. */
-  compact?: boolean;
-  disabled?: boolean;
-  /** Show the button as "on" (e.g. the grid is visible). */
-  pressed?: boolean;
-  /**
-   * Place the panel on the page (fixed) instead of inside the button's box -
-   * for buttons in a bar that clips its contents (the selection bar scrolls).
-   */
-  floating?: boolean;
-  children: (close: () => void) => ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; right: number; centre: number } | null>(null);
-  const root = useRef<HTMLDivElement>(null);
-  const button = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(e: PointerEvent) {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        setOpen(false);
-        button.current?.focus();
-      }
-    }
-    // A floating panel is placed on the page: keep it under its button when
-    // the page or the bar scrolls (clicking in a scrolling bar can scroll it).
-    function onMove() {
-      if (floating) place();
-    }
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    window.addEventListener('scroll', onMove, true);
-    window.addEventListener('resize', onMove);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('scroll', onMove, true);
-      window.removeEventListener('resize', onMove);
-    };
-  }, [open, floating]);
-
-  function place() {
-    if (!button.current) return;
-    const r = button.current.getBoundingClientRect();
-    setPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right), centre: r.left + r.width / 2 });
-  }
-
-  function toggle() {
-    if (!open && floating) place();
-    setOpen((o) => !o);
-  }
-
-  return (
-    <div className="popover" ref={root}>
-      <button
-        ref={button}
-        type="button"
-        className={`icon-button${pressed !== undefined ? ' toggle-button' : ''}`}
-        title={label}
-        aria-label={label}
-        aria-expanded={open}
-        aria-pressed={pressed}
-        disabled={disabled}
-        onClick={toggle}
-      >
-        {icon}
-      </button>
-      {open && (
-        <div
-          className={`popover-panel${compact ? ' popover-panel-compact' : ''}`}
-          role="dialog"
-          aria-label={label}
-          style={
-            floating && pos
-              ? compact
-                ? { position: 'fixed', top: pos.top, left: pos.centre, right: 'auto', transform: 'translateX(-50%)' }
-                : { position: 'fixed', top: pos.top, right: pos.right }
-              : undefined
-          }
-        >
-          {children(() => setOpen(false))}
-        </div>
-      )}
-    </div>
   );
 }
 

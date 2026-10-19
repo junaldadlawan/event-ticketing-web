@@ -1068,7 +1068,7 @@ function TicketTypes({
     setErr(null);
     try {
       if (editing) {
-        // Send only what changed: the server resets the remaining stock whenever quantityTotal is sent.
+        // Send only what changed: a new quantityTotal keeps what is sold or held (409 if it goes below that).
         const body: TicketTypeUpdateRequest = {};
         const amount = Math.round(Number(price) * 100);
         if (name !== editing.name) body.name = name;
@@ -1431,7 +1431,7 @@ function TicketTypes({
                   <input
                     type="number"
                     required
-                    min={1}
+                    min={editing ? Math.max(1, editing.quantityTotal - editing.quantityAvailable) : 1}
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
                   />
@@ -1447,7 +1447,10 @@ function TicketTypes({
                 </label>
               </div>
               {editing && Number(quantity) !== editing.quantityTotal && (
-                <p className="hint">Saving resets the remaining tickets to the new quantity.</p>
+                <p className="hint">
+                  Tickets already sold or held ({editing.quantityTotal - editing.quantityAvailable}) are kept. The
+                  quantity can't go below them.
+                </p>
               )}
             </fieldset>
 

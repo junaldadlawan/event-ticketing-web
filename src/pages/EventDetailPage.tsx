@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../api/client';
 import { eventApi, ticketTypeApi, waitlistApi } from '../api/endpoints';
@@ -18,12 +18,36 @@ import { sortTicketTypes } from '../utils/ticketTypes';
 import { useAsync } from '../utils/useAsync';
 import { isEventOver } from '../utils/eventState';
 
+let memoryVisitorId: string | null = null;
+
+/** A random id for this browser, kept in localStorage (or in memory for the page session when storage fails). */
+function visitorId(): string {
+  try {
+    const saved = localStorage.getItem('visitorId');
+    if (saved) return saved;
+  } catch {
+    // storage blocked: fall back to the in-memory id
+  }
+  memoryVisitorId ??= crypto.randomUUID();
+  try {
+    localStorage.setItem('visitorId', memoryVisitorId);
+  } catch {
+    // keep the in-memory id
+  }
+  return memoryVisitorId;
+}
+
 export function EventDetailPage() {
   const { eventId = '' } = useParams();
   const { data, error, loading } = useAsync(
     () => Promise.all([eventApi.get(eventId), ticketTypeApi.list(eventId)]),
     [eventId],
   );
+  // Feeds the organizer's funnel; fire-and-forget, never shown.
+  useEffect(() => {
+    // Inside the chain so a storage or crypto failure is swallowed too.
+    if (eventId) Promise.resolve().then(() => eventApi.recordView(eventId, visitorId())).catch(() => {});
+  }, [eventId]);
   // Owners/organizers of the event's organization (and admins) get a shortcut to edit it.
   const managementHidden = useManagementHidden(); // a host browsing as a customer
   const canManage = useCanManage(data?.[0].organizationId) && !managementHidden;

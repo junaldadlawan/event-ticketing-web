@@ -1,35 +1,35 @@
-import { eventApi } from '../api/endpoints';
-import type { Event, Order, TicketType } from '../api/types';
-import { bestWindow, hourLabel, salesStats, WEEKDAYS } from '../utils/salesStats';
-import type { SalesStats } from '../utils/salesStats';
+import { analyticsApi } from '../api/endpoints';
+import type { Event, EventSalesPatterns, TicketType } from '../api/types';
+import { formatDateTime, formatMoney } from '../utils/format';
+import { bestWindow, hourLabel, WEEKDAYS } from '../utils/salesStats';
 import { useAsync } from '../utils/useAsync';
 import { ErrorBox, Spinner } from './ui';
 
-/** How many orders are read for the statistics (100 per request). */
-const MAX_ORDERS = 2000;
 /** Below this many orders the patterns are shown but flagged as early. */
 const EARLY_ORDERS = 20;
 const DAY_MS = 86_400_000;
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-/** Every order of the event, up to MAX_ORDERS; `complete` is false when there were more. */
-async function loadOrders(eventId: string): Promise<{ orders: Order[]; complete: boolean; total: number }> {
-  const orders: Order[] = [];
-  for (let page = 0; ; page++) {
-    const res = await eventApi.orders(eventId, { page, size: 100 });
-    orders.push(...res.content);
-    if (res.last || res.content.length === 0) return { orders, complete: true, total: res.totalElements };
-    if (orders.length >= MAX_ORDERS) return { orders, complete: false, total: res.totalElements };
-  }
+/** Tickets sold from 6 days before today through today, with today taken in the event's timezone. */
+function last7Days(daily: EventSalesPatterns['daily'], timeZone: string, now: number): number {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone }).format(now);
+  const from = new Date(Date.parse(`${today}T00:00:00Z`) - 6 * DAY_MS).toISOString().slice(0, 10);
+  return daily.filter((d) => d.day >= from && d.day <= today).reduce((n, d) => n + d.tickets, 0);
 }
 
 /**
  * Sales statistics for the organizer: tickets per day, the best days of the week and hours, the recent pace and where it
- * leads, worked out from the event's own orders in the event's timezone.
+ * leads, and buyers by age, counted by the API in the event's timezone.
  */
 export function SalesInsights({ event, ticketTypes }: { event: Event; ticketTypes: TicketType[] }) {
-  const { data, error, loading } = useAsync(() => loadOrders(event.id), [event.id]);
-  if (loading && !data) {
+  const patterns = useAsync(() => analyticsApi.eventSalesPatterns(event.id), [event.id]);
+  const audience = useAsync(() => analyticsApi.eventAudience(event.id), [event.id]);
+  const totals = useAsync(() => analyticsApi.event(event.id), [event.id]);
+  const funnel = useAsync(() => analyticsApi.eventFunnel(event.id), [event.id]);
+  const s = patterns.data;
+  const a = audience.data;
+  const f = funnel.data;
+  if (patterns.loading && !s) {
     return (
       <section className="card sales-insights">
         <h2>Sales insights</h2>
@@ -37,28 +37,27 @@ export function SalesInsights({ event, ticketTypes }: { event: Event; ticketType
       </section>
     );
   }
-  if (error || !data) {
+  if (patterns.error || !s) {
     return (
       <section className="card sales-insights">
         <h2>Sales insights</h2>
-        <ErrorBox message={error ?? 'Could not load the orders.'} />
+        <ErrorBox message={patterns.error ?? 'Could not load the sales figures.'} />
       </section>
     );
   }
 
   const now = Date.now();
   const end = new Date(event.endAt).getTime();
-  const s = salesStats(data.orders, event.timezone, now, end);
   const capacity = ticketTypes.reduce((n, t) => n + t.quantityTotal, 0);
   const remaining = ticketTypes.reduce((n, t) => n + t.quantityAvailable, 0);
-  // Sold is counted from the orders (like the charts); when not every order was read, the stock count stands in.
-  const sold = data.complete ? s.tickets : capacity - remaining;
+  const sold = s.tickets;
   const sellThrough = capacity > 0 ? Math.round((sold / capacity) * 100) : 0;
   // Sales stop at the latest ticket type's sale end, and never after the event ends.
   const lastSaleEnd = Math.max(0, ...ticketTypes.map((t) => new Date(t.saleEndAt).getTime()));
   const saleEnd = Math.min(end, lastSaleEnd || end);
   const daysLeft = Math.max(0, Math.ceil((saleEnd - now) / DAY_MS));
-  const pace = s.last7Days / 7;
+  const recent = last7Days(s.daily, event.timezone, now);
+  const pace = recent / 7;
 
   return (
     <section className="card sales-insights">
@@ -69,24 +68,21 @@ export function SalesInsights({ event, ticketTypes }: { event: Event; ticketType
 
       <div className="org-stats insights-stats">
         <Stat label="Tickets sold" value={String(sold)} hint={`${sellThrough}% of ${capacity}`} />
+        {totals.data && (
+          <Stat label="Total sold" value={formatMoney(totals.data.revenue)} hint="What buyers paid, without the platform fee" />
+        )}
         <Stat
           label="Orders"
           value={String(s.orders)}
           hint={s.orders ? `${(s.tickets / s.orders).toFixed(1)} tickets per order` : 'None yet'}
         />
-        <Stat label="Last 7 days" value={String(s.last7Days)} hint={`${pace.toFixed(1)} tickets a day`} />
+        <Stat label="Last 7 days" value={String(recent)} hint={`${pace.toFixed(1)} tickets a day`} />
         <Stat
           label="Promo codes"
           value={s.orders ? `${Math.round((s.promoOrders / s.orders) * 100)}%` : '—'}
           hint={`${s.promoOrders} of ${s.orders} orders`}
         />
       </div>
-
-      {!data.complete && (
-        <p className="muted small">
-          Based on the first {data.orders.length} of {data.total} orders.
-        </p>
-      )}
 
       {s.orders === 0 ? (
         <p className="muted">No sales yet. Charts and tips appear after the first order.</p>
@@ -121,9 +117,96 @@ export function SalesInsights({ event, ticketTypes }: { event: Event; ticketType
           </ul>
         </>
       )}
+
+      <h3>Funnel</h3>
+      <ErrorBox message={funnel.error} />
+      {f && (
+        <>
+          <div className="org-stats insights-stats">
+            <Stat label="Views" value={String(f.views)} hint={`${f.uniqueVisitors} unique visitors`} />
+            <Stat label="Added to cart" value={`${f.addToCart.quantity} tickets`} hint={`${f.addToCart.uniqueBuyers} buyers`} />
+            <Stat label="Checked out" value={`${f.checkedOut.quantity} tickets`} hint={`${f.checkedOut.uniqueBuyers} buyers`} />
+            <Stat label="View → cart" value={percent(f.viewToCartRate)} hint="Visitors who added to cart" />
+            <Stat label="View → purchase" value={percent(f.viewToPurchaseRate)} hint="Visitors who checked out" />
+          </div>
+          {f.ticketTypes.length > 0 && (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Added</th>
+                  <th>Checked out</th>
+                  <th>Removed</th>
+                  <th>Expired</th>
+                  <th>Cart conversion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {f.ticketTypes.map((t) => (
+                  <tr key={t.ticketTypeId}>
+                    <td>{t.name}</td>
+                    <td>{t.addedQuantity}</td>
+                    <td>{t.checkedOutQuantity}</td>
+                    <td>{t.removedQuantity}</td>
+                    <td>{t.expiredQuantity}</td>
+                    <td>{percent(t.cartConversionRate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p className="muted small">
+            {f.trackingSince && `Tracked since ${formatDateTime(f.trackingSince, f.timezone)}. `}Days in {f.timezone}.
+          </p>
+        </>
+      )}
+
+      <ErrorBox message={audience.error} />
+      {a && a.buyers > 0 && (
+        <>
+          <h3>Buyers by age</h3>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Age</th>
+                <th>Buyers</th>
+                <th>Tickets</th>
+              </tr>
+            </thead>
+            <tbody>
+              {a.ageGroups.map((g) => (
+                <tr key={g.label}>
+                  <td>{g.label}</td>
+                  {g.buyers === null ? (
+                    <td colSpan={2} className="muted">
+                      Hidden (fewer than 5 buyers, or to keep a small group private)
+                    </td>
+                  ) : (
+                    <>
+                      <td>{g.buyers}</td>
+                      <td>{g.tickets}</td>
+                    </>
+                  )}
+                </tr>
+              ))}
+              {a.unknownAge > 0 && (
+                <tr>
+                  <td>Unknown</td>
+                  <td>{a.unknownAge}</td>
+                  <td className="muted">—</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <p className="muted small">{a.buyers} buyers. Age at their first order for this event.</p>
+        </>
+      )}
     </section>
   );
 }
+
+/** 0.25 as "25%"; "—" when there is no rate. */
+const percent = (rate: number | null) => (rate === null ? '—' : `${Math.round(rate * 100)}%`);
 
 function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
@@ -136,7 +219,13 @@ function Stat({ label, value, hint }: { label: string; value: string; hint: stri
 }
 
 /** Plain-language findings and what to do with them, from the counts. */
-function tips(s: SalesStats, remaining: number, daysLeft: number, pace: number, salesOver: boolean): string[] {
+function tips(
+  s: Pick<EventSalesPatterns, 'tickets' | 'promoOrders' | 'byWeekday' | 'byHour'>,
+  remaining: number,
+  daysLeft: number,
+  pace: number,
+  salesOver: boolean,
+): string[] {
   const days = s.byWeekday.map((n, i) => ({ n, day: DAY_NAMES[i] }));
   const best = days.reduce((a, b) => (b.n > a.n ? b : a));
   const worst = days.reduce((a, b) => (b.n < a.n ? b : a));
