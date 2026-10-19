@@ -26,6 +26,12 @@ export function BackButton() {
   async function goBack() {
     // Unsaved edits on this page? Ask "Discard or continue editing" first.
     if (!(await confirmLeave())) return;
+    // An event's management page always goes back to the Manage events list, never to a page opened from it
+    // (the ticket designer or the edit window), however you got here.
+    if (/^\/manage\/events\/[^/]+$/.test(location.pathname)) {
+      navigate('/manage');
+      return;
+    }
     // React Router gives the very first entry of a session the key "default",
     // so anything else means there is an in-app page to go back to.
     if (location.key !== 'default') navigate(-1);

@@ -24,6 +24,7 @@ import type {
   EffectivePlatformFee,
   EventAnalytics,
   EventAudience,
+  EventActivityEntry,
   EventFunnel,
   EventSalesPatterns,
   FeeScope,
@@ -169,6 +170,9 @@ export const eventApi = {
   remove: (id: UUID) => api<void>(`/events/${id}`, { method: 'DELETE' }),
   orders: (id: UUID, q: PageQuery = {}) =>
     api<PageResponse<Order>>(`/events/${id}/orders`, { query: { ...q } }),
+  /** Who changed what on the event, newest first (its owner / organizers, or an admin). */
+  activity: (id: UUID, q: PageQuery = {}) =>
+    api<PageResponse<EventActivityEntry>>(`/events/${id}/activity`, { query: { ...q } }),
 };
 
 /**

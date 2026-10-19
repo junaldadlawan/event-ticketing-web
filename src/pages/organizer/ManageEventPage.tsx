@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useMatch, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
 import { eventApi, promoApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
 import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKind, TicketTypeUpdateRequest } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DeleteEventDialog } from '../../components/DeleteEventDialog';
+import { EventActivity } from '../../components/EventActivity';
+import { FormDialog } from '../../components/FormDialog';
 import { EventFormDialog } from './CreateEventPage';
 import { SalesInsights } from '../../components/SalesInsights';
 import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon, TrashIcon } from '../../components/DesignerIcons';
@@ -27,11 +29,24 @@ export function ManageEventPage() {
   const navigate = useNavigate();
   // /manage/events/<id>/edit opens the Edit event window over this page.
   const editing = useMatch('/manage/events/:eventId/edit') !== null;
+  // Coming back from the ticket designer after a save: "Customize ticket" shows "Ticket saved" for a moment.
+  const location = useLocation();
+  const [ticketJustSaved, setTicketJustSaved] = useState(
+    () => (location.state as { ticketSaved?: boolean } | null)?.ticketSaved === true,
+  );
+  useEffect(() => {
+    if (!ticketJustSaved) return;
+    // Clear the flag from history so a reload or Back does not replay it.
+    navigate(location.pathname, { replace: true, state: null });
+    const t = setTimeout(() => setTicketJustSaved(false), 1250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticketJustSaved]);
   const { data: event, setData: setEvent, error, loading } = useAsync(
     () => eventApi.get(eventId),
     [eventId],
   );
-  // Whether the event has any ticket layout yet: without one the "Design ticket" button shows a "!".
+  // Whether the event has any ticket layout yet: without one the "Customize ticket" button shows a "!".
   const { data: templates } = useAsync(() => ticketTemplateApi.list(eventId), [eventId]);
   // Ticket types are loaded here so the launch checklist and the list below share one query.
   const typesQuery = useAsync(() => ticketTypeApi.list(eventId), [eventId]);
@@ -41,6 +56,8 @@ export function ManageEventPage() {
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  // The activity log (who changed what on the event) opens in a floating window.
+  const [showingActivity, setShowingActivity] = useState(false);
   // Only the event's own owner / organizer may change ticket types; an admin sees them read-only.
   const canEditTickets = useIsOrgManager(event?.organizationId);
   const orgName = useOrgNames(event ? [event.organizationId] : []).get(event?.organizationId ?? '');
@@ -103,22 +120,26 @@ export function ManageEventPage() {
         </Link>
         {over ? (
           <button type="button" className="btn" disabled title={ENDED_TIP}>
-            Design ticket
+            Customize ticket
           </button>
         ) : (
           <Link
             to={`/manage/events/${event.id}/ticket-design`}
-            className="btn"
+            className={`btn${ticketJustSaved ? ' btn-just-saved' : ''}`}
             title={templates && templates.length === 0 ? "No ticket layout yet - design one" : undefined}
           >
-            Design ticket
-            {templates && templates.length === 0 && (
+            {ticketJustSaved && <CheckIcon />}
+            {ticketJustSaved ? 'Ticket saved' : 'Customize ticket'}
+            {!ticketJustSaved && templates && templates.length === 0 && (
               <span className="btn-badge" aria-label="No ticket layout yet">
                 !
               </span>
             )}
           </Link>
         )}
+        <button type="button" className="btn" onClick={() => setShowingActivity(true)} title="Who changed what on this event, and when">
+          Activity log
+        </button>
         {canPublish && (
           <button
             className="btn btn-primary"
@@ -204,6 +225,9 @@ export function ManageEventPage() {
       {/* A draft has sold nothing yet. */}
       {event.status !== 'DRAFT' && typesQuery.data && <SalesInsights event={event} ticketTypes={typesQuery.data} />}
       <EventOrders eventId={event.id} />
+      <FormDialog open={showingActivity} title="Activity log" onClose={() => setShowingActivity(false)}>
+        <EventActivity eventId={event.id} timezone={event.timezone} ticketTypes={typesQuery.data ?? []} />
+      </FormDialog>
     </div>
   );
 }
@@ -297,7 +321,7 @@ function LaunchChecklist({
       done: Boolean(layoutCount),
       action: (
         <Link to={`/manage/events/${event.id}/ticket-design`} className="btn btn-sm">
-          Design ticket
+          Customize ticket
         </Link>
       ),
     },
@@ -1161,7 +1185,7 @@ function TicketTypes({
                     </div>
                     {eventOver ? (
                       <button type="button" className="menu-item" disabled title={ENDED_TIP}>
-                        Design ticket
+                        Customize ticket
                       </button>
                     ) : (
                       <Link
@@ -1169,7 +1193,7 @@ function TicketTypes({
                         to={`/manage/events/${eventId}/ticket-design?type=${tt.id}`}
                         onClick={close}
                       >
-                        Design ticket
+                        Customize ticket
                       </Link>
                     )}
                     <button

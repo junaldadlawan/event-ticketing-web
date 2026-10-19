@@ -600,6 +600,38 @@ export interface EventAudience {
   ageGroups: { label: string; buyers: number | null; tickets: number | null }[];
 }
 
+/** What an activity entry recorded, beyond the action (null on entries from before details existed). */
+export interface ActivityDetails {
+  /** *.updated: only the fields that changed, by their API name. Money is {amount, currency}, dates ISO, lists their count. */
+  changes?: { field: string; from: unknown; to: unknown }[];
+  /** Created / deleted items, paused / resumed ones, scanner devices: the item's name (kept even once it is deleted). */
+  name?: string;
+  /** ticket_type.reordered: the ticket type names, first to last. */
+  order?: string[];
+  /** refund.issued */
+  orderId?: string;
+  amount?: Money;
+  /** refund.issued, event moderation: the reason given. */
+  reason?: string;
+  [key: string]: unknown;
+}
+
+/** One entry of GET /events/{id}/activity (BR-EVENT-006): who did what to the event, and when. */
+export interface EventActivityEntry {
+  id: UUID;
+  /** Null when the system acted on its own (e.g. event.completed). */
+  actorId: UUID | null;
+  /** Null for the system, or a user that no longer exists. */
+  actorName: string | null;
+  /** e.g. "ticket_type.sales_paused", "event.published", "refund.issued". */
+  action: string;
+  targetType: string | null;
+  targetId: UUID | null;
+  eventId: UUID | null;
+  details: ActivityDetails | null;
+  createdAt: string;
+}
+
 /** When tickets sell, in the event's time zone. byWeekday is Monday first (7), byHour 0-23 (24). */
 export interface EventSalesPatterns {
   eventId: UUID;

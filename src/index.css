@@ -7253,3 +7253,70 @@ button.code-warning:focus-visible {
   color: var(--danger);
   margin-left: 2px;
 }
+
+/* Manage event: the activity history (who changed what, and when). */
+.event-activity p {
+  margin: 4px 0 0;
+}
+.activity-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+.activity-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.activity-list time {
+  flex: none;
+}
+.activity-what {
+  min-width: 0;
+}
+/* What an entry changed, under its sentence: "Price: ₱100.00 → ₱120.00". */
+.activity-list .activity-details {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  border: none;
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.activity-list .activity-details li {
+  display: block;
+  padding: 1px 0;
+  border: none;
+}
+
+/* "Customize ticket" right after the ticket design was saved: a green "Ticket saved" with a soft pulse. */
+.btn.btn-just-saved,
+.manage-page .event-hero .btn.btn-just-saved:not(.btn-primary) {
+  gap: 6px;
+  color: #ffffff;
+  background: #2e9d76;
+  border-color: #2e9d76;
+  animation: just-saved 0.6s ease-out 2;
+}
+.btn.btn-just-saved svg {
+  width: 16px;
+  height: 16px;
+}
+@keyframes just-saved {
+  0% {
+    box-shadow: 0 0 0 0 rgb(46 157 118 / 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgb(46 157 118 / 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.btn-just-saved {
+    animation: none;
+  }
+}

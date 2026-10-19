@@ -587,7 +587,7 @@ export function TicketDesignerPage() {
   const nothingUnsaved = changedLayouts.length === 0;
   useEffect(() => {
     if (!justSaved || !nothingUnsaved) return;
-    const t = setTimeout(() => navigate(`/manage/events/${eventId}`), 700);
+    const t = setTimeout(() => navigate(`/manage/events/${eventId}`, { replace: true, state: { ticketSaved: true } }), 700);
     return () => clearTimeout(t);
   }, [justSaved, nothingUnsaved, eventId, navigate]);
 
