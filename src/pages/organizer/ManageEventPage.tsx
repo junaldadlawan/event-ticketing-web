@@ -1236,9 +1236,10 @@ function TicketTypes({
                           type="button"
                           className={`swatch${(colors[tt.id] ?? null) === c.value ? ' is-on' : ''}${c.value ? '' : ' swatch-none'}`}
                           style={c.value ? { background: c.value } : undefined}
-                          title={c.name}
+                          title={eventOver ? ENDED_TIP : c.name}
                           aria-label={c.name}
                           aria-pressed={(colors[tt.id] ?? null) === c.value}
+                          disabled={eventOver}
                           onClick={() => setColour(tt.id, c.value)}
                         />
                       ))}

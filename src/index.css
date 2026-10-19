@@ -3266,6 +3266,10 @@ button.code-warning:focus-visible {
 .swatch.is-on {
   box-shadow: 0 0 0 2px #a071fd;
 }
+.swatch:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 /* The pencil next to a ticket type's name: just the icon, no outline; a soft background on hover. */
 .btn.btn-icon.tt-edit {
