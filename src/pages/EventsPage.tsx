@@ -5,7 +5,6 @@ import { eventApi } from '../api/endpoints';
 import { CategorySelect } from '../components/CategorySelect';
 import { SearchIcon } from '../components/DesignerIcons';
 import { EventCollection, ResultsBar, useEventView } from '../components/EventCollection';
-import { HomeSky } from '../components/HomeSky';
 import { HostCta } from '../components/HostCta';
 import { ManagedTag } from '../components/ManagedTag';
 import { Empty, ErrorBox, Pagination, Spinner } from '../components/ui';
@@ -38,8 +37,7 @@ export function EventsPage() {
 
   return (
     <>
-      <section className="hero events-hero">
-        <HomeSky />
+      <section className="slab events-hero">
         <h1>Find your next event</h1>
         <p>Sunrise runs, noon markets, midnight sets: search them all.</p>
         <form className="search" onSubmit={onSearch}>

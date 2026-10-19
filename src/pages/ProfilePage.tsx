@@ -8,7 +8,7 @@ import { useAuth } from '../auth/AuthContext';
 import { Avatar } from '../components/Avatar';
 import { EditIcon, QrIcon } from '../components/DesignerIcons';
 import { MyQrDialog } from '../components/MyQrCard';
-import { ErrorBox, SuccessBox } from '../components/ui';
+import { ErrorBox, SuccessBox, PageHeader } from '../components/ui';
 import { squareAvatarFile } from '../utils/avatar';
 import { BirthdateField } from '../components/BirthdateField';
 import { PasswordStrength } from '../components/PasswordStrength';
@@ -74,7 +74,7 @@ export function ProfilePage() {
   return (
     <ProfileTabs>
     <div className="profile-page">
-      <h1>Profile</h1>
+      <PageHeader title="Profile" />
       <ErrorBox message={err} />
       <SuccessBox message={msg} />
 

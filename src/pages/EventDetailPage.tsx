@@ -38,7 +38,7 @@ export function EventDetailPage() {
         <span className="eyebrow">{event.category}</span>
         <StatusBadge status={event.status} />
       </div>
-      <div className="row-between page-header event-title-row">
+      <div className="row-between event-title-row">
         <h1>{event.title}</h1>
         {canManage && (
           <Link
@@ -56,7 +56,7 @@ export function EventDetailPage() {
 
   return (
     <article className="event-detail">
-      <EventCover event={event} day={day}>
+      <EventCover event={event}>
         {titleBlock}
       </EventCover>
       <dl className="meta">

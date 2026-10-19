@@ -5,7 +5,7 @@ import { errorMessage } from '../../api/client';
 import { gatewayFeeApi, platformFeeApi } from '../../api/endpoints';
 import type { FeePayer, GatewayFeePayer, GatewayFeeRequest, GatewayFeeSetting, Money, PlatformFeeRule, PlatformFeeRuleRequest } from '../../api/types';
 import { FormDialog } from '../../components/FormDialog';
-import { Empty, ErrorBox, SuccessBox } from '../../components/ui';
+import { Empty, ErrorBox, SuccessBox, PageHeader } from '../../components/ui';
 import { formatMoney } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
@@ -65,7 +65,7 @@ export function AdminSettingsPage() {
         <Navigate to="/admin/settings/finance" replace />
       ) : (
         <>
-          <h1>Settings</h1>
+          <PageHeader title="Settings" />
           <div className="settings-layout">
             <nav className="settings-nav" aria-label="Settings">
               {SECTIONS.map((x) => (

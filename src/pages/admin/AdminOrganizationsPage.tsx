@@ -8,7 +8,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { EditIcon, SearchIcon, StatsIcon } from '../../components/DesignerIcons';
 import { FormDialog } from '../../components/FormDialog';
 import { UserPicker } from '../../components/UserPicker';
-import { Empty, ErrorBox, Spinner, SuccessBox } from '../../components/ui';
+import { Empty, ErrorBox, Spinner, SuccessBox, PageHeader } from '../../components/ui';
 import { formatDateTime, humanize, fullName } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
@@ -132,8 +132,7 @@ function OrganizationsManager() {
 
   return (
     <>
-      <h1>Organizations</h1>
-      <p className="muted">Review organizer applications, and manage the organizations that host events.</p>
+      <PageHeader title="Organizations" lede="Review organizer applications, and manage the organizations that host events." />
 
       <div className="admin-toolbar">
         <label className="admin-search">

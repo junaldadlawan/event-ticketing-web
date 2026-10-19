@@ -4,7 +4,7 @@ import { errorMessage } from '../../api/client';
 import { disputeApi } from '../../api/endpoints';
 import type { Dispute, DisputeStatus } from '../../api/types';
 import { FormDialog } from '../../components/FormDialog';
-import { Empty, ErrorBox, Pagination, Spinner, SuccessBox } from '../../components/ui';
+import { Empty, ErrorBox, Pagination, Spinner, SuccessBox, PageHeader } from '../../components/ui';
 import { formatDateTime, humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
@@ -37,8 +37,7 @@ function DisputesManager() {
 
   return (
     <>
-      <h1>Disputes</h1>
-      <p className="muted">Problems customers reported with an order or ticket. Review each one and record the outcome.</p>
+      <PageHeader title="Disputes" lede="Problems customers reported with an order or ticket. Review each one and record the outcome." />
       <div className="admin-toolbar">
         <select
           value={status}

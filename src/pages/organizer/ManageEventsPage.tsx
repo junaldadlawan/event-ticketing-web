@@ -7,7 +7,7 @@ import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { CategorySelect } from '../../components/CategorySelect';
 import { PlusIcon, SearchIcon } from '../../components/DesignerIcons';
 import { EventCollection, ResultsBar, useEventView } from '../../components/EventCollection';
-import { Empty, ErrorBox, Pagination, Spinner } from '../../components/ui';
+import { Empty, ErrorBox, Pagination, Spinner, PageHeader } from '../../components/ui';
 import { humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { useOrgNames } from '../../utils/useOrgNames';
@@ -65,16 +65,16 @@ export function ManageEventsPage() {
     <>
       <SuspendedOrgNotice organizationIds={(data?.content ?? []).map((e) => e.organizationId)} />
       <section className="hero">
-        <div className="row-between page-header">
-          <div>
-            <h1>Manage events</h1>
-            {orgNames.size > 0 && <p className="muted org-line">{[...orgNames.values()].join(' · ')}</p>}
-          </div>
-          <Link to="/manage/new" className="btn btn-cta">
-            <PlusIcon />
-            New event
-          </Link>
-        </div>
+        <PageHeader
+          title="Manage events"
+          lede={orgNames.size > 0 ? [...orgNames.values()].join(' · ') : undefined}
+          actions={
+            <Link to="/manage/new" className="btn btn-cta">
+              <PlusIcon />
+              New event
+            </Link>
+          }
+        />
         <form className="search search-wide" onSubmit={onSearch}>
           <input
             placeholder="Search your events..."

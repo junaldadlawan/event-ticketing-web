@@ -6,7 +6,7 @@ import { analyticsApi, organizationApi, payoutApi, payoutWalletApi } from '../..
 import type { Money, Payout, PayoutStatus } from '../../api/types';
 import { RefreshIcon, SearchIcon } from '../../components/DesignerIcons';
 import { PeriodFields, StatGroup, money, useFinancePeriod } from '../../components/FinanceStats';
-import { Empty, ErrorBox, Pagination, Spinner } from '../../components/ui';
+import { Empty, ErrorBox, Pagination, Spinner, PageHeader } from '../../components/ui';
 import { formatMoney, humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
@@ -32,13 +32,15 @@ function PayoutsManager() {
 
   return (
     <>
-      <div className="row-between page-header">
-        <h1>Finance &amp; Payouts</h1>
-        <Link to="/admin/payouts/generate" className="btn btn-primary">
-          Generate payout
-        </Link>
-      </div>
-      <p className="muted">What each organization has earned, the platform fee, and what was paid out.</p>
+      <PageHeader
+        title="Finance & Payouts"
+        lede="What each organization has earned, the platform fee, and what was paid out."
+        actions={
+          <Link to="/admin/payouts/generate" className="btn btn-primary">
+            Generate payout
+          </Link>
+        }
+      />
       <ErrorBox message={orgs.error} />
 
       <PlatformFinance />

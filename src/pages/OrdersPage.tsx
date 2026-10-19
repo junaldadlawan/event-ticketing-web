@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { orderApi } from '../api/endpoints';
-import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../components/ui';
+import { Empty, ErrorBox, Pagination, Spinner, StatusBadge, PageHeader } from '../components/ui';
 import { formatDateTime, formatMoney } from '../utils/format';
 import { useAsync } from '../utils/useAsync';
 
@@ -14,7 +14,7 @@ export function OrdersPage() {
 
   return (
     <>
-      <h1>My orders</h1>
+      <PageHeader title="My orders" />
       <ErrorBox message={error} />
       {loading && !data ? (
         <Spinner />
