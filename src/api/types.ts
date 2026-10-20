@@ -190,6 +190,8 @@ export interface OrganizationMember {
   /** Who the member is (absent until the API returns them with the member). */
   name?: string | null;
   email?: string | null;
+  /** Null when unset, or for a caller who is only check-in staff. */
+  phoneNumber?: string | null;
   avatarUrl?: string | null;
 }
 

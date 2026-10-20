@@ -64,6 +64,8 @@ export function Layout() {
     if (isHost === false || (isHost === true && hideManagement)) {
       if (/^\/(manage|admin)(\/|$)/.test(pathname)) navigate('/', { replace: true });
     }
+    // The customer home page is not a manager's landing screen: the management view starts at Event Management.
+    if (isHost === true && !hideManagement && pathname === '/') navigate('/manage', { replace: true });
   }, [isHost, hideManagement, pathname, navigate]);
 
   async function confirmSwitch() {
@@ -89,9 +91,11 @@ export function Layout() {
           {/* Organization members (owner, organizer) in their management view work from Event Management, Team and Settings. */}
           {!orgMemberView && (
             <>
-              <NavLink to="/" end className="brand">
-                Home
-              </NavLink>
+              {hideManagement && (
+                <NavLink to="/" end className="brand">
+                  Home
+                </NavLink>
+              )}
               <NavLink to="/events" end className="brand">
                 Events
               </NavLink>

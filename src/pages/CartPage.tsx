@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError, errorMessage } from '../api/client';
 import { cartApi, eventApi, paymentMethodApi, ticketTypeApi } from '../api/endpoints';
 import type { Cart, Event, TicketType } from '../api/types';
@@ -12,6 +12,7 @@ import type { PayMongoCard } from '../utils/paymongo';
 import { MoonIcon, SunIcon } from '../components/DesignerIcons';
 import { StripeCard, confirmCardAction } from '../components/StripeCard';
 import type { StripeCardApi } from '../components/StripeCard';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FormDialog } from '../components/FormDialog';
 import { ErrorBox, PageHeader } from '../components/ui';
 import { formatDateTime, formatMoney, newIdempotencyKey } from '../utils/format';
@@ -24,8 +25,15 @@ interface ItemDetails {
 }
 
 export function CartPage() {
-  const { cart, removeItem, setQuantity, applyPromo, removePromo, checkout, afterPurchase } = useCart();
+  const { cart: ownCart, removeItem, setQuantity, applyPromo, removePromo, checkout: checkoutOwn, afterPurchase } = useCart();
   const navigate = useNavigate();
+  // "Buy now" on an event: a cart of its own holding just that purchase, paid in the Checkout window. The buyer's own
+  // cart is not touched, and cancelling releases the held tickets.
+  const location = useLocation();
+  const [direct, setDirect] = useState<Cart | null>(() => (location.state as { buyNow?: Cart } | null)?.buyNow ?? null);
+  const cart = direct ?? ownCart;
+  const checkout: typeof checkoutOwn = (payment, key, itemIds) =>
+    direct ? cartApi.checkout(direct.id, payment, key, itemIds) : checkoutOwn(payment, key, itemIds);
   const [promo, setPromo] = useState('');
   // Tick tickets to remove several at once, or to pay for just those: the summary and the payment follow the ticked ones.
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -48,7 +56,9 @@ export function CartPage() {
   const [securityCode, setSecurityCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [checkingOut, setCheckingOut] = useState(false);
+  // A line whose quantity went down to 0: asked about before it leaves the cart.
+  const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
+  const [checkingOut, setCheckingOut] = useState(direct !== null);
   const chosenCard = savedCards.find((c) => c.id === chosen);
   /** A saved card the API can charge again is paid with from the server: no card details to type. */
   const payWithSaved = Boolean(PAYMONGO_PUBLIC_KEY && chosenCard && chosenCard.canChargeAgain === true);
@@ -86,6 +96,25 @@ export function CartPage() {
     }
   }
 
+  // Buy now: pay for all of it, and forget the request so a reload does not open it again.
+  useEffect(() => {
+    if (!direct) return;
+    setPicked(new Set(direct.items.map((i) => i.id)));
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Closing the Checkout window. A Buy now that was not paid releases its tickets and goes back to the event. */
+  function closeCheckout() {
+    if (busy) return;
+    setCheckingOut(false);
+    if (!direct) return;
+    for (const i of direct.items) void cartApi.removeItem(direct.id, i.id).catch(() => undefined);
+    setDirect(null);
+    setPicked(new Set());
+    navigate(-1);
+  }
+
   const pickedIds = (cart?.items ?? []).filter((i) => picked.has(i.id)).map((i) => i.id);
   const allPicked = Boolean(cart?.items.length) && pickedIds.length === cart?.items.length;
   const togglePick = (id: string) =>
@@ -107,6 +136,21 @@ export function CartPage() {
   }, [quoteKey]);
   /** The ticket ids to pay for: none given when the whole cart is ticked. */
   const payIds = allPicked ? undefined : pickedIds;
+
+  /**
+   * A quantity typed into a line: 0 asks before removing it, past the per-order limit it is capped. True when a new
+   * quantity was sent (the box then follows the API's answer); otherwise the box goes back to the line's quantity.
+   */
+  function typedQuantity(item: Cart['items'][number], text: string, max: number | undefined, name: string) {
+    const n = Math.min(Math.floor(Number(text)), max ?? Infinity);
+    if (text.trim() === '' || Number.isNaN(n) || n === item.quantity) return false;
+    if (n <= 0) {
+      setRemoving({ id: item.id, name });
+      return false;
+    }
+    void run(() => setQuantity(item.id, n));
+    return true;
+  }
 
   async function removePicked() {
     await run(async () => {
@@ -304,13 +348,38 @@ export function CartPage() {
                     <button
                       type="button"
                       className="btn btn-sm"
-                      aria-label="One fewer"
-                      disabled={busy || item.quantity <= 1}
-                      onClick={() => void run(() => setQuantity(item.id, item.quantity - 1))}
+                      aria-label={item.quantity <= 1 ? 'Remove from cart' : 'One fewer'}
+                      disabled={busy}
+                      onClick={() =>
+                        item.quantity <= 1
+                          ? setRemoving({ id: item.id, name: d ? d.ticketType.name : 'this ticket' })
+                          : void run(() => setQuantity(item.id, item.quantity - 1))
+                      }
                     >
                       −
                     </button>
-                    <output aria-live="polite">{item.quantity}</output>
+                    <input
+                      // Remounted with each new quantity from the API, so a rejected or capped number shows the real one.
+                      key={item.quantity}
+                      type="number"
+                      inputMode="numeric"
+                      className="qty-input"
+                      aria-label="Number of tickets"
+                      min={0}
+                      max={d?.ticketType.maxPerOrder}
+                      disabled={busy}
+                      defaultValue={item.quantity}
+                      // Enter commits; kept from also pressing the confirm window's focused button as it opens.
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter') return;
+                        e.preventDefault();
+                        e.currentTarget.blur();
+                      }}
+                      onBlur={(e) => {
+                        if (!typedQuantity(item, e.currentTarget.value, d?.ticketType.maxPerOrder, d ? d.ticketType.name : 'this ticket'))
+                          e.currentTarget.value = String(item.quantity);
+                      }}
+                    />
                     <button
                       type="button"
                       className="btn btn-sm"
@@ -386,7 +455,23 @@ export function CartPage() {
           {pickedIds.length === 0 && <p className="small muted">Select a ticket to check out.</p>}
         </aside>
       </div>
-      <FormDialog open={checkingOut} title="Checkout" onClose={() => !busy && setCheckingOut(false)}>
+      <ConfirmDialog
+        open={removing !== null}
+        title={`Remove ${removing?.name ?? 'this ticket'} from your cart?`}
+        confirmLabel="Remove"
+        cancelLabel="Keep it"
+        danger
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => {
+          const line = removing;
+          setRemoving(null);
+          if (line) void run(() => removeItem(line.id));
+        }}
+      >
+        The quantity is 0, so it leaves your cart and the tickets held for you are released.
+      </ConfirmDialog>
+
+      <FormDialog open={checkingOut} title="Checkout" onClose={closeCheckout}>
         {checkingOut && (
           <>
           <form className="form" onSubmit={onCheckout}>
@@ -552,7 +637,7 @@ export function CartPage() {
             </button>
           </form>
 
-            <button type="button" className="btn btn-link" disabled={busy} onClick={() => setCheckingOut(false)}>
+            <button type="button" className="btn btn-link" disabled={busy} onClick={closeCheckout}>
               Cancel
             </button>
           </>

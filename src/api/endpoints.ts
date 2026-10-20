@@ -253,6 +253,12 @@ export const organizationApi = {
   /** OWNER can't be assigned here (it only comes from approving the application). */
   assignMember: (orgId: UUID, userId: UUID, role: OrganizationRole) =>
     api<OrganizationMember>(`/organizations/${orgId}/members`, { method: 'POST', body: { userId, role } }),
+  /** Owner only: replace a member's roles with exactly this set (not OWNER, not empty: remove them instead). */
+  setMemberRoles: (orgId: UUID, userId: UUID, roles: OrganizationRole[]) =>
+    api<OrganizationMember>(`/organizations/${orgId}/members/${userId}/roles`, { method: 'PUT', body: { roles } }),
+  /** Owner only: remove a member and all their roles (the owner can't be removed). */
+  removeMember: (orgId: UUID, userId: UUID) =>
+    api<void>(`/organizations/${orgId}/members/${userId}`, { method: 'DELETE' }),
 };
 
 /** Admin only. */
