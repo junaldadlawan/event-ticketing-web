@@ -24,6 +24,7 @@ import type {
   EffectivePlatformFee,
   EventAnalytics,
   EventAudience,
+  ActivityArea,
   EventActivityEntry,
   EventFunnel,
   EventSalesPatterns,
@@ -282,6 +283,12 @@ export const platformFeeApi = {
   setForEvent: (eventId: UUID, body: PlatformFeeRuleRequest) =>
     api<PlatformFeeRule>(`/platform-fees/events/${eventId}`, { method: 'PUT', body }),
   removeForEvent: (eventId: UUID) => api<void>(`/platform-fees/events/${eventId}`, { method: 'DELETE' }),
+};
+
+/** A management tab's activity log: an organization's (organizationId) or, for admins, the platform's. */
+export const activityApi = {
+  list: (q: PageQuery & { area: ActivityArea; organizationId?: UUID }) =>
+    api<PageResponse<EventActivityEntry>>('/activity', { query: { ...q } }),
 };
 
 export const analyticsApi = {

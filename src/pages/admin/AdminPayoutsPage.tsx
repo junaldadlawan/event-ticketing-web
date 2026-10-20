@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { RefreshIcon, SearchIcon } from '../../components/DesignerIcons';
 import { PeriodFields, StatGroup, money, useFinancePeriod } from '../../components/FinanceStats';
 import { Empty, ErrorBox, Pagination, Spinner, PageHeader } from '../../components/ui';
+import { LogsButton } from '../../components/LogsButton';
 import { formatMoney, humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
@@ -38,9 +39,12 @@ function PayoutsManager() {
         title="Finance & Payouts"
         lede="What each organization has earned, the platform fee, and what was paid out."
         actions={
-          <Link to="/admin/payouts/generate" className="btn btn-primary">
-            Generate payout
-          </Link>
+          <>
+            <LogsButton area="FINANCE" title="Finance & Payouts" />
+            <Link to="/admin/payouts/generate" className="btn btn-primary">
+              Generate payout
+            </Link>
+          </>
         }
       />
       <ErrorBox message={orgs.error} />

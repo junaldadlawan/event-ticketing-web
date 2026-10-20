@@ -9,6 +9,7 @@ import { EditIcon, SearchIcon, StatsIcon } from '../../components/DesignerIcons'
 import { FormDialog } from '../../components/FormDialog';
 import { UserPicker } from '../../components/UserPicker';
 import { Empty, ErrorBox, Spinner, SuccessBox, PageHeader } from '../../components/ui';
+import { LogsButton } from '../../components/LogsButton';
 import { formatDateTime, humanize, fullName } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
@@ -132,7 +133,11 @@ function OrganizationsManager() {
 
   return (
     <>
-      <PageHeader title="Organizations" lede="Review organizer applications, and manage the organizations that host events." />
+      <PageHeader
+        title="Organizations"
+        lede="Review organizer applications, and manage the organizations that host events."
+        actions={<LogsButton area="ORGANIZATIONS" title="Organizations" />}
+      />
 
       <div className="admin-toolbar">
         <label className="admin-search">

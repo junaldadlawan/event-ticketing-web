@@ -7361,3 +7361,63 @@ button.code-warning:focus-visible {
   gap: 4px 10px;
   margin: -14px 0 18px;
 }
+
+/* Promo code form: the ticket types a code applies to, as a list of ticks. */
+.promo-types {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Promo code window: wide, with the form in rows of two or three, so it fits on screen without scrolling. */
+.promo-dialog .promo-cards {
+  margin: 0 0 4px;
+}
+.promo-dialog .promo-new {
+  margin: 14px 0 8px;
+}
+.promo-form {
+  gap: 12px;
+}
+.promo-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.promo-row.promo-row-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.promo-form label {
+  display: block;
+}
+.promo-form label input,
+.promo-form label select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+.promo-form label .hint {
+  display: inline;
+  margin-left: 4px;
+}
+/* The ticked ticket types sit side by side. */
+.promo-dialog .promo-types {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+.promo-dialog .promo-types .warn {
+  flex-basis: 100%;
+}
+@media (max-width: 640px) {
+  .promo-row,
+  .promo-row.promo-row-3 {
+    grid-template-columns: 1fr;
+  }
+}

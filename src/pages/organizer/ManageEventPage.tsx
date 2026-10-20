@@ -60,6 +60,7 @@ export function ManageEventPage() {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   // The activity log (who changed what on the event) opens in a floating window.
   const [showingActivity, setShowingActivity] = useState(false);
+  const [showingPromos, setShowingPromos] = useState(false);
   // Only the event's own owner / organizer may change ticket types; an admin sees them read-only.
   const canEditTickets = useIsOrgManager(event?.organizationId);
   const orgName = useOrgNames(event ? [event.organizationId] : []).get(event?.organizationId ?? '');
@@ -139,6 +140,15 @@ export function ManageEventPage() {
             )}
           </Link>
         )}
+        <button
+          type="button"
+          className="btn"
+          onClick={() => setShowingPromos(true)}
+          disabled={over}
+          title={over ? ENDED_TIP : 'Discount codes buyers can use on this event\'s tickets'}
+        >
+          Promo codes{promoQuery.data && promoQuery.data.length > 0 ? ` (${promoQuery.data.length})` : ''}
+        </button>
         <button type="button" className="btn" onClick={() => setShowingActivity(true)} title="Who changed what on this event, and when">
           Activity log
         </button>
@@ -225,12 +235,19 @@ export function ManageEventPage() {
         canEdit={canEditTickets}
         eventOver={over}
         query={typesQuery}
-        promoQuery={promoQuery}
         ownDesignTypeIds={new Set((templates ?? []).map((t) => t.ticketTypeId).filter((id): id is string => Boolean(id)))}
       />
       {/* A draft has sold nothing yet. */}
       {event.status !== 'DRAFT' && typesQuery.data && <SalesInsights event={event} ticketTypes={typesQuery.data} />}
       <EventOrders eventId={event.id} />
+      <PromoCodesDialog
+        eventId={event.id}
+        open={showingPromos}
+        ticketTypes={sortTicketTypes(typesQuery.data ?? [])}
+        codes={promoQuery.data ?? []}
+        onClose={() => setShowingPromos(false)}
+        onChanged={promoQuery.reload}
+      />
       <FormDialog open={showingActivity} title="Activity log" onClose={() => setShowingActivity(false)}>
         <EventActivity eventId={event.id} timezone={event.timezone} ticketTypes={typesQuery.data ?? []} />
       </FormDialog>
@@ -486,15 +503,21 @@ function promoState(p: PromoCode, now = Date.now()): { label: string; tone: stri
 }
 
 /** The promo codes that apply to one ticket type: read them at a glance, edit, pause / resume, delete, or add a new one. */
+/**
+ * The event's promo codes in one window: list, pause / resume / delete, and a form to add or edit one. Each code
+ * applies to every ticket type, or to the ones picked (one or more).
+ */
 function PromoCodesDialog({
   eventId,
-  ticketType,
+  open,
+  ticketTypes,
   codes,
   onClose,
   onChanged,
 }: {
   eventId: string;
-  ticketType: TicketType | null;
+  open: boolean;
+  ticketTypes: TicketType[];
   codes: PromoCode[];
   onClose: () => void;
   onChanged: () => void;
@@ -509,10 +532,17 @@ function PromoCodesDialog({
   const [until, setUntil] = useState('');
   const [limitTotal, setLimitTotal] = useState('');
   const [limitPerBuyer, setLimitPerBuyer] = useState('');
+  // Which ticket types the code is for: every one, or the ones ticked (one or more).
+  const [appliesTo, setAppliesTo] = useState<'ALL' | 'SOME'>('ALL');
+  const [typeIds, setTypeIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const open = ticketType !== null;
-  const currency = ticketType?.price.currency ?? 'USD';
+  const currency = ticketTypes[0]?.price.currency ?? 'PHP';
+  const typeName = (id: string) => ticketTypes.find((t) => t.id === id)?.name ?? 'a removed ticket type';
+  const noTypePicked = appliesTo === 'SOME' && typeIds.length === 0;
+  // A new code is valid, by default, for as long as any of the event's tickets are on sale.
+  const saleStarts = ticketTypes.map((t) => t.saleStartAt).sort();
+  const saleEnds = ticketTypes.map((t) => t.saleEndAt).sort();
   // A code that was already used keeps its code and discount type (the API refuses changing them).
   const locked = editing !== null && (editing.usedCount ?? 0) > 0;
 
@@ -523,8 +553,10 @@ function PromoCodesDialog({
     setValue('');
     setLimitTotal('');
     setLimitPerBuyer('');
-    setFrom(ticketType ? isoToLocalInput(ticketType.saleStartAt) : '');
-    setUntil(ticketType ? isoToLocalInput(ticketType.saleEndAt) : '');
+    setAppliesTo('ALL');
+    setTypeIds([]);
+    setFrom(saleStarts.length ? isoToLocalInput(saleStarts[0]) : '');
+    setUntil(saleEnds.length ? isoToLocalInput(saleEnds[saleEnds.length - 1]) : '');
   }
 
   function startEdit(promo: PromoCode) {
@@ -536,6 +568,8 @@ function PromoCodesDialog({
     setUntil(isoToLocalInput(promo.validUntil));
     setLimitTotal(promo.usageLimitTotal ? String(promo.usageLimitTotal) : '');
     setLimitPerBuyer(promo.usageLimitPerBuyer ? String(promo.usageLimitPerBuyer) : '');
+    setAppliesTo(promo.applicableTicketTypeIds?.length ? 'SOME' : 'ALL');
+    setTypeIds(promo.applicableTicketTypeIds ?? []);
     setErr(null);
   }
 
@@ -550,13 +584,18 @@ function PromoCodesDialog({
       d.close();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, ticketType]);
+  }, [open]);
 
   const amount = () => (type === 'PERCENTAGE' ? Number(value) : Math.round(Number(value) * 100));
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!ticketType) return;
+    if (noTypePicked) {
+      setErr('Pick at least one ticket type, or choose "All ticket types".');
+      return;
+    }
+    // An empty list means every ticket type of the event (for a new code and for an edit alike).
+    const applicableTicketTypeIds = appliesTo === 'ALL' ? [] : typeIds;
     setBusy(true);
     setErr(null);
     try {
@@ -570,13 +609,14 @@ function PromoCodesDialog({
           usageLimitPerBuyer: limitPerBuyer ? Number(limitPerBuyer) : editing.usageLimitPerBuyer ? 0 : undefined,
           validFrom: localInputToIso(from),
           validUntil: localInputToIso(until),
+          applicableTicketTypeIds,
         });
       } else {
         await promoApi.create(eventId, {
           code: code.trim().toUpperCase(),
           discountType: type,
           discountValue: amount(),
-          applicableTicketTypeIds: [ticketType.id],
+          applicableTicketTypeIds,
           usageLimitTotal: limitTotal ? Number(limitTotal) : undefined,
           usageLimitPerBuyer: limitPerBuyer ? Number(limitPerBuyer) : undefined,
           validFrom: localInputToIso(from),
@@ -610,7 +650,7 @@ function PromoCodesDialog({
   return (
     <dialog
       ref={dialog}
-      className="modal modal-wide"
+      className="modal modal-landscape promo-dialog"
       aria-labelledby="promo-title"
       onCancel={(e) => {
         e.preventDefault();
@@ -618,10 +658,10 @@ function PromoCodesDialog({
       }}
     >
       <div className="modal-head">
-        <h2 id="promo-title">Promo codes for {ticketType?.name}</h2>
+        <h2 id="promo-title">Promo codes</h2>
       </div>
       {codes.length === 0 ? (
-        <p className="muted small">No promo codes apply to this ticket type yet.</p>
+        <p className="muted small">No promo codes for this event yet.</p>
       ) : (
         <ul className="promo-cards">
           {codes.map((pc) => {
@@ -644,10 +684,8 @@ function PromoCodesDialog({
                     {pc.usageLimitPerBuyer ? ` · ${pc.usageLimitPerBuyer} per buyer` : ''}
                     {' · '}
                     {pc.applicableTicketTypeIds?.length
-                      ? pc.applicableTicketTypeIds.length === 1
-                        ? 'one ticket type'
-                        : `${pc.applicableTicketTypeIds.length} ticket types`
-                      : 'every ticket type'}
+                      ? pc.applicableTicketTypeIds.map(typeName).join(', ')
+                      : 'all ticket types'}
                   </div>
                 </div>
                 <div className="promo-actions">
@@ -686,20 +724,20 @@ function PromoCodesDialog({
         </ul>
       )}
       <ErrorBox message={err} />
-      <h3 className="promo-new">{editing ? `Edit ${editing.code}` : 'New promo code for this type'}</h3>
-      <form className="form" onSubmit={onSubmit}>
-        <label>
-          Code
-          <input
-            required
-            maxLength={50}
-            disabled={locked}
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="EARLYBIRD"
-          />
-        </label>
-        <div className="two-col">
+      <h3 className="promo-new">{editing ? `Edit ${editing.code}` : 'New promo code'}</h3>
+      <form className="form promo-form" onSubmit={onSubmit}>
+        <div className="promo-row promo-row-3">
+          <label>
+            Code
+            <input
+              required
+              maxLength={50}
+              disabled={locked}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="EARLYBIRD"
+            />
+          </label>
           <label>
             Discount
             <select
@@ -729,17 +767,14 @@ function PromoCodesDialog({
             This code was already used, so its code and discount type are fixed. Pause it and make a new one to change them.
           </small>
         )}
-        <div className="two-col">
+        <div className="promo-row promo-row-3">
           <label>
-            Valid from
-            <input type="datetime-local" required value={from} onChange={(e) => setFrom(e.target.value)} />
+            Applies to
+            <select value={appliesTo} onChange={(e) => setAppliesTo(e.target.value as 'ALL' | 'SOME')}>
+              <option value="ALL">All ticket types</option>
+              <option value="SOME">Specific ticket types</option>
+            </select>
           </label>
-          <label>
-            Valid until
-            <input type="datetime-local" required value={until} onChange={(e) => setUntil(e.target.value)} />
-          </label>
-        </div>
-        <div className="two-col">
           <label>
             Total uses <span className="hint">(optional)</span>
             <input type="number" min={1} value={limitTotal} onChange={(e) => setLimitTotal(e.target.value)} />
@@ -747,6 +782,38 @@ function PromoCodesDialog({
           <label>
             Per buyer <span className="hint">(optional)</span>
             <input type="number" min={1} value={limitPerBuyer} onChange={(e) => setLimitPerBuyer(e.target.value)} />
+          </label>
+        </div>
+        {appliesTo === 'SOME' && (
+          <fieldset className="promo-types">
+            <legend className="sr-only">Ticket types this code applies to</legend>
+            {ticketTypes.length === 0 ? (
+              <p className="muted small">This event has no ticket types yet.</p>
+            ) : (
+              ticketTypes.map((t) => (
+                <label key={t.id} className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={typeIds.includes(t.id)}
+                    onChange={(e) =>
+                      setTypeIds((ids) => (e.target.checked ? [...ids, t.id] : ids.filter((id) => id !== t.id)))
+                    }
+                  />
+                  {t.name}
+                </label>
+              ))
+            )}
+            {noTypePicked && <small className="warn">Pick at least one ticket type.</small>}
+          </fieldset>
+        )}
+        <div className="promo-row">
+          <label>
+            Valid from
+            <input type="datetime-local" required value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label>
+            Valid until
+            <input type="datetime-local" required value={until} onChange={(e) => setUntil(e.target.value)} />
           </label>
         </div>
         <div className="modal-actions">
@@ -758,7 +825,7 @@ function PromoCodesDialog({
               Cancel edit
             </button>
           )}
-          <button className="btn btn-primary" disabled={busy}>
+          <button className="btn btn-primary" disabled={busy || noTypePicked}>
             {busy ? 'Saving...' : editing ? 'Save changes' : 'Add promo code'}
           </button>
         </div>
@@ -798,7 +865,6 @@ function TicketTypes({
   canEdit,
   eventOver,
   query,
-  promoQuery,
   ownDesignTypeIds,
 }: {
   eventId: string;
@@ -814,7 +880,6 @@ function TicketTypes({
   /** The event has ended: every ticket type reads "Event ended" and the change controls are disabled. */
   eventOver: boolean;
   query: ReturnType<typeof useAsync<TicketType[]>>;
-  promoQuery: ReturnType<typeof useAsync<PromoCode[]>>;
   /** Ticket types that have a layout of their own (the others print with "All ticket types"). */
   ownDesignTypeIds: Set<string>;
 }) {
@@ -1014,11 +1079,6 @@ function TicketTypes({
     setMaxPerOrder('');
     setAdding(true);
   }
-
-  // Promo codes: the ticket type whose codes are open in their own window, and the codes that apply to a type.
-  const [promoFor, setPromoFor] = useState<TicketType | null>(null);
-  const promosFor = (tt: TicketType) =>
-    (promoQuery.data ?? []).filter((p) => !p.applicableTicketTypeIds?.length || p.applicableTicketTypeIds.includes(tt.id));
 
   /** "Duplicate": the add window, filled in from an existing ticket type (a new one is created). */
   function openDuplicate(tt: TicketType) {
@@ -1264,18 +1324,6 @@ function TicketTypes({
                         Customize ticket
                       </Link>
                     )}
-                    <button
-                      type="button"
-                      className="menu-item"
-                      disabled={eventOver}
-                      title={eventOver ? ENDED_TIP : undefined}
-                      onClick={() => {
-                        close();
-                        setPromoFor(tt);
-                      }}
-                    >
-                      Promo codes ({promosFor(tt).length})
-                    </button>
                     {canEdit && (
                       <>
                         <button
@@ -1333,14 +1381,6 @@ function TicketTypes({
           </li>
         ))}
       </ul>
-
-      <PromoCodesDialog
-        eventId={eventId}
-        ticketType={promoFor}
-        codes={promoFor ? promosFor(promoFor) : []}
-        onClose={() => setPromoFor(null)}
-        onChanged={promoQuery.reload}
-      />
 
       {/* Same safeguard as deleting an event: type the ticket name and re-enter the password. */}
       <DeleteEventDialog

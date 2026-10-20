@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { CardManager } from '../../components/CardManager';
 import type { NewCard } from '../../components/CardManager';
 import { Empty, ErrorBox, Spinner, PageHeader } from '../../components/ui';
+import { LogsButton } from '../../components/LogsButton';
 import { useAsync } from '../../utils/useAsync';
 
 /** Settings tab for an organization's owner and organizers. For now: where payouts are sent (Payment). */
@@ -37,6 +38,13 @@ export function ManageSettingsPage() {
           ) : (
             orgs.data[0].name
           )
+        }
+        actions={
+          <LogsButton
+            area="SETTINGS"
+            title="Settings"
+            organizations={[{ id: selected, name: orgs.data.find((o) => o.id === selected)?.name ?? '' }]}
+          />
         }
       />
       <div className="settings-layout">

@@ -11,6 +11,7 @@ import { EventPostsFeed } from '../../components/EventPostsFeed';
 import { PostComposer } from '../../components/PostComposer';
 import { PostViewToggle, usePostView } from '../../components/PostViewToggle';
 import { Empty, ErrorBox, Pagination, Spinner, PageHeader } from '../../components/ui';
+import { LogsButton } from '../../components/LogsButton';
 import { notifyPostsChanged } from '../../utils/livePosts';
 import { useAsync } from '../../utils/useAsync';
 
@@ -78,10 +79,13 @@ export function AdminPostsPage() {
         title="Posts"
         lede="Sales and announcements buyers see on the Home page and on each event's landing page."
         actions={
-          <button type="button" className="btn btn-primary" onClick={() => setComposing(true)}>
-            <PlusIcon />
-            Create post
-          </button>
+          <>
+            <LogsButton area="POSTS" title="Posts" />
+            <button type="button" className="btn btn-primary" onClick={() => setComposing(true)}>
+              <PlusIcon />
+              Create post
+            </button>
+          </>
         }
       />
 

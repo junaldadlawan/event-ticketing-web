@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { errorMessage } from '../api/client';
 import { eventApi } from '../api/endpoints';
-import type { EventActivityEntry, TicketType } from '../api/types';
+import type { EventActivityEntry, PageResponse, TicketType } from '../api/types';
 import { changeLines } from '../utils/activityDetails';
 import { formatDateTime, formatMoney, humanize } from '../utils/format';
 import { ErrorBox, Spinner } from './ui';
@@ -36,10 +36,46 @@ const ACTIONS: Record<string, string> = {
   'scanner_device.authorized': 'authorized a scanner device',
   'scanner_device.revoked': 'revoked a scanner device',
   'refund.issued': 'issued a refund',
-  'moderation.suspend': 'suspended the event',
-  'moderation.reinstate': 'reinstated the event',
-  'moderation.remove': 'took the event down',
+  // Team and organization
+  'organization.applied': 'applied to host events',
+  'organization.approved': 'approved the organization',
+  'organization.rejected': 'rejected the organization',
+  'organization.updated': 'edited the organization details',
+  'organization_member.assigned': 'gave someone a team role',
+  // Money
+  'payout.generated': 'generated a payout',
+  'payout.cancelled': 'cancelled a payout',
+  'payout_account.set': 'set the payout account',
+  'payout_account.removed': 'removed the payout account',
+  'payout_card.added': 'added a payout card',
+  'payout_card.primary_set': 'changed the primary payout card',
+  'payout_card.removed': 'removed a payout card',
+  'platform_fee.set': 'changed the platform fee',
+  'platform_fee.removed': 'removed the platform fee',
+  'gateway_fee.set': 'changed the payment gateway fee',
+  // Platform
+  'post.created': 'created a post',
+  'post.updated': 'edited a post',
+  'post.deleted': 'deleted a post',
+  'category.created': 'added a category',
+  'category.updated': 'edited a category',
+  'category.deactivated': 'deactivated a category',
+  'dispute.raised': 'opened a dispute',
+  'dispute.updated': 'updated a dispute',
+  'dispute.resolved': 'resolved a dispute',
+  'dispute.dismissed': 'dismissed a dispute',
+  'user.registered': 'signed up',
+  'user.deleted': 'deleted an account',
+  'user.password_changed': 'changed their password',
 };
+
+/** Moderation verbs; the target (event, organization, user, post) comes from the entry. */
+const MODERATION: Record<string, string> = {
+  'moderation.suspend': 'suspended',
+  'moderation.reinstate': 'reinstated',
+  'moderation.remove': 'took down',
+};
+const TARGET_WORDS: Record<string, string> = { Event: 'event', Organization: 'organization', User: 'user', Post: 'post' };
 
 /** With a name, these read e.g. "deleted ticket type “VIP”" instead of "deleted a ticket type". */
 const NAMED: Record<string, string> = {
@@ -57,9 +93,29 @@ const NAMED: Record<string, string> = {
   'ticket_template.deleted': 'deleted the ticket design for',
   'scanner_device.authorized': 'authorized scanner device',
   'scanner_device.revoked': 'revoked scanner device',
+  'organization.applied': 'applied to host events as',
+  'organization.approved': 'approved the organization',
+  'organization.rejected': 'rejected the organization',
+  'organization_member.assigned': 'gave a team role to',
+  'payout.generated': 'generated a payout for',
+  'payout.cancelled': 'cancelled the payout for',
+  'payout_card.added': 'added payout card',
+  'payout_card.primary_set': 'made the primary payout card',
+  'payout_card.removed': 'removed payout card',
+  'payout_account.set': 'set the payout account to',
+  'post.created': 'created post',
+  'post.updated': 'edited post',
+  'post.deleted': 'deleted post',
+  'category.created': 'added category',
+  'category.updated': 'edited category',
+  'category.deactivated': 'deactivated category',
 };
 
 function describe(entry: EventActivityEntry, typeNames: Map<string, string>): string {
+  if (MODERATION[entry.action]) {
+    const target = TARGET_WORDS[entry.targetType ?? ''] ?? 'item';
+    return `${MODERATION[entry.action]} the ${target}${entry.details?.name ? ` “${entry.details.name}”` : ''}`;
+  }
   const what = ACTIONS[entry.action] ?? humanize(entry.action.replace(/[._]/g, ' ')).toLowerCase();
   const name =
     entry.details?.name ?? (entry.targetType === 'TicketType' && entry.targetId ? typeNames.get(entry.targetId) : undefined);
@@ -76,14 +132,40 @@ function detailLines(entry: EventActivityEntry, timezone: string): string[] {
   if (d.order?.length) lines.push(`New order: ${d.order.join(', ')}`);
   if (d.amount) lines.push(`Amount: ${formatMoney(d.amount)}${d.orderId ? ` · order ${d.orderId.slice(0, 8)}` : ''}`);
   if (d.reason) lines.push(`Reason: “${d.reason}”`);
+  const roles = d.roles ?? (d.role ? [d.role] : []);
+  if (roles.length) lines.push(`Role: ${roles.map((r) => humanize(r)).join(', ')}`);
   return lines;
 }
 
-/**
- * The event's activity history (BR-EVENT-006): who changed what, and when, newest first. Only the event's owner,
- * organizers and admins can read it; the system's own changes (e.g. completing the event) show as "System".
- */
+/** The event's activity history (BR-EVENT-006); the system's own changes (e.g. completing it) show as "System". */
 export function EventActivity({ eventId, timezone, ticketTypes }: { eventId: string; timezone: string; ticketTypes: TicketType[] }) {
+  return (
+    <ActivityList
+      key={eventId}
+      load={(page, size) => eventApi.activity(eventId, { page, size })}
+      timezone={timezone}
+      ticketTypes={ticketTypes}
+    />
+  );
+}
+
+/**
+ * A log of who changed what, newest first, 20 at a time with "Show more". `load` fetches one page; give the
+ * component a new `key` to start over from another source.
+ */
+export function ActivityList({
+  load,
+  timezone,
+  ticketTypes = [],
+  showEventTitle = false,
+}: {
+  load: (page: number, size: number) => Promise<PageResponse<EventActivityEntry>>;
+  /** Times in this timezone (an event's); the browser's own when not given. */
+  timezone?: string;
+  ticketTypes?: TicketType[];
+  /** Name the event on each entry (a log that spans several events). */
+  showEventTitle?: boolean;
+}) {
   const [entries, setEntries] = useState<EventActivityEntry[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -95,8 +177,7 @@ export function EventActivity({ eventId, timezone, ticketTypes }: { eventId: str
     let cancelled = false;
     setLoading(true);
     setError(null);
-    eventApi
-      .activity(eventId, { page, size: PAGE_SIZE })
+    load(page, PAGE_SIZE)
       .then((res) => {
         if (cancelled) return;
         setEntries((list) => (page === 0 ? res.content : [...list, ...res.content]));
@@ -108,7 +189,9 @@ export function EventActivity({ eventId, timezone, ticketTypes }: { eventId: str
     return () => {
       cancelled = true;
     };
-  }, [eventId, page]);
+    // load is a new function each render; the parent's key starts a new log.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
   const typeNames = new Map(ticketTypes.map((t) => [t.id, t.name]));
 
@@ -124,10 +207,11 @@ export function EventActivity({ eventId, timezone, ticketTypes }: { eventId: str
               <div className="activity-what">
                 <span>
                   <strong>{e.actorId ? (e.actorName ?? 'A former user') : 'System'}</strong> {describe(e, typeNames)}
+                  {showEventTitle && e.eventTitle && <span className="muted"> · {e.eventTitle}</span>}
                 </span>
-                {detailLines(e, timezone).length > 0 && (
+                {detailLines(e, timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone).length > 0 && (
                   <ul className="activity-details">
-                    {detailLines(e, timezone).map((line) => (
+                    {detailLines(e, timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone).map((line) => (
                       <li key={line}>{line}</li>
                     ))}
                   </ul>

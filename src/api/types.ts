@@ -615,6 +615,9 @@ export interface ActivityDetails {
   amount?: Money;
   /** refund.issued, event moderation: the reason given. */
   reason?: string;
+  /** Team changes: the role or roles given. */
+  role?: string;
+  roles?: string[];
   [key: string]: unknown;
 }
 
@@ -630,9 +633,14 @@ export interface EventActivityEntry {
   targetType: string | null;
   targetId: UUID | null;
   eventId: UUID | null;
+  /** The event's title, on an event's entries in an organization's or the platform's log. */
+  eventTitle?: string | null;
   details: ActivityDetails | null;
   createdAt: string;
 }
+
+/** The management tab a log belongs to (GET /activity). */
+export type ActivityArea = 'EVENTS' | 'TEAM' | 'FINANCE' | 'SETTINGS' | 'POSTS' | 'ORGANIZATIONS' | 'USERS' | 'DISPUTES';
 
 /** When tickets sell, in the event's time zone. byWeekday is Monday first (7), byHour 0-23 (24). */
 export interface EventSalesPatterns {

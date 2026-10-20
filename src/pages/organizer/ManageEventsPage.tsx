@@ -12,6 +12,9 @@ import { Empty, ErrorBox, Pagination, Spinner, PageHeader } from '../../componen
 import { humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { useOrgNames } from '../../utils/useOrgNames';
+import { LogsButton } from '../../components/LogsButton';
+import { useAuth } from '../../auth/AuthContext';
+import { isAdmin } from '../../auth/roles';
 
 const STATUSES: EventStatus[] = [
   'DRAFT',
@@ -32,6 +35,9 @@ export function ManageEventsPage() {
   const page = Number(params.get('page') ?? 0);
 
   const [kw, setKw] = useState(keyword);
+  // Admins read the platform's event log; organizers and owners their organizations'.
+  const { user } = useAuth();
+  const platformLogs = isAdmin(user?.role);
   // /manage/new opens the New event window over this list.
   const navigate = useNavigate();
   const creating = useMatch('/manage/new') !== null;
@@ -78,10 +84,13 @@ export function ManageEventsPage() {
           title="Manage events"
           lede={orgNames.size > 0 ? [...orgNames.values()].join(' · ') : undefined}
           actions={
-            <Link to="/manage/new" className="btn btn-cta">
-              <PlusIcon />
-              New event
-            </Link>
+            <>
+              <LogsButton area="EVENTS" title="Event Management" organizations={platformLogs ? undefined : 'mine'} />
+              <Link to="/manage/new" className="btn btn-cta">
+                <PlusIcon />
+                New event
+              </Link>
+            </>
           }
         />
         <form className="search search-wide" onSubmit={onSearch}>
