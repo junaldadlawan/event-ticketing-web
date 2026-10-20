@@ -19,6 +19,8 @@ import { useIsOrgManager } from '../../auth/useCanManage';
 import { useOrgNames } from '../../utils/useOrgNames';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { useAsync } from '../../utils/useAsync';
+import { TimeField } from '../../components/TimeField';
+import { zonedParts, zonedToIso } from '../../utils/zonedTime';
 import { isEventOver } from '../../utils/eventState';
 
 /** Tooltip on the controls an ended event greys out. */
@@ -216,6 +218,10 @@ export function ManageEventPage() {
 
       <TicketTypes
         eventId={event.id}
+        eventTitle={event.title}
+        eventStartAt={event.startAt}
+        eventEndAt={event.endAt}
+        timezone={event.timezone}
         canEdit={canEditTickets}
         eventOver={over}
         query={typesQuery}
@@ -432,6 +438,12 @@ function RowMenu({ label, children }: { label: string; children: (close: () => v
     </div>
   );
 }
+
+/** Currencies a ticket can be priced in (all with cents, which the price field assumes). PHP first: PayMongo charges PHP. */
+const CURRENCIES = ['PHP', 'USD', 'EUR', 'GBP', 'SGD', 'AUD', 'CAD', 'HKD'].map((code) => ({ code }));
+
+/** Ticket sales close at the latest this long before the event starts. */
+const SALES_CLOSE_BEFORE_MS = 60 * 60 * 1000;
 
 /** Card colours to pick from (the supplied palette); null = follow the status colour. */
 const CARD_COLOURS: { name: string; value: string | null }[] = [
@@ -777,6 +789,10 @@ function PromoCodesDialog({
 
 function TicketTypes({
   eventId,
+  eventTitle,
+  eventStartAt,
+  eventEndAt,
+  timezone,
   canEdit,
   eventOver,
   query,
@@ -784,6 +800,13 @@ function TicketTypes({
   ownDesignTypeIds,
 }: {
   eventId: string;
+  /** The event this ticket type belongs to, named at the top of the window. */
+  eventTitle: string;
+  /** The event's start: ticket sales must close at least an hour before it. */
+  eventStartAt: string;
+  eventEndAt: string;
+  /** The event's timezone: the sale window's dates and times are read in it. */
+  timezone: string;
   /** false = read-only (an admin who is not an organizer of this event): no add, edit, pause, reorder or delete. */
   canEdit: boolean;
   /** The event has ended: every ticket type reads "Event ended" and the change controls are disabled. */
@@ -933,10 +956,34 @@ function TicketTypes({
   const [name, setName] = useState('');
   const [kind, setKind] = useState<TicketTypeKind>('GENERAL_ADMISSION');
   const [price, setPrice] = useState('');
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState('PHP');
   const [quantity, setQuantity] = useState('');
-  const [saleStart, setSaleStart] = useState('');
-  const [saleEnd, setSaleEnd] = useState('');
+  // The sale window, as dates and times in the event's timezone. "Start now" leaves the start empty: it is set on save.
+  const [startNow, setStartNow] = useState(false);
+  const [saleStartDate, setSaleStartDate] = useState('');
+  const [saleStartTime, setSaleStartTime] = useState('');
+  const [saleEndDate, setSaleEndDate] = useState('');
+  const [saleEndTime, setSaleEndTime] = useState('');
+  // The latest the sale can end: an hour before the event starts.
+  const latestEndMs = new Date(eventStartAt).getTime() - SALES_CLOSE_BEFORE_MS;
+  const latestEnd = zonedParts(new Date(latestEndMs).toISOString(), timezone);
+  const saleStartMs = startNow
+    ? null
+    : saleStartDate && saleStartTime
+      ? Date.parse(zonedToIso(saleStartDate, saleStartTime, timezone))
+      : null;
+  const saleEndMs = saleEndDate && saleEndTime ? Date.parse(zonedToIso(saleEndDate, saleEndTime, timezone)) : null;
+  const saleWarning =
+    saleEndMs === null
+      ? null
+      : saleEndMs > latestEndMs
+        ? `Sales must end by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}, an hour before the event starts.`
+        : saleEndMs <= (saleStartMs ?? Date.now())
+          ? startNow
+            ? 'The sale must end in the future.'
+            : 'The sale must end after it starts.'
+          : null;
+  const saleMissing = (!startNow && saleStartMs === null) || saleEndMs === null;
   const [maxPerOrder, setMaxPerOrder] = useState('');
   const [err, setErr] = useState<string | null>(null);
   // The "add" form lives in its own window (a modal dialog), opened by the button in the section header.
@@ -953,10 +1000,13 @@ function TicketTypes({
     setName('');
     setKind('GENERAL_ADMISSION');
     setPrice('');
-    setCurrency('USD');
+    setCurrency('PHP');
     setQuantity('');
-    setSaleStart('');
-    setSaleEnd('');
+    setStartNow(false);
+    setSaleStartDate('');
+    setSaleStartTime('');
+    setSaleEndDate(latestEnd.date);
+    setSaleEndTime(latestEnd.time);
     setMaxPerOrder('');
     setAdding(true);
   }
@@ -982,8 +1032,13 @@ function TicketTypes({
     setPrice(String(tt.price.amount / 100));
     setCurrency(tt.price.currency);
     setQuantity(String(tt.quantityTotal));
-    setSaleStart(isoToLocalInput(tt.saleStartAt));
-    setSaleEnd(isoToLocalInput(tt.saleEndAt));
+    const start = zonedParts(tt.saleStartAt, timezone);
+    const end = zonedParts(tt.saleEndAt, timezone);
+    setStartNow(false);
+    setSaleStartDate(start.date);
+    setSaleStartTime(start.time);
+    setSaleEndDate(end.date);
+    setSaleEndTime(end.time);
     setMaxPerOrder(String(tt.maxPerOrder));
     setAdding(true);
   }
@@ -1001,6 +1056,13 @@ function TicketTypes({
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setErr(null);
+    if (saleMissing || saleWarning) {
+      setErr(saleWarning ?? 'Fill in when the sale starts and ends.');
+      return;
+    }
+    // "Start now" is the moment it is saved.
+    const saleStartAt = startNow ? new Date().toISOString() : zonedToIso(saleStartDate, saleStartTime, timezone);
+    const saleEndAt = zonedToIso(saleEndDate, saleEndTime, timezone);
     try {
       if (editing) {
         // Send only what changed: a new quantityTotal keeps what is sold or held (409 if it goes below that).
@@ -1011,8 +1073,8 @@ function TicketTypes({
           body.price = { amount, currency: currency.toUpperCase() };
         }
         if (Number(quantity) !== editing.quantityTotal) body.quantityTotal = Number(quantity);
-        if (localInputToIso(saleStart) !== new Date(editing.saleStartAt).toISOString()) body.saleStartAt = localInputToIso(saleStart);
-        if (localInputToIso(saleEnd) !== new Date(editing.saleEndAt).toISOString()) body.saleEndAt = localInputToIso(saleEnd);
+        if (saleStartAt !== new Date(editing.saleStartAt).toISOString()) body.saleStartAt = saleStartAt;
+        if (saleEndAt !== new Date(editing.saleEndAt).toISOString()) body.saleEndAt = saleEndAt;
         if (maxPerOrder && Number(maxPerOrder) !== editing.maxPerOrder) body.maxPerOrder = Number(maxPerOrder);
         if (Object.keys(body).length > 0) await ticketTypeApi.update(editing.id, body);
         reload();
@@ -1024,8 +1086,8 @@ function TicketTypes({
         kind,
         price: { amount: Math.round(Number(price) * 100), currency: currency.toUpperCase() },
         quantityTotal: Number(quantity),
-        saleStartAt: localInputToIso(saleStart),
-        saleEndAt: localInputToIso(saleEnd),
+        saleStartAt,
+        saleEndAt,
         maxPerOrder: maxPerOrder ? Number(maxPerOrder) : undefined,
       });
       setName('');
@@ -1315,6 +1377,13 @@ function TicketTypes({
         <div className="modal-head">
           <h2 id="add-ticket-type-title">{editing ? "Edit ticket type" : "Add ticket type"}</h2>
         </div>
+        {/* Which event this is for, so the sale window can be set against its dates. */}
+        <p className="tt-for-event">
+          <strong>{eventTitle}</strong>
+          <span className="muted small">
+            {formatDateTime(eventStartAt, timezone)} → {formatDateTime(eventEndAt, timezone)}
+          </span>
+        </p>
         {copyOf && <p className="hint">Starting from a copy of {copyOf}. Check the dates and price, then add it.</p>}
         <ErrorBox message={err} />
         <form className="form tt-form" onSubmit={onSubmit}>
@@ -1351,13 +1420,14 @@ function TicketTypes({
                 </label>
                 <label>
                   Currency
-                  <input
-                    required
-                    pattern="[A-Za-z]{3}"
-                    maxLength={3}
-                    value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
-                  />
+                  <select required value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                    {/* A ticket type saved in a currency not listed here keeps it. */}
+                    {(CURRENCIES.some((c) => c.code === currency) ? CURRENCIES : [{ code: currency }, ...CURRENCIES]).map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.code}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
               <div className="form-row">
@@ -1391,33 +1461,72 @@ function TicketTypes({
 
             <fieldset className="form-group form-group-wide">
               <legend>Sale window</legend>
-              <div className="form-row">
+              <div className="date-time-row">
                 <label>
-                  Sale starts
+                  Sale start date
                   <input
-                    type="datetime-local"
-                    required
-                    value={saleStart}
-                    onChange={(e) => setSaleStart(e.target.value)}
+                    type="date"
+                    required={!startNow}
+                    disabled={startNow}
+                    max={latestEnd.date}
+                    value={saleStartDate}
+                    onChange={(e) => setSaleStartDate(e.target.value)}
                   />
                 </label>
                 <label>
-                  Sale ends
-                  <input
-                    type="datetime-local"
-                    required
-                    value={saleEnd}
-                    onChange={(e) => setSaleEnd(e.target.value)}
-                  />
+                  Sale start time
+                  {/* Remounted when "Start now" changes, so a half-picked time is cleared too. */}
+                  <TimeField key={startNow ? 'now' : 'set'} value={saleStartTime} onChange={setSaleStartTime} disabled={startNow} />
                 </label>
               </div>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={startNow}
+                  onChange={(e) => {
+                    setStartNow(e.target.checked);
+                    if (e.target.checked) {
+                      setSaleStartDate('');
+                      setSaleStartTime('');
+                    }
+                  }}
+                />
+                Start now (the sale starts the moment it is saved)
+              </label>
+              <div className="date-time-row">
+                <label>
+                  Sale end date
+                  <input
+                    type="date"
+                    required
+                    min={saleStartDate || undefined}
+                    max={latestEnd.date}
+                    value={saleEndDate}
+                    onChange={(e) => setSaleEndDate(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Sale end time
+                  <TimeField value={saleEndTime} onChange={setSaleEndTime} />
+                </label>
+              </div>
+              <p className={`date-status small ${saleWarning ? 'warn' : 'muted'}`} role={saleWarning ? 'alert' : undefined}>
+                {saleWarning ??
+                  `Times in ${timezone}. Sales close by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}, an hour before the event.`}
+              </p>
             </fieldset>
           </div>
           <div className="modal-actions">
             <button type="button" className="btn" onClick={() => setAdding(false)}>
               Cancel
             </button>
-            <button className="btn btn-primary">{editing ? 'Save changes' : 'Add ticket type'}</button>
+            <button
+              className="btn btn-primary"
+              disabled={saleMissing || Boolean(saleWarning)}
+              title={saleWarning ?? (saleMissing ? 'Fill in when the sale starts and ends' : undefined)}
+            >
+              {editing ? 'Save changes' : 'Add ticket type'}
+            </button>
           </div>
         </form>
       </dialog>

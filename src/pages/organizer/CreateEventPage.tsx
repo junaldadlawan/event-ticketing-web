@@ -15,6 +15,8 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { FormDialog } from '../../components/FormDialog';
 import { Empty, ErrorBox, Spinner } from '../../components/ui';
 import { useAsync } from '../../utils/useAsync';
+import { formatOffset, utcOffsetMinutes, zonedParts, zonedToIso } from '../../utils/zonedTime';
+import { TimeField } from '../../components/TimeField';
 import { isEventOver } from '../../utils/eventState';
 import { useOrgNames } from '../../utils/useOrgNames';
 
@@ -478,48 +480,6 @@ function zoneList(ids: string[]): { id: string; offset: number; label: string }[
     .sort((a, b) => a.offset - b.offset || a.id.localeCompare(b.id));
 }
 
-/** "2026-11-15" + "18:14" as wall-clock time in `timeZone` -> the UTC instant, as ISO. */
-function zonedToIso(date: string, time: string, timeZone: string): string {
-  const [y, mo, d] = date.split('-').map(Number);
-  const [h, mi] = time.split(':').map(Number);
-  const wall = Date.UTC(y, mo - 1, d, h, mi);
-  // The offset depends on the instant (daylight saving), so look it up at the first guess and correct once.
-  let at = wall - utcOffsetMinutes(timeZone, new Date(wall)) * 60_000;
-  at = wall - utcOffsetMinutes(timeZone, new Date(at)) * 60_000;
-  return new Date(at).toISOString();
-}
-
-/** The zone's offset from UTC at an instant, in minutes (daylight saving included). */
-function utcOffsetMinutes(timeZone: string, at: Date): number {
-  const name = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' })
-    .formatToParts(at)
-    .find((p) => p.type === 'timeZoneName')?.value;
-  const m = name?.match(/GMT([+-])(\d{2}):(\d{2})/);
-  return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) : 0;
-}
-
-/** 480 -> "+08:00", -210 -> "-03:30", 0 -> "+00:00". */
-function formatOffset(minutes: number): string {
-  const sign = minutes < 0 ? '-' : '+';
-  const abs = Math.abs(minutes);
-  return `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
-}
-
-/** An instant as the wall-clock date ("YYYY-MM-DD") and time ("HH:mm", 24-hour) in `timeZone`. */
-function zonedParts(iso: string, timeZone: string): { date: string; time: string } {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(new Date(iso));
-  const get = (type: string) => parts.find((x) => x.type === type)?.value ?? '';
-  return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` };
-}
-
 /** Tomorrow's date on this computer, as "YYYY-MM-DD" (what a date input holds). */
 function tomorrow(): string {
   const d = new Date();
@@ -543,92 +503,4 @@ function formatDuration(ms: number): string {
     if (n > 0) parts.push(`${n} ${n === 1 ? one : many}`);
   }
   return parts.join(', ') || 'less than a minute';
-}
-
-const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1));
-const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
-const HALVES = ['AM', 'PM'];
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
-/** "13:05" -> { hour: "1", minute: "05", half: "PM" }; "" -> no hour or minute yet, AM (the dropdown has no blank). */
-function timeParts(value: string): { hour: string; minute: string; half: string } {
-  if (!value) return { hour: '', minute: '', half: 'AM' };
-  const [h, m] = value.split(':').map(Number);
-  return { hour: String(h % 12 === 0 ? 12 : h % 12), minute: pad2(m), half: h < 12 ? 'AM' : 'PM' };
-}
-
-/**
- * A time as hour, minute and AM / PM dropdowns, each with its own up / down arrows. `value` is "HH:mm" (24-hour), or ""
- * until the hour and minute are chosen.
- */
-function TimeField({ value, onChange, disabled }: { value: string; onChange: (value: string) => void; disabled?: boolean }) {
-  // The parts live here so a half-picked time (hour chosen, minute not yet) is kept while value is still "".
-  const [parts, setParts] = useState(() => timeParts(value));
-  function pick(next: Partial<typeof parts>) {
-    const p = { ...parts, ...next };
-    setParts(p);
-    if (!p.hour || !p.minute || !p.half) return onChange('');
-    const h = (Number(p.hour) % 12) + (p.half === 'PM' ? 12 : 0);
-    onChange(`${pad2(h)}:${p.minute}`);
-  }
-  return (
-    <span className="time-field">
-      <StepSelect label="Hour" placeholder="--" options={HOURS} value={parts.hour} onChange={(hour) => pick({ hour })} disabled={disabled} />
-      <StepSelect label="Minute" placeholder="--" options={MINUTES} value={parts.minute} onChange={(minute) => pick({ minute })} disabled={disabled} />
-      <StepSelect label="AM or PM" options={HALVES} value={parts.half} onChange={(half) => pick({ half })} disabled={disabled} />
-    </span>
-  );
-}
-
-/** A dropdown with up / down arrows beside it that move to the next / previous option, wrapping around at the ends. */
-function StepSelect({
-  label,
-  placeholder,
-  options,
-  value,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  /** Shown while nothing is chosen; without one the first option is the starting value. */
-  placeholder?: string;
-  options: string[];
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-}) {
-  function step(by: number) {
-    const i = options.indexOf(value);
-    // Nothing chosen yet: up starts at the first option, down at the last.
-    const next = i < 0 ? (by > 0 ? 0 : options.length - 1) : (i + by + options.length) % options.length;
-    onChange(options[next]);
-  }
-  return (
-    <span className="time-part">
-      <select required disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
-        {placeholder && (
-          <option value="" disabled>
-            {placeholder}
-          </option>
-        )}
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-      <span className="time-steps">
-        <button type="button" disabled={disabled} aria-label={`${label} up`} onClick={() => step(1)}>
-          <svg viewBox="0 0 10 6" aria-hidden="true">
-            <path d="M1 5l4-4 4 4" />
-          </svg>
-        </button>
-        <button type="button" disabled={disabled} aria-label={`${label} down`} onClick={() => step(-1)}>
-          <svg viewBox="0 0 10 6" aria-hidden="true">
-            <path d="M1 1l4 4 4-4" />
-          </svg>
-        </button>
-      </span>
-    </span>
-  );
 }

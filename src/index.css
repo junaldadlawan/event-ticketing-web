@@ -3370,10 +3370,16 @@ button.code-warning:focus-visible {
   gap: 12px;
   min-width: 0;
 }
+/* The group's title sits inside its box (floated, so it is not drawn in a notch of the border). */
 .form-group legend {
-  padding: 0 8px;
-  font-size: 0.78rem;
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  font-size: 0.75rem;
   font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 .form-group-wide {
@@ -3415,6 +3421,7 @@ button.code-warning:focus-visible {
   display: block;
   width: 100%;
   margin-top: 6px;
+  background: var(--bg);
 }
 
 /* Space between the window title and the first group, and inside each group under its title. */
@@ -7221,6 +7228,20 @@ button.code-warning:focus-visible {
 }
 
 /* New event form: pasted image URLs or uploaded images, with thumbnails of the uploads. */
+/* The image button on the event form: big enough to read as the way to add a picture. */
+.event-images .popover > .icon-button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+}
+.event-images .popover > .icon-button svg {
+  width: 22px;
+  height: 22px;
+}
+.event-images .popover > .icon-button:hover:not(:disabled),
+.event-images .popover > .icon-button:focus-visible {
+  border-color: var(--text);
+}
 .event-images {
   display: flex;
   flex-direction: column;
@@ -7319,4 +7340,24 @@ button.code-warning:focus-visible {
   .btn.btn-just-saved {
     animation: none;
   }
+}
+
+/* The time picker inside a form group (ticket type window): its boxes keep their own size, and the whole picker
+   sits as far below the label as the other fields do. */
+.form-group .time-field {
+  margin-top: 6px;
+}
+.form-group label .time-part select {
+  display: block;
+  width: auto;
+  margin-top: 0;
+}
+
+/* Ticket type window: the event it is for, under the title. */
+.tt-for-event {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: -14px 0 18px;
 }
