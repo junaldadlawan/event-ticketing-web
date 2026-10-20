@@ -308,7 +308,9 @@ export interface TicketTypeCreateRequest {
   kind: TicketTypeKind;
   price: Money;
   quantityTotal: number;
-  saleStartAt: string;
+  /** Left out = the sale starts the moment the API saves it. */
+  saleStartAt?: string;
+  /** At least an hour before the event starts, or the API refuses it (400). */
   saleEndAt: string;
   maxPerOrder?: number;
 }

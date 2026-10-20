@@ -444,6 +444,8 @@ const CURRENCIES = ['PHP', 'USD', 'EUR', 'GBP', 'SGD', 'AUD', 'CAD', 'HKD'].map(
 
 /** Ticket sales close at the latest this long before the event starts. */
 const SALES_CLOSE_BEFORE_MS = 60 * 60 * 1000;
+/** And they must run at least this long, so a sale window is never a moment. */
+const MIN_SALE_WINDOW_MS = 60 * 60 * 1000;
 
 /** Card colours to pick from (the supplied palette); null = follow the status colour. */
 const CARD_COLOURS: { name: string; value: string | null }[] = [
@@ -973,15 +975,17 @@ function TicketTypes({
       ? Date.parse(zonedToIso(saleStartDate, saleStartTime, timezone))
       : null;
   const saleEndMs = saleEndDate && saleEndTime ? Date.parse(zonedToIso(saleEndDate, saleEndTime, timezone)) : null;
+  // "Start now" means the moment it is saved, so the window is measured from now.
+  const windowStartMs = startNow ? Date.now() : saleStartMs;
   const saleWarning =
     saleEndMs === null
       ? null
       : saleEndMs > latestEndMs
         ? `Sales must end by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}, an hour before the event starts.`
-        : saleEndMs <= (saleStartMs ?? Date.now())
+        : windowStartMs !== null && saleEndMs - windowStartMs < MIN_SALE_WINDOW_MS
           ? startNow
-            ? 'The sale must end in the future.'
-            : 'The sale must end after it starts.'
+            ? 'Sales must run for at least an hour, so the end must be at least an hour from now.'
+            : 'Sales must run for at least an hour after they start.'
           : null;
   const saleMissing = (!startNow && saleStartMs === null) || saleEndMs === null;
   const [maxPerOrder, setMaxPerOrder] = useState('');
@@ -1060,8 +1064,9 @@ function TicketTypes({
       setErr(saleWarning ?? 'Fill in when the sale starts and ends.');
       return;
     }
-    // "Start now" is the moment it is saved.
-    const saleStartAt = startNow ? new Date().toISOString() : zonedToIso(saleStartDate, saleStartTime, timezone);
+    // "Start now": a new ticket type leaves the start out, so the API stamps it as it saves. An edit has to send
+    // one, since a field left out of an update means "unchanged".
+    const saleStartAt = startNow ? undefined : zonedToIso(saleStartDate, saleStartTime, timezone);
     const saleEndAt = zonedToIso(saleEndDate, saleEndTime, timezone);
     try {
       if (editing) {
@@ -1073,7 +1078,8 @@ function TicketTypes({
           body.price = { amount, currency: currency.toUpperCase() };
         }
         if (Number(quantity) !== editing.quantityTotal) body.quantityTotal = Number(quantity);
-        if (saleStartAt !== new Date(editing.saleStartAt).toISOString()) body.saleStartAt = saleStartAt;
+        const editStartAt = saleStartAt ?? new Date().toISOString();
+        if (editStartAt !== new Date(editing.saleStartAt).toISOString()) body.saleStartAt = editStartAt;
         if (saleEndAt !== new Date(editing.saleEndAt).toISOString()) body.saleEndAt = saleEndAt;
         if (maxPerOrder && Number(maxPerOrder) !== editing.maxPerOrder) body.maxPerOrder = Number(maxPerOrder);
         if (Object.keys(body).length > 0) await ticketTypeApi.update(editing.id, body);
@@ -1512,7 +1518,7 @@ function TicketTypes({
               </div>
               <p className={`date-status small ${saleWarning ? 'warn' : 'muted'}`} role={saleWarning ? 'alert' : undefined}>
                 {saleWarning ??
-                  `Times in ${timezone}. Sales close by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}, an hour before the event.`}
+                  `Times in ${timezone}. Sales run at least an hour and close by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}, an hour before the event.`}
               </p>
             </fieldset>
           </div>
