@@ -19,7 +19,6 @@ import { EventsPage } from './pages/EventsPage';
 import { OrderDetailPage } from './pages/OrderDetailPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { ProfilePage } from './pages/ProfilePage';
-import { CreateEventPage } from './pages/organizer/CreateEventPage';
 import { ManageEventPage } from './pages/organizer/ManageEventPage';
 import { CustomerPaymentPage } from './pages/CustomerPaymentPage';
 import { ManageFinancePage } from './pages/organizer/ManageFinancePage';
@@ -62,11 +61,12 @@ export default function App() {
         <Route path="manage/team" element={<RequireAuth><TeamPage /></RequireAuth>} />
         <Route path="manage/finance" element={<RequireAuth><ManageFinancePage /></RequireAuth>} />
         <Route path="manage/settings" element={<RequireAuth><ManageSettingsPage /></RequireAuth>} />
-        <Route path="manage/new" element={<RequireAuth><CreateEventPage /></RequireAuth>} />
+        <Route path="manage/new" element={<RequireAuth><ManageEventsPage /></RequireAuth>} />
         <Route
           path="manage/events/:eventId"
           element={<RequireAuth><ManageEventPage /></RequireAuth>}
         />
+        <Route path="manage/events/:eventId/edit" element={<RequireAuth><ManageEventPage /></RequireAuth>} />
         <Route
           path="manage/events/:eventId/ticket-design"
           element={<RequireAuth><TicketDesignerPage /></RequireAuth>}

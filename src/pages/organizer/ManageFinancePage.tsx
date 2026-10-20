@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { EarningsChart } from '../../components/EarningsChart';
 import { PeriodFields, money, useFinancePeriod } from '../../components/FinanceStats';
 import { Empty, ErrorBox, Spinner, PageHeader } from '../../components/ui';
+import { LogsButton } from '../../components/LogsButton';
 import { formatDateTime, formatMoney, humanize } from '../../utils/format';
 import { downloadText, statementCsv } from '../../utils/statement';
 import { useAsync } from '../../utils/useAsync';
@@ -100,9 +101,12 @@ export function ManageFinancePage() {
           )
         }
         actions={
+          <>
+          <LogsButton area="FINANCE" title="Finance & Payouts" organizations={[{ id: selected, name: orgName }]} />
           <button type="button" className="btn btn-primary" disabled={!f || busy} onClick={() => void download()}>
             {busy ? 'Preparing…' : 'Download statement'}
           </button>
+          </>
         }
       />
       <div className="finance-filters">

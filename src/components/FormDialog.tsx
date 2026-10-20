@@ -34,6 +34,9 @@ export function FormDialog({
         <>
           <div className="modal-head">
             <h2>{title}</h2>
+            <button type="button" className="modal-close" aria-label="Close" title="Close" onClick={onClose}>
+              ×
+            </button>
           </div>
           {children}
         </>

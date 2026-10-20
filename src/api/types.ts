@@ -190,6 +190,8 @@ export interface OrganizationMember {
   /** Who the member is (absent until the API returns them with the member). */
   name?: string | null;
   email?: string | null;
+  /** Null when unset, or for a caller who is only check-in staff. */
+  phoneNumber?: string | null;
   avatarUrl?: string | null;
 }
 
@@ -308,7 +310,9 @@ export interface TicketTypeCreateRequest {
   kind: TicketTypeKind;
   price: Money;
   quantityTotal: number;
-  saleStartAt: string;
+  /** Left out = the sale starts the moment the API saves it. */
+  saleStartAt?: string;
+  /** At least an hour before the event starts, or the API refuses it (400). */
   saleEndAt: string;
   maxPerOrder?: number;
 }
@@ -599,6 +603,46 @@ export interface EventAudience {
   unknownAge: number;
   ageGroups: { label: string; buyers: number | null; tickets: number | null }[];
 }
+
+/** What an activity entry recorded, beyond the action (null on entries from before details existed). */
+export interface ActivityDetails {
+  /** *.updated: only the fields that changed, by their API name. Money is {amount, currency}, dates ISO, lists their count. */
+  changes?: { field: string; from: unknown; to: unknown }[];
+  /** Created / deleted items, paused / resumed ones, scanner devices: the item's name (kept even once it is deleted). */
+  name?: string;
+  /** ticket_type.reordered: the ticket type names, first to last. */
+  order?: string[];
+  /** refund.issued */
+  orderId?: string;
+  amount?: Money;
+  /** refund.issued, event moderation: the reason given. */
+  reason?: string;
+  /** Team changes: the role or roles given. */
+  role?: string;
+  roles?: string[];
+  [key: string]: unknown;
+}
+
+/** One entry of GET /events/{id}/activity (BR-EVENT-006): who did what to the event, and when. */
+export interface EventActivityEntry {
+  id: UUID;
+  /** Null when the system acted on its own (e.g. event.completed). */
+  actorId: UUID | null;
+  /** Null for the system, or a user that no longer exists. */
+  actorName: string | null;
+  /** e.g. "ticket_type.sales_paused", "event.published", "refund.issued". */
+  action: string;
+  targetType: string | null;
+  targetId: UUID | null;
+  eventId: UUID | null;
+  /** The event's title, on an event's entries in an organization's or the platform's log. */
+  eventTitle?: string | null;
+  details: ActivityDetails | null;
+  createdAt: string;
+}
+
+/** The management tab a log belongs to (GET /activity). */
+export type ActivityArea = 'EVENTS' | 'TEAM' | 'FINANCE' | 'SETTINGS' | 'POSTS' | 'ORGANIZATIONS' | 'USERS' | 'DISPUTES';
 
 /** When tickets sell, in the event's time zone. byWeekday is Monday first (7), byHour 0-23 (24). */
 export interface EventSalesPatterns {

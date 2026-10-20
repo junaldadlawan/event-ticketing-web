@@ -6,6 +6,7 @@ import { gatewayFeeApi, platformFeeApi } from '../../api/endpoints';
 import type { FeePayer, GatewayFeePayer, GatewayFeeRequest, GatewayFeeSetting, Money, PlatformFeeRule, PlatformFeeRuleRequest } from '../../api/types';
 import { FormDialog } from '../../components/FormDialog';
 import { Empty, ErrorBox, SuccessBox, PageHeader } from '../../components/ui';
+import { LogsButton } from '../../components/LogsButton';
 import { formatMoney } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
@@ -65,7 +66,7 @@ export function AdminSettingsPage() {
         <Navigate to="/admin/settings/finance" replace />
       ) : (
         <>
-          <PageHeader title="Settings" />
+          <PageHeader title="Settings" actions={<LogsButton area="SETTINGS" title="Settings" />} />
           <div className="settings-layout">
             <nav className="settings-nav" aria-label="Settings">
               {SECTIONS.map((x) => (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../api/client';
-import { eventApi, ticketTypeApi, waitlistApi } from '../api/endpoints';
+import { cartApi, eventApi, ticketTypeApi, waitlistApi } from '../api/endpoints';
 import type { TicketType } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { useAuthDialog } from '../auth/AuthDialog';
@@ -126,11 +126,15 @@ function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketT
   const { addItem } = useCart();
   const { openAuth } = useAuthDialog();
   const navigate = useNavigate();
+  const location = useLocation();
+  // The quantity a Buy now was for, kept on this page's history entry so cancelling the payment comes back to it.
+  const qtyKey = `qty.${tt.id}`;
   // An admin in the admin view manages the platform and does not buy tickets; the customer view can.
   const customerView = useManagementHidden();
   const adminView = isAdmin(user?.role) && !customerView;
   const [buying, setBuying] = useState(false);
-  const [qty, setQty] = useState(1);
+  // What is typed in the quantity box (it can be blank or out of range while typing); qty is the number used.
+  const [qtyText, setQtyText] = useState(() => String((location.state as Record<string, number> | null)?.[qtyKey] ?? 1));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
@@ -143,6 +147,9 @@ function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketT
   const soldOut = tt.quantityAvailable <= 0;
   const reserved = tt.kind === 'RESERVED_SEATING';
   const max = Math.min(tt.maxPerOrder, tt.quantityAvailable);
+  // From 1 up to what one order may hold and what is left.
+  const limit = Math.max(1, max);
+  const qty = Math.min(limit, Math.max(1, Math.floor(Number(qtyText)) || 1));
   const paused = tt.salesPaused;
   const disabled = notStarted || ended || soldOut || reserved || paused;
 
@@ -171,7 +178,8 @@ function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketT
     }
   }
 
-  // "Add to cart" keeps the buyer here; "Buy now" adds the chosen quantity and goes straight to the cart, where they pay.
+  // "Add to cart" keeps the buyer here; "Buy now" pays for exactly the chosen quantity in a cart of its own, so the
+  // buyer's cart is left as it was.
   async function onAdd(buyNow = false) {
     if (!user) {
       openAuth('login', `/events/${tt.eventId}`);
@@ -181,9 +189,14 @@ function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketT
     setBuying(buyNow);
     setError(null);
     try {
-      await addItem(tt.id, qty);
-      if (buyNow) navigate('/cart');
-      else setAdded(true);
+      if (buyNow) {
+        const direct = await cartApi.addItem((await cartApi.create()).id, tt.id, qty);
+        navigate(location.pathname, { replace: true, state: { ...(location.state as object | null), [qtyKey]: qty } });
+        navigate('/cart', { state: { buyNow: direct } });
+      } else {
+        await addItem(tt.id, qty);
+        setAdded(true);
+      }
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -218,18 +231,39 @@ function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketT
       <div className="ticket-buy">
         <strong className="price">{formatMoney(tt.price)}</strong>
         {!adminView && (
-        <select
-          value={qty}
-          onChange={(e) => setQty(Number(e.target.value))}
-          disabled={disabled}
-          aria-label="Quantity"
-        >
-          {Array.from({ length: Math.max(1, max) }, (_, i) => i + 1).map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
+        <span className="qty-stepper" role="group" aria-label="Quantity">
+          <button
+            type="button"
+            className="btn btn-sm"
+            aria-label="One ticket fewer"
+            disabled={disabled || qty <= 1}
+            onClick={() => setQtyText(String(qty - 1))}
+          >
+            −
+          </button>
+          <input
+            type="number"
+            inputMode="numeric"
+            className="qty-input"
+            aria-label="Number of tickets"
+            min={1}
+            max={limit}
+            disabled={disabled}
+            value={qtyText}
+            onChange={(e) => setQtyText(e.target.value)}
+            // Typed past the limit, or left blank: show the number that will be used.
+            onBlur={() => setQtyText(String(qty))}
+          />
+          <button
+            type="button"
+            className="btn btn-sm"
+            aria-label="One more ticket"
+            disabled={disabled || qty >= limit}
+            onClick={() => setQtyText(String(qty + 1))}
+          >
+            +
+          </button>
+        </span>
         )}
         {adminView ? (
           <span className="muted small">Admins can't buy tickets. Switch to Customer view to buy.</span>

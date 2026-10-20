@@ -5,6 +5,7 @@ import { disputeApi } from '../../api/endpoints';
 import type { Dispute, DisputeStatus } from '../../api/types';
 import { FormDialog } from '../../components/FormDialog';
 import { Empty, ErrorBox, Pagination, Spinner, SuccessBox, PageHeader } from '../../components/ui';
+import { LogsButton } from '../../components/LogsButton';
 import { formatDateTime, humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
@@ -37,7 +38,11 @@ function DisputesManager() {
 
   return (
     <>
-      <PageHeader title="Disputes" lede="Problems customers reported with an order or ticket. Review each one and record the outcome." />
+      <PageHeader
+        title="Disputes"
+        lede="Problems customers reported with an order or ticket. Review each one and record the outcome."
+        actions={<LogsButton area="DISPUTES" title="Disputes" />}
+      />
       <div className="admin-toolbar">
         <select
           value={status}

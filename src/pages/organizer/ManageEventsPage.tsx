@@ -1,16 +1,20 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useMatch, useNavigate, useSearchParams } from 'react-router-dom';
 import { eventApi } from '../../api/endpoints';
 import type { EventStatus } from '../../api/types';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { CategorySelect } from '../../components/CategorySelect';
 import { PlusIcon, SearchIcon } from '../../components/DesignerIcons';
 import { EventCollection, ResultsBar, useEventView } from '../../components/EventCollection';
+import { EventFormDialog } from './CreateEventPage';
 import { Empty, ErrorBox, Pagination, Spinner, PageHeader } from '../../components/ui';
 import { humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { useOrgNames } from '../../utils/useOrgNames';
+import { LogsButton } from '../../components/LogsButton';
+import { useAuth } from '../../auth/AuthContext';
+import { isAdmin } from '../../auth/roles';
 
 const STATUSES: EventStatus[] = [
   'DRAFT',
@@ -31,6 +35,12 @@ export function ManageEventsPage() {
   const page = Number(params.get('page') ?? 0);
 
   const [kw, setKw] = useState(keyword);
+  // Admins read the platform's event log; organizers and owners their organizations'.
+  const { user } = useAuth();
+  const platformLogs = isAdmin(user?.role);
+  // /manage/new opens the New event window over this list.
+  const navigate = useNavigate();
+  const creating = useMatch('/manage/new') !== null;
   const [view, setView] = useEventView('et.manageView');
 
   const { data, error, loading } = useAsync(
@@ -63,16 +73,24 @@ export function ManageEventsPage() {
 
   return (
     <>
+      <EventFormDialog
+        open={creating}
+        onClose={() => navigate('/manage', { replace: true })}
+        onSaved={(created) => navigate(`/manage/events/${created.id}`, { replace: true })}
+      />
       <SuspendedOrgNotice organizationIds={(data?.content ?? []).map((e) => e.organizationId)} />
       <section className="hero">
         <PageHeader
           title="Manage events"
           lede={orgNames.size > 0 ? [...orgNames.values()].join(' · ') : undefined}
           actions={
-            <Link to="/manage/new" className="btn btn-cta">
-              <PlusIcon />
-              New event
-            </Link>
+            <>
+              <LogsButton area="EVENTS" title="Event Management" organizations={platformLogs ? undefined : 'mine'} />
+              <Link to="/manage/new" className="btn btn-cta">
+                <PlusIcon />
+                New event
+              </Link>
+            </>
           }
         />
         <form className="search search-wide" onSubmit={onSearch}>

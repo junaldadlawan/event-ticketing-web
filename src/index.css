@@ -1118,6 +1118,13 @@ textarea:focus {
 select option {
   background: var(--bg);
 }
+/* A field that can't be changed (e.g. an event's dates when editing it) reads as locked. */
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .form {
   display: flex;
@@ -1681,6 +1688,24 @@ select option {
 .modal-head h2 {
   margin: 0;
   font-size: 1.1rem;
+}
+/* The × at the right of a dialog's title (same look as the login window's). */
+.modal-close {
+  margin-left: auto;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: var(--subtle);
+  color: var(--muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.modal-close:hover,
+.modal-close:focus-visible {
+  color: var(--text);
 }
 .modal-icon {
   display: inline-flex;
@@ -3304,6 +3329,11 @@ button.code-warning:focus-visible {
   background: var(--subtle);
   color: var(--text);
 }
+/* The Team page pencil sits beside two lines of member details, so it is a bit larger. */
+.btn.btn-icon.tt-edit.team-edit svg {
+  width: 20px;
+  height: 20px;
+}
 
 /* More breathing room around the Ticket types header: above it, and between it and the first ticket. */
 .manage-page > #ticket-types {
@@ -3345,10 +3375,16 @@ button.code-warning:focus-visible {
   gap: 12px;
   min-width: 0;
 }
+/* The group's title sits inside its box (floated, so it is not drawn in a notch of the border). */
 .form-group legend {
-  padding: 0 8px;
-  font-size: 0.78rem;
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  font-size: 0.75rem;
   font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 .form-group-wide {
@@ -3390,6 +3426,7 @@ button.code-warning:focus-visible {
   display: block;
   width: 100%;
   margin-top: 6px;
+  background: var(--bg);
 }
 
 /* Space between the window title and the first group, and inside each group under its title. */
@@ -5971,6 +6008,7 @@ button.code-warning:focus-visible {
 }
 .cart-hold {
   display: inline-block;
+  white-space: nowrap;
   margin: 4px 0 0;
   padding: 2px 10px;
   border-radius: 999px;
@@ -7170,8 +7208,12 @@ button.code-warning:focus-visible {
   color: var(--muted);
   cursor: pointer;
 }
-.time-steps button:hover,
-.time-steps button:focus-visible {
+.time-steps button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.time-steps button:not(:disabled):hover,
+.time-steps button:not(:disabled):focus-visible {
   color: var(--text);
   border-color: var(--text);
 }
@@ -7192,6 +7234,20 @@ button.code-warning:focus-visible {
 }
 
 /* New event form: pasted image URLs or uploaded images, with thumbnails of the uploads. */
+/* The image button on the event form: big enough to read as the way to add a picture. */
+.event-images .popover > .icon-button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+}
+.event-images .popover > .icon-button svg {
+  width: 22px;
+  height: 22px;
+}
+.event-images .popover > .icon-button:hover:not(:disabled),
+.event-images .popover > .icon-button:focus-visible {
+  border-color: var(--text);
+}
 .event-images {
   display: flex;
   flex-direction: column;
@@ -7217,4 +7273,177 @@ button.code-warning:focus-visible {
   object-fit: cover;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+/* The * after a required field's label (screen readers get "required" from the field itself). */
+.required-mark {
+  color: var(--danger);
+  margin-left: 2px;
+}
+
+/* Manage event: the activity history (who changed what, and when). */
+.event-activity p {
+  margin: 4px 0 0;
+}
+.activity-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+.activity-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.activity-list time {
+  flex: none;
+}
+.activity-what {
+  min-width: 0;
+}
+/* What an entry changed, under its sentence: "Price: ₱100.00 → ₱120.00". */
+.activity-list .activity-details {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  border: none;
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.activity-list .activity-details li {
+  display: block;
+  padding: 1px 0;
+  border: none;
+}
+
+/* "Customize ticket" right after the ticket design was saved: a green "Ticket saved" with a soft pulse. */
+.btn.btn-just-saved,
+.manage-page .event-hero .btn.btn-just-saved:not(.btn-primary) {
+  gap: 6px;
+  color: #ffffff;
+  background: #2e9d76;
+  border-color: #2e9d76;
+  animation: just-saved 0.6s ease-out 2;
+}
+.btn.btn-just-saved svg {
+  width: 16px;
+  height: 16px;
+}
+@keyframes just-saved {
+  0% {
+    box-shadow: 0 0 0 0 rgb(46 157 118 / 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgb(46 157 118 / 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.btn-just-saved {
+    animation: none;
+  }
+}
+
+/* The time picker inside a form group (ticket type window): its boxes keep their own size, and the whole picker
+   sits as far below the label as the other fields do. */
+.form-group .time-field {
+  margin-top: 6px;
+}
+.form-group label .time-part select {
+  display: block;
+  width: auto;
+  margin-top: 0;
+}
+
+/* Ticket type window: the event it is for, under the title. */
+.tt-for-event {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: -14px 0 18px;
+}
+
+/* Promo code form: the ticket types a code applies to, as a list of ticks. */
+.promo-types {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Promo code window: wide, with the form in rows of two or three, so it fits on screen without scrolling. */
+.promo-dialog .promo-cards {
+  margin: 0 0 4px;
+}
+.promo-dialog .promo-new {
+  margin: 14px 0 8px;
+}
+.promo-form {
+  gap: 12px;
+}
+.promo-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.promo-row.promo-row-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.promo-form label {
+  display: block;
+}
+.promo-form label input,
+.promo-form label select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+.promo-form label .hint {
+  display: inline;
+  margin-left: 4px;
+}
+/* The ticked ticket types sit side by side. */
+.promo-dialog .promo-types {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+}
+.promo-dialog .promo-types .warn {
+  flex-basis: 100%;
+}
+@media (max-width: 640px) {
+  .promo-row,
+  .promo-row.promo-row-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Event page: the number of tickets, typed or set with − / +. */
+.qty-input {
+  width: 4em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.qty-input::-webkit-outer-spin-button,
+.qty-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .cart-hold {
+    white-space: normal;
+  }
 }

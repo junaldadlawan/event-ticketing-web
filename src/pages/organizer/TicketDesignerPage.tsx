@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, MouseEvent, ReactNode } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
 import { eventApi, ticketTemplateApi, ticketTypeApi, uploadApi } from '../../api/endpoints';
 import { BACKGROUND_FITS } from '../../api/types';
@@ -257,6 +257,7 @@ function placementOf(t: TicketTemplate | undefined, size: TicketSize): CodePlace
 
 export function TicketDesignerPage() {
   const { eventId = '' } = useParams();
+  const navigate = useNavigate();
   const { data, error, loading, setData } = useAsync(
     () => Promise.all([eventApi.get(eventId), ticketTypeApi.list(eventId), ticketTemplateApi.list(eventId)]),
     [eventId],
@@ -580,6 +581,15 @@ export function TicketDesignerPage() {
     const t = setTimeout(() => setJustSaved(false), 2000);
     return () => clearTimeout(t);
   }, [justSaved]);
+
+  // Once a save leaves nothing unsaved, go back to the event's page (after a moment, so "Saved!" is seen).
+  // With edits still waiting in other layouts it stays, so none of them is lost.
+  const nothingUnsaved = changedLayouts.length === 0;
+  useEffect(() => {
+    if (!justSaved || !nothingUnsaved) return;
+    const t = setTimeout(() => navigate(`/manage/events/${eventId}`, { replace: true, state: { ticketSaved: true } }), 700);
+    return () => clearTimeout(t);
+  }, [justSaved, nothingUnsaved, eventId, navigate]);
 
   if (loading && !data) return <Spinner />;
   if (error || !data) return <ErrorBox message={error ?? 'Event not found'} />;

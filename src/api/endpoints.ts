@@ -24,6 +24,8 @@ import type {
   EffectivePlatformFee,
   EventAnalytics,
   EventAudience,
+  ActivityArea,
+  EventActivityEntry,
   EventFunnel,
   EventSalesPatterns,
   FeeScope,
@@ -169,6 +171,9 @@ export const eventApi = {
   remove: (id: UUID) => api<void>(`/events/${id}`, { method: 'DELETE' }),
   orders: (id: UUID, q: PageQuery = {}) =>
     api<PageResponse<Order>>(`/events/${id}/orders`, { query: { ...q } }),
+  /** Who changed what on the event, newest first (its owner / organizers, or an admin). */
+  activity: (id: UUID, q: PageQuery = {}) =>
+    api<PageResponse<EventActivityEntry>>(`/events/${id}/activity`, { query: { ...q } }),
 };
 
 /**
@@ -248,6 +253,12 @@ export const organizationApi = {
   /** OWNER can't be assigned here (it only comes from approving the application). */
   assignMember: (orgId: UUID, userId: UUID, role: OrganizationRole) =>
     api<OrganizationMember>(`/organizations/${orgId}/members`, { method: 'POST', body: { userId, role } }),
+  /** Owner only: replace a member's roles with exactly this set (not OWNER, not empty: remove them instead). */
+  setMemberRoles: (orgId: UUID, userId: UUID, roles: OrganizationRole[]) =>
+    api<OrganizationMember>(`/organizations/${orgId}/members/${userId}/roles`, { method: 'PUT', body: { roles } }),
+  /** Owner only: remove a member and all their roles (the owner can't be removed). */
+  removeMember: (orgId: UUID, userId: UUID) =>
+    api<void>(`/organizations/${orgId}/members/${userId}`, { method: 'DELETE' }),
 };
 
 /** Admin only. */
@@ -278,6 +289,12 @@ export const platformFeeApi = {
   setForEvent: (eventId: UUID, body: PlatformFeeRuleRequest) =>
     api<PlatformFeeRule>(`/platform-fees/events/${eventId}`, { method: 'PUT', body }),
   removeForEvent: (eventId: UUID) => api<void>(`/platform-fees/events/${eventId}`, { method: 'DELETE' }),
+};
+
+/** A management tab's activity log: an organization's (organizationId) or, for admins, the platform's. */
+export const activityApi = {
+  list: (q: PageQuery & { area: ActivityArea; organizationId?: UUID }) =>
+    api<PageResponse<EventActivityEntry>>('/activity', { query: { ...q } }),
 };
 
 export const analyticsApi = {
