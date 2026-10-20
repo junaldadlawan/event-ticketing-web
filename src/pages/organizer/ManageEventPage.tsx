@@ -3,11 +3,12 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
-import { eventApi, promoApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
+import { analyticsApi, eventApi, promoApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
 import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKind, TicketTypeUpdateRequest } from '../../api/types';
 import { CategorySelect } from '../../components/CategorySelect';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DeleteEventDialog } from '../../components/DeleteEventDialog';
+import { BarChart, periodLabel } from '../../components/EarningsChart';
 import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon, TrashIcon } from '../../components/DesignerIcons';
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../components/ui';
 import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso } from '../../utils/format';
@@ -178,8 +179,125 @@ export function ManageEventPage() {
         promoQuery={promoQuery}
         ownDesignTypeIds={new Set((templates ?? []).map((t) => t.ticketTypeId).filter((id): id is string => Boolean(id)))}
       />
+      <EventInsights eventId={event.id} />
       <EventOrders eventId={event.id} />
     </div>
+  );
+}
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const tickets = (n: number) => `${n} ${n === 1 ? 'ticket' : 'tickets'}`;
+
+/** Who buys and when: totals, tickets per day / weekday / hour (event's time zone), and buyers by age group. */
+function EventInsights({ eventId }: { eventId: string }) {
+  const sales = useAsync(() => analyticsApi.eventSalesPatterns(eventId), [eventId]);
+  const audience = useAsync(() => analyticsApi.eventAudience(eventId), [eventId]);
+  const totals = useAsync(() => analyticsApi.event(eventId), [eventId]);
+  const s = sales.data;
+  const a = audience.data;
+  return (
+    <section>
+      <h2>Audience &amp; sales</h2>
+      <ErrorBox message={sales.error ?? audience.error} />
+      {(sales.loading && !s) || (audience.loading && !a) ? (
+        <Spinner />
+      ) : s && s.tickets === 0 && s.daily.length === 0 ? (
+        <Empty>No sales yet.</Empty>
+      ) : (
+        <>
+          {s && (
+            <>
+              <div className="org-stats">
+                <div className="org-stat">
+                  <span className="org-stat-label">Tickets sold</span>
+                  <strong className="org-stat-value">{s.tickets}</strong>
+                </div>
+                {totals.data && (
+                  <div className="org-stat">
+                    <span className="org-stat-label">Total sold</span>
+                    <strong className="org-stat-value">{formatMoney(totals.data.revenue)}</strong>
+                    <span className="org-stat-hint">What buyers paid, without the platform fee</span>
+                  </div>
+                )}
+                <div className="org-stat">
+                  <span className="org-stat-label">Orders</span>
+                  <strong className="org-stat-value">{s.orders}</strong>
+                  <span className="org-stat-hint">{s.promoOrders} with a promo code</span>
+                </div>
+                {a && (
+                  <div className="org-stat">
+                    <span className="org-stat-label">Buyers</span>
+                    <strong className="org-stat-value">{a.buyers}</strong>
+                    <span className="org-stat-hint">{a.unknownAge} without a birth date</span>
+                  </div>
+                )}
+              </div>
+              <h3 className="org-stats-heading">Tickets per day</h3>
+              <BarChart
+                label={`Tickets per day, ${s.daily.length} days`}
+                bars={s.daily.map((d) => ({ key: d.day, label: periodLabel(d.day), title: `${periodLabel(d.day)}: ${tickets(d.tickets)}`, value: d.tickets }))}
+              />
+              <div className="finance-grid">
+                <div>
+                  <h3 className="org-stats-heading">By weekday</h3>
+                  <BarChart
+                    label="Tickets by weekday"
+                    bars={s.byWeekday.map((n, i) => ({ key: WEEKDAYS[i], label: WEEKDAYS[i], title: `${WEEKDAYS[i]}: ${tickets(n)}`, value: n }))}
+                  />
+                </div>
+                <div>
+                  <h3 className="org-stats-heading">By hour</h3>
+                  <BarChart
+                    label="Tickets by hour of the day"
+                    bars={s.byHour.map((n, h) => ({ key: String(h), label: `${h}:00`, title: `${h}:00-${h}:59: ${tickets(n)}`, value: n }))}
+                  />
+                </div>
+              </div>
+              <p className="muted small">Days and hours in {s.timezone}. Refunded and cancelled tickets are left out.</p>
+            </>
+          )}
+          {a && a.buyers > 0 && (
+            <>
+              <h3 className="org-stats-heading">Buyers by age</h3>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Age</th>
+                    <th>Buyers</th>
+                    <th>Tickets</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {a.ageGroups.map((g) => (
+                    <tr key={g.label}>
+                      <td>{g.label}</td>
+                      {g.buyers === null ? (
+                        <td colSpan={2} className="muted">
+                          Hidden (fewer than 5 buyers, or to keep a small group private)
+                        </td>
+                      ) : (
+                        <>
+                          <td>{g.buyers}</td>
+                          <td>{g.tickets}</td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                  {a.unknownAge > 0 && (
+                    <tr>
+                      <td>Unknown</td>
+                      <td>{a.unknownAge}</td>
+                      <td className="muted">—</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <p className="muted small">Age at the buyer's first order for this event.</p>
+            </>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -1029,7 +1147,7 @@ function TicketTypes({
     setErr(null);
     try {
       if (editing) {
-        // Send only what changed: the server resets the remaining stock whenever quantityTotal is sent.
+        // Send only what changed: a new quantityTotal keeps what is sold or held (409 if it goes below that).
         const body: TicketTypeUpdateRequest = {};
         const amount = Math.round(Number(price) * 100);
         if (name !== editing.name) body.name = name;
@@ -1362,7 +1480,7 @@ function TicketTypes({
                   <input
                     type="number"
                     required
-                    min={1}
+                    min={editing ? Math.max(1, editing.quantityTotal - editing.quantityAvailable) : 1}
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
                   />
@@ -1378,7 +1496,10 @@ function TicketTypes({
                 </label>
               </div>
               {editing && Number(quantity) !== editing.quantityTotal && (
-                <p className="hint">Saving resets the remaining tickets to the new quantity.</p>
+                <p className="hint">
+                  Tickets already sold or held ({editing.quantityTotal - editing.quantityAvailable}) are kept. The
+                  quantity can't go below them.
+                </p>
               )}
             </fieldset>
 

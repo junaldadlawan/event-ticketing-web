@@ -4,6 +4,7 @@ import type { FormEvent } from 'react';
 import { errorMessage } from '../../api/client';
 import { analyticsApi, organizationApi, payoutApi, payoutWalletApi } from '../../api/endpoints';
 import type { Money, Payout, PayoutStatus } from '../../api/types';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { RefreshIcon, SearchIcon } from '../../components/DesignerIcons';
 import { PeriodFields, StatGroup, money, useFinancePeriod } from '../../components/FinanceStats';
 import { Empty, ErrorBox, Pagination, Spinner } from '../../components/ui';
@@ -16,6 +17,7 @@ export const PAYOUT_TONE: Record<string, string> = {
   SCHEDULED: 'status-warn',
   PROCESSING: 'status-info',
   FAILED: 'status-bad',
+  CANCELLED: 'status-bad',
 };
 
 /** Admin tab: every organization's payouts. (The platform fee lives under Settings.) */
@@ -228,12 +230,25 @@ function PayoutsList({ orgs, loading }: { orgs: { id: string; name: string }[]; 
   const [status, setStatus] = useState<'' | PayoutStatus>('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [cancelling, setCancelling] = useState<Payout | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const sorted = useMemo(() => orgs.slice().sort((a, b) => a.name.localeCompare(b.name)), [orgs]);
   const selected = orgId || sorted[0]?.id || '';
   const payouts = useAsync(
     () => (selected ? payoutApi.list(selected, { page, size: 20 }) : Promise.resolve(null)),
     [selected, page],
   );
+
+  async function cancelPayout(p: Payout) {
+    setCancelling(null);
+    setCancelError(null);
+    try {
+      await payoutApi.cancel(p.id);
+    } catch (e) {
+      setCancelError(errorMessage(e));
+    }
+    payouts.reload();
+  }
 
   if (loading) return <Spinner />;
   if (sorted.length === 0) return <Empty>No organizations yet.</Empty>;
@@ -291,6 +306,7 @@ function PayoutsList({ orgs, loading }: { orgs: { id: string; name: string }[]; 
           <option value="SCHEDULED">Scheduled</option>
           <option value="PAID">Paid</option>
           <option value="FAILED">Failed</option>
+          <option value="CANCELLED">Cancelled</option>
         </select>
         <label className="payout-date">
           Start date
@@ -306,7 +322,7 @@ function PayoutsList({ orgs, loading }: { orgs: { id: string; name: string }[]; 
           </button>
         )}
       </div>
-      <ErrorBox message={payouts.error} />
+      <ErrorBox message={payouts.error ?? cancelError} />
       {payouts.loading && !payouts.data ? (
         <Spinner />
       ) : rows.length === 0 ? (
@@ -322,6 +338,7 @@ function PayoutsList({ orgs, loading }: { orgs: { id: string; name: string }[]; 
                 <th>Fees</th>
                 <th>Net</th>
                 <th>Status</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -339,6 +356,13 @@ function PayoutsList({ orgs, loading }: { orgs: { id: string; name: string }[]; 
                   <td>
                     <span className={`status-chip ${PAYOUT_TONE[p.status] ?? 'status-info'}`}>{humanize(p.status)}</span>
                   </td>
+                  <td>
+                    {p.status === 'SCHEDULED' && (
+                      <button type="button" className="btn btn-link" onClick={() => setCancelling(p)}>
+                        Cancel
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -346,6 +370,18 @@ function PayoutsList({ orgs, loading }: { orgs: { id: string; name: string }[]; 
           {payouts.data && <Pagination page={payouts.data} onChange={setPage} />}
         </>
       )}
+      <ConfirmDialog
+        open={cancelling !== null}
+        title="Cancel this payout?"
+        confirmLabel="Cancel payout"
+        cancelLabel="Keep it"
+        danger
+        onCancel={() => setCancelling(null)}
+        onConfirm={() => cancelling && void cancelPayout(cancelling)}
+      >
+        {cancelling && formatMoney(cancelling.net)} will not be paid. Its orders are released and can be paid out in a new
+        payout. This cannot be undone.
+      </ConfirmDialog>
     </>
   );
 }

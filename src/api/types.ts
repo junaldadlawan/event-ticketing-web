@@ -543,7 +543,7 @@ export interface EffectivePlatformFee {
   rule?: PlatformFeeRule | null;
 }
 
-export type PayoutStatus = 'SCHEDULED' | 'PROCESSING' | 'PAID' | 'FAILED';
+export type PayoutStatus = 'SCHEDULED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED';
 
 export interface Payout {
   id: UUID;
@@ -590,6 +590,26 @@ export interface EventAnalytics {
   revenue: Money;
   remainingInventory: number;
   salesOverTime: { date: string; ticketsSold: number; revenue: Money }[];
+}
+
+/** Buyers by age group (age at their first order). A group of 1 to 4 buyers is hidden: buyers and tickets null. */
+export interface EventAudience {
+  eventId: UUID;
+  buyers: number;
+  unknownAge: number;
+  ageGroups: { label: string; buyers: number | null; tickets: number | null }[];
+}
+
+/** When tickets sell, in the event's time zone. byWeekday is Monday first (7), byHour 0-23 (24). */
+export interface EventSalesPatterns {
+  eventId: UUID;
+  timezone: string;
+  tickets: number;
+  orders: number;
+  promoOrders: number;
+  daily: { day: string; tickets: number }[];
+  byWeekday: number[];
+  byHour: number[];
 }
 
 /** One line of "what can be paid out now": an organization (and its event) with the amount ready or held back. */

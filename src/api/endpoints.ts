@@ -23,6 +23,8 @@ import type {
   OrganizationDocument,
   EffectivePlatformFee,
   EventAnalytics,
+  EventAudience,
+  EventSalesPatterns,
   FeeScope,
   ModerationAction,
   ModerationActionRequest,
@@ -278,6 +280,10 @@ export const platformFeeApi = {
 export const analyticsApi = {
   /** Owner / organizer of the event's organization, or an admin. */
   event: (eventId: UUID) => api<EventAnalytics>(`/events/${eventId}/analytics`),
+  /** Owner / organizer of the event's organization, or an admin. Small age groups come back hidden (null). */
+  eventAudience: (eventId: UUID) => api<EventAudience>(`/events/${eventId}/analytics/audience`),
+  /** Owner / organizer of the event's organization, or an admin. */
+  eventSalesPatterns: (eventId: UUID) => api<EventSalesPatterns>(`/events/${eventId}/analytics/sales-patterns`),
   /** Admin only. Dates are UTC days (YYYY-MM-DD); the period is at most 366 days. */
   platformFinance: (q: { from?: string; to?: string; currency?: string } = {}) =>
     api<FinanceSummary>('/analytics/platform/finance', { query: { ...q } }),
@@ -351,6 +357,8 @@ export const payoutApi = {
     api<EligiblePayouts>('/payouts/eligible', { query: { ...q } }),
   /** Admin only. Needs POST /payouts/batch on the API. One payout per organization among the chosen lines. */
   generateBatch: (body: PayoutBatchRequest) => api<Payout[]>('/payouts/batch', { method: 'POST', body }),
+  /** Admin only: cancel a SCHEDULED payout (409 otherwise). Its orders are released and owed again. Final. */
+  cancel: (id: UUID) => api<Payout>(`/payouts/${id}/cancel`, { method: 'POST' }),
 };
 
 export const categoryApi = {
