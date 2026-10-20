@@ -104,7 +104,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const checkout = useCallback(
     async (payment: CheckoutPayment, idempotencyKey: string, itemIds?: UUID[]) => {
       if (!cart) throw new Error('Your cart is empty');
-      const result = await cartApi.checkout(cart.id, payment, idempotencyKey, itemIds);
+      let result: Order | CheckoutStart;
+      try {
+        result = await cartApi.checkout(cart.id, payment, idempotencyKey, itemIds);
+      } catch (err) {
+        // A promo code paused or deleted after it was applied stays on the cart but is no longer shown, so the
+        // buyer can't see or remove it, yet checkout refuses it (422). It gives no discount any more, so the price
+        // is unchanged: detach it and try once more. Nothing was charged, so the same idempotency key is safe.
+        const hiddenDeadPromo =
+          err instanceof ApiError && err.status === 422 && !cart.appliedPromoCode && /promo code/i.test(err.problem?.detail ?? '');
+        if (!hiddenDeadPromo) throw err;
+        await cartApi.removePromo(cart.id);
+        result = await cartApi.checkout(cart.id, payment, idempotencyKey, itemIds);
+      }
       // An order spends the paid items. A started PayMongo payment keeps the cart until it is paid.
       if (!('checkoutId' in result)) await refresh().catch(() => forget());
       return result;
