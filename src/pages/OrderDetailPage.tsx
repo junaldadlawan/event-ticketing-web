@@ -1,26 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChangeEvent, CSSProperties, FormEvent } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
-import { errorMessage } from '../api/client';
+import type { ChangeEvent, CSSProperties, FormEvent, MouseEvent } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { assetUrl, errorMessage } from '../api/client';
 import { eventApi, orderApi, ticketApi, ticketTypeApi } from '../api/endpoints';
 import type { Event, Ticket, TicketType } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { ChevronDownIcon, QrIcon } from '../components/DesignerIcons';
+import { CheckIcon, ChevronDownIcon, QrIcon, TicketIcon } from '../components/DesignerIcons';
+import { FormDialog } from '../components/FormDialog';
 import { CARD_NOT_SAVED_KEY } from '../utils/paymongo';
 import { ReportProblemDialog } from '../components/ReportProblemDialog';
 import { TicketViewer } from '../components/TicketViewer';
+import QRCode from 'qrcode';
 import { parseUserQr, readQrFromImage } from '../utils/userQr';
 import { ErrorBox, Spinner, StatusBadge, SuccessBox } from '../components/ui';
 import { formatDateTime, formatMoney, humanize } from '../utils/format';
 import { useAsync } from '../utils/useAsync';
+import { isEventOver } from '../utils/eventState';
+
+/** How often an open order re-reads its tickets' status. */
+const REFRESH_MS = 10_000;
 
 export function OrderDetailPage() {
   const { orderId = '' } = useParams();
   const location = useLocation();
   const justPurchased = (location.state as { justPurchased?: boolean } | null)?.justPurchased;
 
-  const { data, error, loading, reload } = useAsync(async () => {
+  const { data, setData, error, loading, reload } = useAsync(async () => {
     const order = await orderApi.get(orderId);
     const typeIds = [...new Set(order.tickets.map((t) => t.ticketTypeId))];
     const eventIds = [...new Set(order.tickets.map((t) => t.eventId))];
@@ -34,6 +40,24 @@ export function OrderDetailPage() {
       events: new Map(events.map((e) => [e.id, e])),
     };
   }, [orderId]);
+
+  // Keep the tickets current (e.g. one just scanned at the door): re-read the order every few seconds while the tab is
+  // visible, and on coming back to it. A failed refresh keeps what is shown.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      orderApi
+        .get(orderId)
+        .then((order) => setData((d) => (d && d.order.id === order.id ? { ...d, order } : d)))
+        .catch(() => {});
+    };
+    const timer = window.setInterval(refresh, REFRESH_MS);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [orderId, setData]);
 
   // After a purchase whose card could not be saved: say so once.
   const [cardNotSaved] = useState(() => {
@@ -187,6 +211,7 @@ export function OrderDetailPage() {
               ticket={t}
               ticketType={types.get(t.ticketTypeId)}
               event={events.get(t.eventId)}
+              buyerId={order.buyerId}
               onChanged={reload}
             />
           ))}
@@ -196,18 +221,86 @@ export function OrderDetailPage() {
   );
 }
 
-function TicketCard({
+/** The QR code as a door pass: the event on a black slab, a tear line, then the code and ticket number on white. */
+function QrPass({
+  qr,
   ticket,
   ticketType,
   event,
+  onClose,
+}: {
+  /** The QR code as a PNG data URL; null keeps the pass closed. */
+  qr: string | null;
+  ticket: Ticket;
+  ticketType?: TicketType;
+  event?: Event;
+  onClose: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = dialog.current;
+    if (!d) return;
+    if (qr && !d.open) d.showModal();
+    else if (!qr && d.open) d.close();
+  }, [qr]);
+  return (
+    <dialog
+      ref={dialog}
+      className="modal qr-pass"
+      aria-label={`QR code for ticket ${ticket.ticketNumber}`}
+      onCancel={(e) => {
+        e.preventDefault(); // Escape closes it
+        onClose();
+      }}
+    >
+      {qr && (
+        <>
+          <div className="qr-pass-top">
+            <button type="button" className="modal-close" aria-label="Close" title="Close" onClick={onClose}>
+              ×
+            </button>
+            <h2>{event?.title ?? ticketType?.name ?? 'Your ticket'}</h2>
+            {event && <p>{formatDateTime(event.startAt, event.timezone)}</p>}
+            {ticketType && <p>{ticketType.name} ticket</p>}
+          </div>
+          <div className="qr-pass-body">
+            <img src={qr} alt={`QR code for ticket ${ticket.ticketNumber}`} />
+            <strong className="qr-pass-number">{ticket.ticketNumber}</strong>
+            <p>Show this at the entrance. If it won't scan, turn your screen brightness up.</p>
+          </div>
+        </>
+      )}
+    </dialog>
+  );
+}
+
+export function TicketCard({
+  ticket,
+  ticketType,
+  event,
+  buyerId,
+  layout = 'row',
+  showOrderLink = false,
   onChanged,
 }: {
   ticket: Ticket;
   ticketType?: TicketType;
   event?: Event;
+  /** Who placed the order: only they can have given a ticket away. Left out where every ticket is the user's own. */
+  buyerId?: string;
+  /**
+   * 'row': the wide ticket with a side stub (order page). 'list': the same with the event's picture behind the stub
+   * (My tickets). 'pass': the square card for a grid.
+   */
+  layout?: 'row' | 'list' | 'pass';
+  /** Show an icon to the order it came from (only the buyer may open an order, so only for the user's own orders). */
+  showOrderLink?: boolean;
   onChanged: () => void;
 }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  // Where the pointer went down on the grid card: a click that ends elsewhere was a drag to select text.
+  const downAt = useRef<{ x: number; y: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -217,6 +310,9 @@ function TicketCard({
   // True while the recipient shown came from an uploaded QR picture (shows a small note).
   const [fromQr, setFromQr] = useState(false);
   const [showFormats, setShowFormats] = useState(false);
+  const [showingScan, setShowingScan] = useState(false);
+  // The ticket's QR code on its own (a PNG data URL), read from its digital ticket.
+  const [qr, setQr] = useState<string | null>(null);
   // The ticket file shown in our own window (with Close and Download) instead of a bare new tab.
   const [viewing, setViewing] = useState<{ url: string; format: 'digital' | 'physical' } | null>(null);
   function closeViewer() {
@@ -226,7 +322,14 @@ function TicketCard({
     });
   }
   const ownedByMe = user?.id === ticket.ownerId;
+  // A transfer keeps the ticket VALID and changes its owner, so only the buyer looking at a ticket they no longer
+  // own means "transferred". Anyone else who may open the order (the event's organizers) is not its owner either.
+  const transferred = !ownedByMe && Boolean(buyerId) && user?.id === buyerId;
   const usable = ticket.status === 'VALID' && ownedByMe;
+  // The scan that used it (behind the scan-record icon); only a used ticket has one.
+  const checkIn = ticket.status === 'USED' ? ticket.checkIn : null;
+  // Like a paper ticket: once used, the stub went to the door staff, so the card ends at the perforation.
+  const torn = ticket.status === 'USED';
 
   async function openArtifact(format: 'digital' | 'physical') {
     setBusy(true);
@@ -235,6 +338,29 @@ function TicketCard({
       const blob = await ticketApi.artifact(ticket.id, format);
       closeViewer(); // frees a previous ticket's file first
       setViewing({ url: URL.createObjectURL(blob), format });
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Only the QR code. The API never sends the raw code, so read it from the rendered digital ticket and draw it
+   * again; a ticket with no readable QR (a barcode design, say) opens the whole ticket instead.
+   */
+  async function showQr() {
+    setBusy(true);
+    setError(null);
+    try {
+      const blob = await ticketApi.artifact(ticket.id, 'digital');
+      const code = await readQrFromImage(new File([blob], 'ticket.png', { type: blob.type || 'image/png' })).catch(() => null);
+      if (code) {
+        setQr(await QRCode.toDataURL(code, { width: 360, margin: 2, errorCorrectionLevel: 'M' }));
+      } else {
+        closeViewer();
+        setViewing({ url: URL.createObjectURL(blob), format: 'digital' });
+      }
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -281,99 +407,129 @@ function TicketCard({
     }
   }
 
-  // The colour the organizer picked for this ticket type (the Card colour swatches on the manage page). It is
-  // kept in this browser, so it shows on the strip wherever that browser is used; the API stores no colour yet.
-  const cardColour = (() => {
-    try {
-      const all = JSON.parse(localStorage.getItem('ticketTypeColors') ?? '{}') as Record<string, string>;
-      return all[ticket.ticketTypeId] ?? null;
-    } catch {
-      return null;
-    }
-  })();
+  // The colour the organizer picked for this ticket type (the Card colour swatches on the manage page).
+  const cardColour = ticketType?.color ?? null;
   // The ticket's status in the same words and colours as the ticket cards elsewhere.
+  // A ticket nobody scanned before its event finished: still VALID to the API, but it can no longer get anyone in.
+  const expired = ticket.status === 'VALID' && Boolean(event && isEventOver(event));
+  const statusLabel = expired ? 'Expired, unused' : humanize(ticket.status);
   const tone: 'good' | 'warn' | 'bad' | 'info' | 'muted' =
-    ticket.status === 'VALID' ? 'good' : ticket.status === 'USED' ? 'muted' : /CANCEL|REFUND|VOID/.test(ticket.status) ? 'bad' : 'info';
+    expired ? 'muted' : ticket.status === 'VALID' ? 'good' : ticket.status === 'USED' ? 'muted' : /CANCEL|REFUND|VOID/.test(ticket.status) ? 'bad' : 'info';
 
-  return (
-    <div
-      className={`tt-row ticket-owned tt-${tone}${ownedByMe ? "" : " is-given"}${cardColour ? " has-color" : ""}`}
-      style={cardColour ? ({ "--tt-color": cardColour } as CSSProperties) : undefined}
-    >
-      <div className="tt-main">
-        <div className="tt-name">
-          <h3>{ticketType?.name ?? 'Ticket'}</h3>
-          <span className={`status-chip status-${tone}`}>{humanize(ticket.status)}</span>
-        </div>
-        <p className="muted small tt-meta">
-          {event ? (
-            <>
-              <Link to={`/events/${event.id}`}>{event.title}</Link> · {formatDateTime(event.startAt, event.timezone)}
-            </>
-          ) : (
-            ticket.eventId
-          )}
-        </p>
-        {event && <Countdown startAt={event.startAt} endAt={event.endAt} />}
-        <p className="small tt-meta">
-          Ticket no. <code>{ticket.ticketNumber}</code>
-          {!ownedByMe && <span className="muted"> · no longer owned by you</span>}
-        </p>
-        {/* Errors from the transfer window show in the window itself, not behind it. */}
-        {!showTransfer && <ErrorBox message={error} />}
-        <SuccessBox message={notice} />
-      </div>
-
-      <div className="tt-stub">
-        {ticketType && <strong className="tt-price">{formatMoney(ticketType.price)}</strong>}
-        {usable ? (
-          <div className="owned-actions">
-            {/* One "View ticket" button; clicking it opens the two choices (digital or printable). */}
-            <button
-              className="btn btn-primary"
-              aria-expanded={showFormats}
-              aria-controls={`ticket-formats-${ticket.id}`}
-              disabled={busy}
-              onClick={() => setShowFormats((s) => !s)}
-            >
-              View ticket
-              <span className={`launch-chevron${showFormats ? ' is-open' : ''}`} aria-hidden="true">
-                <ChevronDownIcon />
-              </span>
-            </button>
-            {showFormats && (
-              <span className="ticket-formats ticket-formats-stack" id={`ticket-formats-${ticket.id}`}>
-                <button
-                  className="btn btn-sm"
-                  disabled={busy}
-                  onClick={() => {
-                    setShowFormats(false);
-                    void openArtifact('digital');
-                  }}
-                >
-                  Digital ticket
-                </button>
-                <button
-                  className="btn btn-sm"
-                  disabled={busy}
-                  onClick={() => {
-                    setShowFormats(false);
-                    void openArtifact('physical');
-                  }}
-                >
-                  Printable (PDF)
-                </button>
-              </span>
-            )}
+  // The pieces both layouts share.
+  const icons = (
+    <>
+      {/* The API never sends the raw code: the QR is on the rendered digital ticket. Not once the event is over. */}
+      {usable && !expired && (
+        <button
+          type="button"
+          className="icon-button"
+          title="Show the QR code"
+          aria-label="Show this ticket's QR code"
+          disabled={busy}
+          onClick={() => void showQr()}
+        >
+          <QrIcon />
+        </button>
+      )}
+      {checkIn && (
+        <button type="button" className="icon-button" title="Scan record" aria-label="Show the scan record" onClick={() => setShowingScan(true)}>
+          <CheckIcon />
+        </button>
+      )}
+      {showOrderLink && (
+        <Link to={`/orders/${ticket.orderId}`} className="icon-button" title="Purchase details" aria-label="Purchase details">
+          <ReceiptIcon />
+        </Link>
+      )}
+    </>
+  );
+  const facts = (
+    <dl className="small ticket-facts">
+      <dt>Ticket no.</dt>
+      <dd>
+        <code>{ticket.ticketNumber}</code>
+        {transferred && <span className="muted"> · no longer owned by you</span>}
+      </dd>
+      {/* The grid card keeps to what a person reads off a ticket. */}
+      {layout !== 'pass' && (
+        <>
+          <dt>Ticket ID</dt>
+          <dd>
+            <code>{ticket.id}</code>
+          </dd>
+        </>
+      )}
+      <dt>Issued</dt>
+      <dd>{formatDateTime(ticket.createdAt, event?.timezone)}</dd>
+    </dl>
+  );
+  const messages = (
+    <>
+      {/* Errors from the transfer window show in the window itself, not behind it. */}
+      {!showTransfer && <ErrorBox message={error} />}
+      <SuccessBox message={notice} />
+    </>
+  );
+  // The two ways to open the ticket, shown after "View ticket" (the button or the grid card's icon).
+  const formats = showFormats && (
+    <span className="ticket-formats ticket-formats-stack" id={`ticket-formats-${ticket.id}`}>
+      <button
+        className="btn btn-sm"
+        disabled={busy}
+        onClick={() => {
+          setShowFormats(false);
+          void openArtifact('digital');
+        }}
+      >
+        Digital ticket
+      </button>
+      <button
+        className="btn btn-sm"
+        disabled={busy}
+        onClick={() => {
+          setShowFormats(false);
+          void openArtifact('physical');
+        }}
+      >
+        Printable (PDF)
+      </button>
+    </span>
+  );
+  const actions = (
+    <>
+      {usable ? (
+        <div className="owned-actions">
+          {/* One "View ticket" button; clicking it opens the two choices (digital or printable). */}
+          <button
+            className="btn btn-primary"
+            aria-expanded={showFormats}
+            aria-controls={`ticket-formats-${ticket.id}`}
+            disabled={busy}
+            onClick={() => setShowFormats((s) => !s)}
+          >
+            View ticket
+            <span className={`launch-chevron${showFormats ? ' is-open' : ''}`} aria-hidden="true">
+              <ChevronDownIcon />
+            </span>
+          </button>
+          {formats}
+          {/* The API refuses a transfer once the event has ended. */}
+          {!expired && (
             <button className="btn" onClick={() => setShowTransfer((s) => !s)}>
               Transfer…
             </button>
-          </div>
-        ) : (
-          <span className="muted small">{ownedByMe ? 'Not usable' : 'Transferred'}</span>
-        )}
-      </div>
-
+          )}
+        </div>
+      ) : (
+        <span className="muted small">
+          {transferred ? 'Transferred' : ownedByMe ? 'Not usable' : humanize(ticket.status)}
+        </span>
+      )}
+    </>
+  );
+  const dialogs = (
+    <>
       <TransferDialog
         open={showTransfer}
         ticketName={ticketType?.name ?? 'Ticket'}
@@ -389,6 +545,31 @@ function TicketCard({
         onSubmit={onTransferSubmit}
         onClose={() => setShowTransfer(false)}
       />
+
+      <QrPass qr={qr} ticket={ticket} ticketType={ticketType} event={event} onClose={() => setQr(null)} />
+
+      {checkIn && (
+        <FormDialog open={showingScan} title="Scan record" onClose={() => setShowingScan(false)}>
+          <dl className="ticket-facts">
+            <dt>Scanner ID</dt>
+            <dd>
+              <code>{checkIn.scannerId}</code>
+            </dd>
+            <dt>Ticket no.</dt>
+            <dd>
+              <code>{ticket.ticketNumber}</code>
+            </dd>
+            <dt>Scanned on</dt>
+            <dd>{new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: event?.timezone }).format(new Date(checkIn.scannedAt))}</dd>
+            <dt>Time</dt>
+            <dd>{new Intl.DateTimeFormat(undefined, { timeStyle: 'short', timeZone: event?.timezone }).format(new Date(checkIn.scannedAt))}</dd>
+            <dt>Location</dt>
+            <dd>{checkIn.scannerLocation ?? <span className="muted">Not recorded</span>}</dd>
+            <dt>Scanner</dt>
+            <dd>{checkIn.scannerName ?? <span className="muted">Fallback scan</span>}</dd>
+          </dl>
+        </FormDialog>
+      )}
 
       <TicketViewer
         url={viewing?.url ?? null}
@@ -408,6 +589,141 @@ function TicketCard({
       >
         You will no longer own it.
       </ConfirmDialog>
+    </>
+  );
+
+  // The event's picture (the first one, as on its page), behind the grid card's slab or the list's stub.
+  const cover = layout === 'row' ? undefined : assetUrl(event?.images?.find((u) => u && u.trim()));
+  const coverStyle = cover ? ({ '--pass-cover': `url(${JSON.stringify(cover)})` } as CSSProperties) : undefined;
+
+  // On My tickets (grid and list) a click anywhere opens the event (the title link is the keyboard way), but not a
+  // click on a control or in a dialog or the ticket facts (double-click copies the number), and not the end of a drag
+  // that selected text.
+  const opensEvent = Boolean(event) && layout !== 'row';
+  const openEvent = opensEvent
+    ? {
+        onMouseDown: (e: MouseEvent) => {
+          downAt.current = { x: e.clientX, y: e.clientY };
+        },
+        onClick: (e: MouseEvent) => {
+          if (!event || (e.target as HTMLElement).closest('a, button, input, label, select, textarea, dialog, .ticket-facts')) return;
+          const d = downAt.current;
+          if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return;
+          if (window.getSelection()?.toString()) return;
+          navigate(`/events/${event.id}`);
+        },
+      }
+    : {};
+
+  // In a grid: a compact square card, the event on the slab, the ticket's actions as icons in its top row.
+  if (layout === 'pass') {
+    return (
+      <article
+        className={`pass-card pass-${tone}${cardColour ? ' has-color' : ''}${torn ? ' is-used' : ''}${transferred ? ' is-given' : ''}${opensEvent ? ' is-link' : ''}`}
+        style={cardColour ? ({ '--tt-color': cardColour } as CSSProperties) : undefined}
+        {...openEvent}
+      >
+        <div
+          className={`pass-card-top${cover ? ' has-cover' : ''}`}
+          style={coverStyle}
+        >
+          <div className="pass-card-head">
+            <span className={`status-chip status-${tone}`}>{statusLabel}</span>
+            {icons}
+            {usable && (
+              <>
+                <button
+                  type="button"
+                  className="icon-button"
+                  title="View ticket"
+                  aria-label="View ticket"
+                  aria-expanded={showFormats}
+                  aria-controls={`ticket-formats-${ticket.id}`}
+                  disabled={busy}
+                  onClick={() => setShowFormats((s) => !s)}
+                >
+                  <TicketIcon />
+                </button>
+                {!expired && (
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title="Transfer this ticket"
+                    aria-label="Transfer this ticket"
+                    onClick={() => setShowTransfer((s) => !s)}
+                  >
+                    <TransferIcon />
+                  </button>
+                )}
+              </>
+            )}
+            {ticketType && <strong className="pass-card-price">{formatMoney(ticketType.price)}</strong>}
+          </div>
+          <h3>{event ? <Link to={`/events/${event.id}`}>{event.title}</Link> : (ticketType?.name ?? 'Ticket')}</h3>
+          {event && <p>{formatDateTime(event.startAt, event.timezone)}</p>}
+          {ticketType && <p>{ticketType.name} ticket</p>}
+          {event && <Countdown startAt={event.startAt} endAt={event.endAt} />}
+          {/* Inked at the door; the "Used" chip already says it for screen readers. */}
+          {torn && (
+            <span className="pass-stamp" aria-hidden="true">
+              <strong>Admitted</strong>
+              {checkIn && (
+                <span>
+                  {new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: event?.timezone }).format(
+                    new Date(checkIn.scannedAt),
+                  )}
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+        {/* Plain white, like paper, so the ticket facts stand out under the dark slab. */}
+        <div className="pass-card-body">
+          {facts}
+          {formats}
+          {messages}
+        </div>
+        {dialogs}
+      </article>
+    );
+  }
+
+  return (
+    <div
+      className={`tt-row ticket-owned tt-${tone}${transferred ? " is-given" : ""}${torn ? " is-torn" : ""}${layout === "list" ? " is-list" : ""}${cardColour ? " has-color" : ""}${opensEvent ? " is-link" : ""}`}
+      style={cardColour ? ({ "--tt-color": cardColour } as CSSProperties) : undefined}
+      {...openEvent}
+    >
+      {/* Plain white on the ticket side; the event picture stays on the stub. */}
+      <div className="tt-main photo-wash">
+        <div className="tt-name">
+          <h3>{ticketType?.name ?? 'Ticket'}</h3>
+          <span className={`status-chip status-${tone}`}>{statusLabel}</span>
+          {icons}
+          {/* On the ticket itself, top right, so it stays when a used ticket's stub is torn off. */}
+          {ticketType && <span className="tt-price tt-name-price">{formatMoney(ticketType.price)}</span>}
+        </div>
+        <p className="muted small tt-meta">
+          {event ? (
+            <>
+              <Link to={`/events/${event.id}`}>{event.title}</Link> · {formatDateTime(event.startAt, event.timezone)}
+            </>
+          ) : (
+            ticket.eventId
+          )}
+        </p>
+        {event && <Countdown startAt={event.startAt} endAt={event.endAt} />}
+        {facts}
+        {messages}
+      </div>
+
+      {!torn && (
+        <div className={`tt-stub${cover ? ' has-cover' : ''}`} style={coverStyle}>
+          {actions}
+        </div>
+      )}
+
+      {dialogs}
     </div>
   );
 }
@@ -493,6 +809,26 @@ function TransferDialog({
 }
 
 /** "12 days to go" / "Tomorrow!" / "Today!" / "Happening now" / "This event has ended": counted in calendar days. */
+/** Purchase details: a receipt with a zigzag foot. */
+function ReceiptIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z" />
+      <path d="M9 8h6M9 12h6" />
+    </svg>
+  );
+}
+
+/** Transfer: a ticket handed on, an arrow leaving a box. */
+function TransferIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14 4h6v6M20 4l-9 9" />
+      <path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
+    </svg>
+  );
+}
+
 function Countdown({ startAt, endAt }: { startAt: string; endAt?: string | null }) {
   const now = new Date();
   const start = new Date(startAt);

@@ -18,6 +18,7 @@ import { HomePage } from './pages/HomePage';
 import { EventsPage } from './pages/EventsPage';
 import { OrderDetailPage } from './pages/OrderDetailPage';
 import { OrdersPage } from './pages/OrdersPage';
+import { MyTicketsPage } from './pages/MyTicketsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ManageEventPage } from './pages/organizer/ManageEventPage';
 import { CustomerPaymentPage } from './pages/CustomerPaymentPage';
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="cart" element={<RequireAuth><CartPage /></RequireAuth>} />
         <Route path="checkout/return" element={<RequireAuth><CheckoutReturnPage /></RequireAuth>} />
         <Route path="orders" element={<RequireAuth><OrdersPage /></RequireAuth>} />
+        <Route path="tickets" element={<RequireAuth><MyTicketsPage /></RequireAuth>} />
         <Route path="orders/:orderId" element={<RequireAuth><OrderDetailPage /></RequireAuth>} />
         <Route path="profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="profile/payment" element={<RequireAuth><CustomerPaymentPage /></RequireAuth>} />

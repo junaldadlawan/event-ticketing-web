@@ -15,7 +15,7 @@ import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, Pla
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../components/ui';
 import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso } from '../../utils/format';
 import { sortTicketTypes } from '../../utils/ticketTypes';
-import { useIsOrgManager } from '../../auth/useCanManage';
+import { useHasPermission, useIsOrgManager } from '../../auth/useCanManage';
 import { useOrgNames } from '../../utils/useOrgNames';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { useAsync } from '../../utils/useAsync';
@@ -62,7 +62,11 @@ export function ManageEventPage() {
   const [showingActivity, setShowingActivity] = useState(false);
   const [showingPromos, setShowingPromos] = useState(false);
   // Only the event's own owner / organizer may change ticket types; an admin sees them read-only.
-  const canEditTickets = useIsOrgManager(event?.organizationId);
+  const canEvents = useHasPermission('EVENTS', event?.organizationId);
+  const canPromos = useHasPermission('PROMO_CODES', event?.organizationId);
+  const canOrders = useHasPermission('ORDERS_REFUNDS', event?.organizationId);
+  const canAnalytics = useHasPermission('ANALYTICS', event?.organizationId);
+  const canEditTickets = useIsOrgManager(event?.organizationId) && canEvents;
   const orgName = useOrgNames(event ? [event.organizationId] : []).get(event?.organizationId ?? '');
 
   if (loading && !event) return <Spinner />;
@@ -83,9 +87,9 @@ export function ManageEventPage() {
 
   // A finished event is read-only: nothing about it or its tickets can change any more.
   const over = isEventOver(event);
-  const canPublish = event.status === 'DRAFT';
+  const canPublish = canEvents && event.status === 'DRAFT';
   // An ended event keeps the button (disabled) like its other controls.
-  const canCancel = over || !['CANCELLED', 'COMPLETED'].includes(event.status);
+  const canCancel = canEvents && (over || !['CANCELLED', 'COMPLETED'].includes(event.status));
 
   return (
     <div className="manage-page">
@@ -94,16 +98,18 @@ export function ManageEventPage() {
         <div className="title-with-status">
           <h1>{event.title}</h1>
           <StatusBadge status={over ? 'COMPLETED' : event.status} />
-          <button
-            type="button"
-            className="icon-button hero-edit"
-            onClick={() => navigate(`/manage/events/${event.id}/edit`)}
-            disabled={over}
-            title={over ? ENDED_TIP : 'Edit event details'}
-            aria-label="Edit event details"
-          >
-            <EditIcon />
-          </button>
+          {canEvents && (
+            <button
+              type="button"
+              className="icon-button hero-edit"
+              onClick={() => navigate(`/manage/events/${event.id}/edit`)}
+              disabled={over}
+              title={over ? ENDED_TIP : 'Edit event details'}
+              aria-label="Edit event details"
+            >
+              <EditIcon />
+            </button>
+          )}
         </div>
         <p className="event-hero-when">
           {orgName && <>{orgName} · </>}
@@ -121,7 +127,7 @@ export function ManageEventPage() {
           <EyeIcon />
           View public page
         </Link>
-        {over ? (
+        {!canEvents ? null : over ? (
           <button type="button" className="btn" disabled title={ENDED_TIP}>
             Customize ticket
           </button>
@@ -140,18 +146,22 @@ export function ManageEventPage() {
             )}
           </Link>
         )}
-        <button
-          type="button"
-          className="btn"
-          onClick={() => setShowingPromos(true)}
-          disabled={over}
-          title={over ? ENDED_TIP : 'Discount codes buyers can use on this event\'s tickets'}
-        >
-          Promo codes{promoQuery.data && promoQuery.data.length > 0 ? ` (${promoQuery.data.length})` : ''}
-        </button>
-        <button type="button" className="btn" onClick={() => setShowingActivity(true)} title="Who changed what on this event, and when">
-          Activity log
-        </button>
+        {canPromos && (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setShowingPromos(true)}
+            disabled={over}
+            title={over ? ENDED_TIP : 'Discount codes buyers can use on this event\'s tickets'}
+          >
+            Promo codes{promoQuery.data && promoQuery.data.length > 0 ? ` (${promoQuery.data.length})` : ''}
+          </button>
+        )}
+        {canAnalytics && (
+          <button type="button" className="btn" onClick={() => setShowingActivity(true)} title="Who changed what on this event, and when">
+            Activity log
+          </button>
+        )}
         {canPublish && (
           <button
             className="btn btn-primary"
@@ -171,14 +181,16 @@ export function ManageEventPage() {
             Cancel event
           </button>
         )}
-        <button
-          className="btn btn-link danger"
-          disabled={busy || over}
-          title={over ? ENDED_TIP : undefined}
-          onClick={() => setConfirmingDelete(true)}
-        >
-          Delete
-        </button>
+        {canEvents && (
+          <button
+            className="btn btn-link danger"
+            disabled={busy || over}
+            title={over ? ENDED_TIP : undefined}
+            onClick={() => setConfirmingDelete(true)}
+          >
+            Delete
+          </button>
+        )}
         </div>
       </section>
 
@@ -189,6 +201,7 @@ export function ManageEventPage() {
         layoutCount={templates?.length ?? null}
         busy={busy}
         canEditTickets={canEditTickets}
+        canEditEvent={canEvents}
         onPublish={() => act(() => eventApi.publish(event.id))}
       />
 
@@ -238,8 +251,8 @@ export function ManageEventPage() {
         ownDesignTypeIds={new Set((templates ?? []).map((t) => t.ticketTypeId).filter((id): id is string => Boolean(id)))}
       />
       {/* A draft has sold nothing yet. */}
-      {event.status !== 'DRAFT' && typesQuery.data && <SalesInsights event={event} ticketTypes={typesQuery.data} />}
-      <EventOrders eventId={event.id} />
+      {canAnalytics && event.status !== 'DRAFT' && typesQuery.data && <SalesInsights event={event} ticketTypes={typesQuery.data} />}
+      {canOrders && <EventOrders eventId={event.id} />}
       <PromoCodesDialog
         eventId={event.id}
         open={showingPromos}
@@ -266,6 +279,7 @@ function LaunchChecklist({
   layoutCount,
   busy,
   canEditTickets,
+  canEditEvent,
   onPublish,
 }: {
   event: Event;
@@ -276,6 +290,8 @@ function LaunchChecklist({
   layoutCount: number | null;
   busy: boolean;
   canEditTickets: boolean;
+  /** Holds EVENTS (BR-ORG-008): may design the ticket and publish. */
+  canEditEvent: boolean;
   onPublish: () => void;
 }) {
   // Collapsed = just the headline and the progress bar. The choice is remembered in this browser.
@@ -342,22 +358,22 @@ function LaunchChecklist({
       title: 'Ticket design',
       hint: layoutCount ? 'Your ticket has a look' : 'Make a ticket people will want to keep',
       done: Boolean(layoutCount),
-      action: (
+      action: canEditEvent ? (
         <Link to={`/manage/events/${event.id}/ticket-design`} className="btn btn-sm">
           Customize ticket
         </Link>
-      ),
+      ) : null,
     },
     {
       key: 'publish',
       title: 'Publish',
       hint: 'Open ticket sales to everyone',
       done: false,
-      action: (
+      action: canEditEvent ? (
         <button className="btn btn-primary btn-sm" disabled={busy} onClick={onPublish}>
           Publish
         </button>
-      ),
+      ) : null,
     },
   ];
   const doneCount = steps.filter((s) => s.done).length;
@@ -986,26 +1002,17 @@ function TicketTypes({
     saveOrder(ids);
   }
 
-  // A colour for each ticket type card, remembered in this browser (the API has no colour field yet).
-  const [colors, setColors] = useState<Record<string, string>>(() => {
+  // The card colour of each ticket type, saved on the ticket type so buyers' tickets show it too. The API returns
+  // it uppercase; the swatches are lowercase, so compare in lowercase.
+  const colourOf = (tt: TicketType) => tt.color?.toLowerCase() ?? null;
+  async function setColour(tt: TicketType, value: string | null) {
+    setRowError(null);
     try {
-      return JSON.parse(localStorage.getItem("ticketTypeColors") ?? "{}") as Record<string, string>;
-    } catch {
-      return {};
+      const updated = await ticketTypeApi.update(tt.id, { color: value });
+      query.setData((list) => list?.map((t) => (t.id === updated.id ? updated : t)) ?? list);
+    } catch (e) {
+      setRowError(errorMessage(e));
     }
-  });
-  function setColour(id: string, value: string | null) {
-    setColors((prev) => {
-      const next = { ...prev };
-      if (value) next[id] = value;
-      else delete next[id];
-      try {
-        localStorage.setItem("ticketTypeColors", JSON.stringify(next));
-      } catch {
-        /* blocked storage: the colour just is not remembered */
-      }
-      return next;
-    });
   }
 
   async function confirmDelete() {
@@ -1211,11 +1218,11 @@ function TicketTypes({
         {sortedTypes.map((tt) => (
           <li
             key={tt.id}
-            className={`tt-row tt-${ticketStatus(tt, eventOver).tone}${tt.salesPaused ? " is-paused" : ""}${colors[tt.id] ? " has-color" : ""}${dragId === tt.id ? " is-dragging" : ""}${overId === tt.id && dragId !== tt.id ? " is-drop-target" : ""}`}
+            className={`tt-row tt-${ticketStatus(tt, eventOver).tone}${tt.salesPaused ? " is-paused" : ""}${colourOf(tt) ? " has-color" : ""}${dragId === tt.id ? " is-dragging" : ""}${overId === tt.id && dragId !== tt.id ? " is-drop-target" : ""}`}
             data-tt-id={tt.id}
             style={
               {
-                ...(colors[tt.id] ? { "--tt-color": colors[tt.id] } : {}),
+                ...(colourOf(tt) ? { "--tt-color": colourOf(tt) } : {}),
                 ...(dragId === tt.id ? { transform: `translateY(${dragDy}px)`, zIndex: 40 } : {}),
               } as CSSProperties
             }
@@ -1301,13 +1308,13 @@ function TicketTypes({
                         <button
                           key={c.name}
                           type="button"
-                          className={`swatch${(colors[tt.id] ?? null) === c.value ? ' is-on' : ''}${c.value ? '' : ' swatch-none'}`}
+                          className={`swatch${colourOf(tt) === c.value ? ' is-on' : ''}${c.value ? '' : ' swatch-none'}`}
                           style={c.value ? { background: c.value } : undefined}
                           title={eventOver ? ENDED_TIP : c.name}
                           aria-label={c.name}
-                          aria-pressed={(colors[tt.id] ?? null) === c.value}
+                          aria-pressed={colourOf(tt) === c.value}
                           disabled={eventOver}
-                          onClick={() => setColour(tt.id, c.value)}
+                          onClick={() => void setColour(tt, c.value)}
                         />
                       ))}
                     </div>

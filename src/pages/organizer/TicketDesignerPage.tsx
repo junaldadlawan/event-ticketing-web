@@ -97,6 +97,7 @@ import { RealSizePreview } from '../../components/RealSizePreview';
 import { useUnsavedChanges } from '../../components/UnsavedChanges';
 import { ErrorBox, Spinner } from '../../components/ui';
 import { useAsync } from '../../utils/useAsync';
+import { useHasPermission } from '../../auth/useCanManage';
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
@@ -262,6 +263,8 @@ export function TicketDesignerPage() {
     () => Promise.all([eventApi.get(eventId), ticketTypeApi.list(eventId), ticketTemplateApi.list(eventId)]),
     [eventId],
   );
+  // Saving or deleting a design needs EVENTS (BR-ORG-008).
+  const canEdit = useHasPermission('EVENTS', data?.[0].organizationId);
 
   const [scope, setScope] = useState<string>(ALL_TYPES);
   // One layout covers every ticket type by default. Layouts added for a type that has no saved design yet:
@@ -1412,6 +1415,8 @@ export function TicketDesignerPage() {
         >
           {exporting ? <SpinnerIcon /> : <DownloadIcon />}
         </IconButton>
+        {canEdit && (
+        <>
         {scope !== ALL_TYPES && (
           <IconButton
             label="Delete this layout"
@@ -1485,6 +1490,8 @@ export function TicketDesignerPage() {
             );
           }}
         </Popover>
+        </>
+        )}
       </div>
 
       {/*

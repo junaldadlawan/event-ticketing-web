@@ -15,6 +15,7 @@ import { useOrgNames } from '../../utils/useOrgNames';
 import { LogsButton } from '../../components/LogsButton';
 import { useAuth } from '../../auth/AuthContext';
 import { isAdmin } from '../../auth/roles';
+import { useHasPermission } from '../../auth/useCanManage';
 
 const STATUSES: EventStatus[] = [
   'DRAFT',
@@ -38,6 +39,7 @@ export function ManageEventsPage() {
   // Admins read the platform's event log; organizers and owners their organizations'.
   const { user } = useAuth();
   const platformLogs = isAdmin(user?.role);
+  const canCreate = useHasPermission('EVENTS', 'any');
   // /manage/new opens the New event window over this list.
   const navigate = useNavigate();
   const creating = useMatch('/manage/new') !== null;
@@ -86,10 +88,12 @@ export function ManageEventsPage() {
           actions={
             <>
               <LogsButton area="EVENTS" title="Event Management" organizations={platformLogs ? undefined : 'mine'} />
-              <Link to="/manage/new" className="btn btn-cta">
-                <PlusIcon />
-                New event
-              </Link>
+              {canCreate && (
+                <Link to="/manage/new" className="btn btn-cta">
+                  <PlusIcon />
+                  New event
+                </Link>
+              )}
             </>
           }
         />
@@ -134,7 +138,7 @@ export function ManageEventsPage() {
             'No events match your search.'
           ) : (
             <>
-              No events to manage yet. <Link to="/manage/new">Create one</Link>
+              No events to manage yet.{canCreate && <> <Link to="/manage/new">Create one</Link></>}
             </>
           )}
         </Empty>

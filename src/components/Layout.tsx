@@ -8,7 +8,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useAuthDialog } from '../auth/AuthDialog';
 import { useManagementHidden, useViewMode } from '../auth/ViewMode';
 import type { ViewMode } from '../auth/ViewMode';
-import { useIsHost, usePosition } from '../auth/useCanManage';
+import { useHasPermission, useIsHost, usePosition } from '../auth/useCanManage';
 import { useCart } from '../cart/CartContext';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { Avatar } from './Avatar';
@@ -38,6 +38,9 @@ function CartIcon() {
   );
 }
 
+/** Screens only the customer view has; the management view (admin, owner, organizer) never shows them. */
+const CUSTOMER_ONLY = /^\/(cart|checkout|orders|tickets|apply|profile\/payment)(\/|$)/;
+
 export function Layout() {
   const { user, logout } = useAuth();
   const { openAuth } = useAuthDialog();
@@ -50,6 +53,7 @@ export function Layout() {
   const [switchingTo, setSwitchingTo] = useState<ViewMode | null>(null);
   const isHost = useIsHost();
   const position = usePosition();
+  const canFinance = useHasPermission('FINANCE', 'any');
   const { mode, setMode } = useViewMode();
   // Management tabs are for people who run events (or admins): a plain customer never sees them. While that is
   // still being checked (isHost === null) they stay hidden too.
@@ -64,6 +68,8 @@ export function Layout() {
     if (isHost === false || (isHost === true && hideManagement)) {
       if (/^\/(manage|admin)(\/|$)/.test(pathname)) navigate('/', { replace: true });
     }
+    // And the other way: buying, orders, card wallet and applying to host are the customer view's only.
+    if (isHost === true && !hideManagement && CUSTOMER_ONLY.test(pathname)) navigate('/manage', { replace: true });
     // The customer home page is not a manager's landing screen: the management view starts at Event Management.
     if (isHost === true && !hideManagement && pathname === '/') navigate('/manage', { replace: true });
   }, [isHost, hideManagement, pathname, navigate]);
@@ -108,7 +114,7 @@ export function Layout() {
                 Event Management
               </NavLink>
               {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/team">Team</NavLink>}
-              {!isAdminRole(user.role) && position === 'Organization Owner' && <NavLink to="/manage/finance">Finance &amp; Payouts</NavLink>}
+              {!isAdminRole(user.role) && canFinance && <NavLink to="/manage/finance">Finance &amp; Payouts</NavLink>}
               {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/settings">Settings</NavLink>}
               {isAdminRole(user.role) && (
                 <>
@@ -147,7 +153,7 @@ export function Layout() {
                       </span>
                     )}
                   </NavLink>
-                  <NavLink to="/orders" className="cart-link" title="My orders" aria-label="My orders">
+                  <NavLink to="/tickets" className="cart-link" title="My tickets" aria-label="My tickets">
                     <TicketIcon />
                   </NavLink>
                 </nav>
@@ -226,11 +232,12 @@ export function Layout() {
         <div className="container footer-inner">
           <span>© {new Date().getFullYear()} events</span>
           <nav className="footer-links" aria-label="Footer">
-            <Link to="/events">Events</Link>
-            <Link to="/apply">Host an event</Link>
+            {/* Same as the header: no customer links in the management view. */}
+            {!orgMemberView && <Link to="/events">Events</Link>}
+            {(!user || hideManagement) && <Link to="/apply">Host an event</Link>}
             {user ? (
               <>
-                <Link to="/orders">Orders</Link>
+                {hideManagement && <Link to="/orders">Orders</Link>}
                 {!hideManagement && <Link to="/manage">Event Management</Link>}
                 <Link to="/profile">Profile</Link>
               </>

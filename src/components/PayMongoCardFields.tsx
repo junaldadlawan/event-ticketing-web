@@ -4,6 +4,11 @@ import type { SavedCard } from './CardManager';
 import type { PayMongoCard } from '../utils/paymongo';
 import { digitsOnly, formatCardNumber, formatExpiry, luhnOk, parseExpiry } from '../utils/card';
 import { fullName } from '../utils/format';
+import { PAYMONGO_PUBLIC_KEY } from '../config';
+
+// PayMongo's published Visa test card; it only works with a test key, so the shortcut only shows then.
+const TEST_MODE = PAYMONGO_PUBLIC_KEY?.startsWith('pk_test_') ?? false;
+const SAMPLE_CARD = { number: '4343 4343 4343 4345', cvc: '123' };
 
 /**
  * The card form for PayMongo. What is typed here is sent to PayMongo only (from the browser, with the public key);
@@ -45,14 +50,34 @@ export function PayMongoCardFields({
         <span title={saved ? 'We only keep the last four digits, so type the full number again.' : undefined}>
           Card number{saved && <span className="muted"> (type it again)</span>}
         </span>
-        <input
-          required
-          inputMode="numeric"
-          autoComplete="cc-number"
-          placeholder={saved ? `•••• •••• •••• ${saved.last4}` : '1234 5678 9012 3456'}
-          value={number}
-          onChange={(e) => setNumber(formatCardNumber(e.target.value))}
-        />
+        <span className="card-number-field">
+          <input
+            required
+            inputMode="numeric"
+            autoComplete="cc-number"
+            placeholder={saved ? `•••• •••• •••• ${saved.last4}` : '1234 5678 9012 3456'}
+            value={number}
+            onChange={(e) => setNumber(formatCardNumber(e.target.value))}
+          />
+          {TEST_MODE && !saved && (
+            <button
+              type="button"
+              className="icon-button sample-card-button"
+              title="Fill in PayMongo's test card"
+              aria-label="Fill in PayMongo's test card"
+              onClick={() => {
+                setNumber(SAMPLE_CARD.number);
+                setExpiry(`12/${String(new Date().getFullYear() + 2).slice(-2)}`);
+                setCvc(SAMPLE_CARD.cvc);
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="2" y="5" width="20" height="14" rx="2" />
+                <path d="M2 10h20M6 15h4" />
+              </svg>
+            </button>
+          )}
+        </span>
       </label>
       <div className="card-pair">
         <label>

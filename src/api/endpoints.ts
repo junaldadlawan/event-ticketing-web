@@ -33,6 +33,7 @@ import type {
   ModerationActionRequest,
   ModerationTargetType,
   OrganizationMember,
+  OrganizationPermission,
   OrganizationRole,
   OrganizationStatus,
   Payout,
@@ -56,6 +57,8 @@ import type {
   RegisterDetails,
   CodePlacement,
   Ticket,
+  TicketStatus,
+  MyTicketEvent,
   TicketTemplate,
   TicketTemplateFormat,
   TextField,
@@ -239,6 +242,8 @@ export const organizationApi = {
     api<Organization>('/organizations', { method: 'POST', body: { name, documents } }),
   /** Members and their roles. Only members of the organization (or admins) may call this. */
   members: (orgId: UUID) => api<OrganizationMember[]>(`/organizations/${orgId}/members`),
+  /** The caller's own membership with its permissions (BR-ORG-008); 404 when they are not a member. */
+  myMembership: (orgId: UUID) => api<OrganizationMember>(`/organizations/${orgId}/members/me`),
   get: (orgId: UUID) => api<Organization>(`/organizations/${orgId}`),
   /** The caller's organizations, any status (owner / organizer / applicant). Needs GET /organizations/mine on the API. */
   mine: () => api<Organization[]>('/organizations/mine'),
@@ -251,12 +256,19 @@ export const organizationApi = {
   reject: (orgId: UUID, reason?: string) =>
     api<Organization>(`/organizations/${orgId}/reject`, { method: 'POST', body: reason ? { reason } : {} }),
   /** OWNER can't be assigned here (it only comes from approving the application). */
-  assignMember: (orgId: UUID, userId: UUID, role: OrganizationRole) =>
-    api<OrganizationMember>(`/organizations/${orgId}/members`, { method: 'POST', body: { userId, role } }),
-  /** Owner only: replace a member's roles with exactly this set (not OWNER, not empty: remove them instead). */
-  setMemberRoles: (orgId: UUID, userId: UUID, roles: OrganizationRole[]) =>
-    api<OrganizationMember>(`/organizations/${orgId}/members/${userId}/roles`, { method: 'PUT', body: { roles } }),
-  /** Owner only: remove a member and all their roles (the owner can't be removed). */
+  /** `permissions` only with ORGANIZER; left out, a new organizer gets everything but TEAM. */
+  assignMember: (orgId: UUID, userId: UUID, role: OrganizationRole, permissions?: OrganizationPermission[]) =>
+    api<OrganizationMember>(`/organizations/${orgId}/members`, { method: 'POST', body: { userId, role, permissions } }),
+  /**
+   * Owner, or an organizer with TEAM: replace a member's roles with exactly this set (not OWNER, not empty: remove
+   * them instead). `permissions` only with ORGANIZER; left out, they are kept.
+   */
+  setMemberRoles: (orgId: UUID, userId: UUID, roles: OrganizationRole[], permissions?: OrganizationPermission[]) =>
+    api<OrganizationMember>(`/organizations/${orgId}/members/${userId}/roles`, {
+      method: 'PUT',
+      body: { roles, permissions },
+    }),
+  /** Owner, or an organizer with TEAM: remove a member and all their roles (the owner can't be removed). */
   removeMember: (orgId: UUID, userId: UUID) =>
     api<void>(`/organizations/${orgId}/members/${userId}`, { method: 'DELETE' }),
 };
@@ -444,6 +456,11 @@ export const orderApi = {
 };
 
 export const ticketApi = {
+  /** Every ticket the caller holds now (bought, or transferred to them), soonest event first. */
+  mine: (q: PageQuery & { status?: TicketStatus; eventId?: UUID } = {}) =>
+    api<PageResponse<Ticket>>('/users/me/tickets', { query: { ...q } }),
+  /** The events the caller holds tickets for now, soonest first, with how many. */
+  myEvents: () => api<MyTicketEvent[]>('/users/me/tickets/events'),
   get: (id: UUID) => api<Ticket>(`/tickets/${id}`),
   transfer: (id: UUID, toUserId: UUID) =>
     api<Ticket>(`/tickets/${id}/transfer`, { method: 'POST', body: { toUserId } }),

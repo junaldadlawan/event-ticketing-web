@@ -108,7 +108,21 @@ export function EventDetailPage() {
       </p>
 
       <h2>Tickets</h2>
-      {ticketTypes.length === 0 ? (
+      {over ? (
+        // A finished event is history: what it sold, with nothing left to buy.
+        ticketTypes.length === 0 ? (
+          <Empty>This event had no tickets.</Empty>
+        ) : (
+          <>
+            <p className="muted">This event has ended. These are the tickets it sold.</p>
+            <div className="stack">
+              {sortTicketTypes(ticketTypes).map((tt) => (
+                <PastTicketTypeRow key={tt.id} ticketType={tt} day={day} />
+              ))}
+            </div>
+          </>
+        )
+      ) : ticketTypes.length === 0 ? (
         <Empty>No tickets available yet.</Empty>
       ) : (
         <div className="stack">
@@ -118,6 +132,27 @@ export function EventDetailPage() {
         </div>
       )}
     </article>
+  );
+}
+
+/** A ticket type of a finished event: what it was and how many sold, no buying. */
+function PastTicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: boolean }) {
+  const sold = Math.max(0, tt.quantityTotal - tt.quantityAvailable);
+  return (
+    <div className="card ticket-row cart-ticket">
+      <span className={`cart-stub ${day ? 'is-day' : 'is-night'}`} aria-hidden="true">
+        {day ? <SunIcon /> : <MoonIcon />}
+      </span>
+      <div>
+        <h3>{tt.name}</h3>
+        <p className="muted small">
+          {humanize(tt.kind)} · {sold} of {tt.quantityTotal} sold
+        </p>
+      </div>
+      <div className="ticket-buy">
+        <strong className="price">{formatMoney(tt.price)}</strong>
+      </div>
+    </div>
   );
 }
 

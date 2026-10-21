@@ -46,6 +46,13 @@ export function useViewMode(): ViewModeValue {
   return ctx;
 }
 
+/** True when a user who can manage things is in the management view: hide every customer-only screen and link. */
+export function useInManagementView(): boolean {
+  const isHost = useIsHost();
+  const { mode } = useViewMode();
+  return isHost === true && mode === 'manage';
+}
+
 /** True when a user who could manage things chose to browse as a customer: hide every management shortcut. */
 export function useManagementHidden(): boolean {
   const isHost = useIsHost();

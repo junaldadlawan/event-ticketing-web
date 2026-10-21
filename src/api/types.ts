@@ -192,8 +192,20 @@ export interface OrganizationMember {
   email?: string | null;
   /** Null when unset, or for a caller who is only check-in staff. */
   phoneNumber?: string | null;
+  /** BR-ORG-008: every permission for the owner, an organizer's chosen set, empty for anyone else. */
+  permissions?: OrganizationPermission[];
   avatarUrl?: string | null;
 }
+
+/** What an ORGANIZER may do in their organization (BR-ORG-008); a missing one is a 403 from the API. */
+export type OrganizationPermission =
+  | 'EVENTS'
+  | 'PROMO_CODES'
+  | 'CHECK_IN'
+  | 'ORDERS_REFUNDS'
+  | 'FINANCE'
+  | 'ANALYTICS'
+  | 'TEAM';
 
 export type OrganizationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
 
@@ -303,6 +315,8 @@ export interface TicketType {
   position: number;
   /** When it was created (tie-break for the order). */
   createdAt?: string;
+  /** The card colour the organizer picked, "#RRGGBB" (uppercase from the API); null = none. */
+  color?: string | null;
 }
 
 export interface TicketTypeCreateRequest {
@@ -354,6 +368,28 @@ export interface Ticket {
   status: TicketStatus;
   createdAt: string;
   updatedAt?: string;
+  /** Only on a USED ticket: the valid scan that checked it in (never duplicate or invalid attempts). */
+  checkIn?: TicketCheckIn | null;
+}
+
+/** An event the user holds tickets for now, for My tickets' event filter (GET /users/me/tickets/events). */
+export interface MyTicketEvent {
+  id: UUID;
+  title: string;
+  startAt: string;
+  timezone: string;
+  /** Tickets the user holds for it now, any status. */
+  ticketCount: number;
+}
+
+export interface TicketCheckIn {
+  scannedAt: string;
+  /** Where the scan was made, e.g. "Gate A"; null when the scanner had none. */
+  scannerLocation: string | null;
+  /** The scanner device (or the fallback source) that made the scan. */
+  scannerId: UUID;
+  /** The device's name; null for a fallback scan. */
+  scannerName: string | null;
 }
 
 export type OrderStatus = 'PENDING' | 'PAID' | 'CANCELLED' | 'REFUNDED' | 'PARTIALLY_REFUNDED';
@@ -385,6 +421,8 @@ export interface TicketTypeUpdateRequest {
   maxPerOrder?: number;
   /** true pauses sales, false resumes. */
   salesPaused?: boolean;
+  /** "#RRGGBB"; null clears it, left out leaves it as it is. */
+  color?: string | null;
 }
 
 export type DiscountType = 'PERCENTAGE' | 'FIXED';

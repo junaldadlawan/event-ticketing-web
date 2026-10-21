@@ -37,19 +37,22 @@ export function useEventView(storageKey: string) {
 /** "N events" on the left, list/grid icons on the right. */
 export function ResultsBar({
   count,
+  noun = 'event',
   view,
   onViewChange,
 }: {
   count: number;
+  /** What is being counted, singular ("event", "ticket"). */
+  noun?: string;
   view: EventView;
   onViewChange: (v: EventView) => void;
 }) {
   return (
     <div className="results-bar">
       <span className="muted small">
-        {count} {count === 1 ? 'event' : 'events'}
+        {count} {count === 1 ? noun : `${noun}s`}
       </span>
-      <div className="segmented" role="group" aria-label="Event layout">
+      <div className="segmented" role="group" aria-label="Layout">
         <button
           type="button"
           title="List view"
