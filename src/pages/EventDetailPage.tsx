@@ -11,6 +11,7 @@ import { useCanManage } from '../auth/useCanManage';
 import { EditIcon, MoonIcon, SunIcon } from '../components/DesignerIcons';
 import { useCart } from '../cart/CartContext';
 import { EventCover } from '../components/EventSky';
+import { EventRecap } from '../components/EventRecap';
 import { Empty, ErrorBox, Spinner, StatusBadge, SuccessBox } from '../components/ui';
 import { formatDateTime, formatMoney, humanize } from '../utils/format';
 import { isDaytime } from '../utils/timeOfDay';
@@ -107,22 +108,13 @@ export function EventDetailPage() {
         </Link>
       </p>
 
-      <h2>Tickets</h2>
       {over ? (
-        // A finished event is history: what it sold, with nothing left to buy.
-        ticketTypes.length === 0 ? (
-          <Empty>This event had no tickets.</Empty>
-        ) : (
-          <>
-            <p className="muted">This event has ended. These are the tickets it sold.</p>
-            <div className="stack">
-              {sortTicketTypes(ticketTypes).map((tt) => (
-                <PastTicketTypeRow key={tt.id} ticketType={tt} day={day} />
-              ))}
-            </div>
-          </>
-        )
-      ) : ticketTypes.length === 0 ? (
+        // A finished event has nothing left to buy: its rating, reviews and the organizer's recap instead.
+        <EventRecap event={event} />
+      ) : (
+        <h2>Tickets</h2>
+      )}
+      {over ? null : ticketTypes.length === 0 ? (
         <Empty>No tickets available yet.</Empty>
       ) : (
         <div className="stack">
@@ -132,27 +124,6 @@ export function EventDetailPage() {
         </div>
       )}
     </article>
-  );
-}
-
-/** A ticket type of a finished event: what it was and how many sold, no buying. */
-function PastTicketTypeRow({ ticketType: tt, day }: { ticketType: TicketType; day: boolean }) {
-  const sold = Math.max(0, tt.quantityTotal - tt.quantityAvailable);
-  return (
-    <div className="card ticket-row cart-ticket">
-      <span className={`cart-stub ${day ? 'is-day' : 'is-night'}`} aria-hidden="true">
-        {day ? <SunIcon /> : <MoonIcon />}
-      </span>
-      <div>
-        <h3>{tt.name}</h3>
-        <p className="muted small">
-          {humanize(tt.kind)} · {sold} of {tt.quantityTotal} sold
-        </p>
-      </div>
-      <div className="ticket-buy">
-        <strong className="price">{formatMoney(tt.price)}</strong>
-      </div>
-    </div>
   );
 }
 
@@ -250,6 +221,16 @@ function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketT
         <p className="muted small">
           {humanize(tt.kind)} · {tt.quantityAvailable} of {tt.quantityTotal} left · max{' '}
           {tt.maxPerOrder} per order
+          {tt.maxPerUser != null && <> · max {tt.maxPerUser} per buyer</>}
+          {tt.gateOpensMinutesBefore != null && (
+            <>
+              {' '}· gates open{' '}
+              {tt.gateOpensMinutesBefore % 60 === 0
+                ? `${tt.gateOpensMinutesBefore / 60} h`
+                : `${tt.gateOpensMinutesBefore} min`}{' '}
+              before start
+            </>
+          )}
         </p>
         {note && <p className="small warn">{note}</p>}
         <ErrorBox message={error} />

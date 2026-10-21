@@ -3750,12 +3750,12 @@ button.code-warning:focus-visible {
   translate: 0 -2px;
   box-shadow: 0 10px 22px rgb(0 0 0 / 0.14);
 }
-.tt-row.ticket-owned.is-torn.is-list {
+.tt-row.ticket-owned.is-spent.is-list {
   transition:
     translate 0.15s ease,
     box-shadow 0.15s ease;
 }
-.tt-row.ticket-owned.is-torn.is-list:hover {
+.tt-row.ticket-owned.is-spent.is-list:hover {
   translate: 0 -2px;
 }
 .pass-card.pass-good {
@@ -3871,14 +3871,14 @@ button.code-warning:focus-visible {
 .pass-card.is-used {
   transform: rotate(-2deg) scale(0.88);
 }
-.tt-row.ticket-owned.is-torn.is-list {
+.tt-row.ticket-owned.is-spent.is-list {
   transform: rotate(-1deg) scale(0.88);
 }
 /*
  * In the list it shrinks toward the left edge, so it lines up with the tickets above and below; the negative margins
  * take back most of the room the full-size row left around it (about 12% of a ~200px row).
  */
-.tt-row.ticket-owned.is-torn.is-list {
+.tt-row.ticket-owned.is-spent.is-list {
   transform-origin: left center;
   margin-block: -5px;
 }
@@ -3922,6 +3922,19 @@ button.code-warning:focus-visible {
 .pass-stamp span {
   font-size: 0.8rem;
   font-weight: 700;
+}
+/*
+ * Expired, never used: the same spent card, but voided rather than admitted: a faded red stamp tilted the other way,
+ * and the price struck through, since the ticket is worth nothing now.
+ */
+.pass-stamp.is-expired {
+  --ink: #ff8a80;
+  transform: rotate(8deg);
+}
+.pass-card.is-expired .pass-card-price {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  opacity: 0.6;
 }
 /*
  * My tickets list: the same picture runs under the whole card. On the ticket side it is grey and faint (14%), so the
@@ -6308,6 +6321,144 @@ button.code-warning:focus-visible {
   color: var(--slab);
 }
 
+/*
+ * Hero entrance (Home and Events), played once when the page shows: the ticket arrives, the headline rises word by
+ * word from behind its line, the Home stub prints top to bottom, then the line under it and the controls settle in.
+ * `backwards` fill only holds the start state during each delay, so hover styles stay in charge afterwards.
+ */
+.stage {
+  animation: hero-ticket-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.hero-word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  /* Room for the tall letters and the tails of y and g, which the 0.88 line height would otherwise clip. */
+  padding: 0.1em 0 0.16em;
+  margin: -0.1em 0 -0.16em;
+}
+.hero-word > span {
+  display: inline-block;
+  animation: hero-word-up 0.95s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(0.2s + var(--i) * 0.07s);
+}
+.home-hero-copy p,
+.events-hero > p {
+  animation: hero-settle 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.8s backwards;
+}
+.home-hero-copy .btn,
+.events-hero .search {
+  animation: hero-settle 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.9s backwards;
+}
+.home-hero .home-next {
+  animation: hero-stub-print 1s cubic-bezier(0.65, 0, 0.35, 1) 0.45s backwards;
+}
+@keyframes hero-ticket-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+  }
+}
+@keyframes hero-word-up {
+  from {
+    transform: translateY(115%);
+  }
+}
+@keyframes hero-settle {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes hero-stub-print {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+/*
+ * The Home and Events heroes are a stage before the show, in both themes: near-black, a violet wash rising from the stage floor,
+ * three soft spotlight beams from the rig above (two warm, one cool) that switch on as the ticket arrives and then
+ * sway slowly, and a fine film grain. The beams stay faint and lean away from the headline, so the type reads.
+ */
+.stage {
+  --slab: #07060c;
+  --on-slab: #ffffff;
+  --slab-muted: #b8b3c7;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 90% 70% at 55% 125%, rgb(59 42 140 / 0.55), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 85% 110%, rgb(120 70 200 / 0.25), transparent 70%),
+    #07060c;
+}
+.stage > * {
+  position: relative;
+  z-index: 1;
+}
+/* The beams: each is a thin wedge of light from a point just above the top edge. */
+.stage::before {
+  content: '';
+  position: absolute;
+  inset: -10% -5% 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    conic-gradient(from 166deg at 30% -8%, transparent 0deg, rgb(255 233 199 / 0.26) 9deg, transparent 18deg),
+    conic-gradient(from 177deg at 62% -8%, transparent 0deg, rgb(201 215 255 / 0.2) 7deg, transparent 15deg),
+    conic-gradient(from 190deg at 88% -8%, transparent 0deg, rgb(255 233 199 / 0.24) 9deg, transparent 19deg);
+  filter: blur(8px);
+  transform-origin: 50% 0;
+  animation:
+    stage-lights-on 1.4s ease-out 0.3s backwards,
+    stage-sway 9s ease-in-out 1.7s infinite alternate;
+}
+/* Haze where the beams meet the floor, and film grain over the whole stage. */
+.stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 30% at 50% 100%, rgb(255 255 255 / 0.06), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  /* Plain blending on purpose: overlay washed the whole stage out. */
+  opacity: 0.07;
+}
+@keyframes stage-lights-on {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes stage-sway {
+  from {
+    transform: rotate(-2.5deg);
+  }
+  to {
+    transform: rotate(2.5deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage::before {
+    animation: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage,
+  .hero-word > span,
+  .home-hero-copy p,
+  .events-hero > p,
+  .home-hero-copy .btn,
+  .events-hero .search,
+  .home-hero .home-next {
+    animation: none;
+  }
+}
+
 .home-events {
   list-style: none;
   margin: 0 0 36px;
@@ -6467,10 +6618,10 @@ button.code-warning:focus-visible {
   box-shadow: 0 28px 70px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.06);
 }
 .modal[open] {
-  animation: modal-pop 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  animation: modal-pop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 .modal[open]::backdrop {
-  animation: modal-fade 0.2s ease-out;
+  animation: modal-fade 0.32s ease-out;
 }
 @keyframes modal-pop {
   from {
@@ -6487,9 +6638,29 @@ button.code-warning:focus-visible {
     opacity: 0;
   }
 }
+/* Closing: the window sinks and fades with its backdrop (see useAnimatedDialog). */
+.modal.is-closing {
+  animation: modal-out 0.25s ease-in forwards;
+}
+.modal.is-closing::backdrop {
+  animation: modal-fade-out 0.25s ease-in forwards;
+}
+@keyframes modal-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+@keyframes modal-fade-out {
+  to {
+    opacity: 0;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .modal[open],
-  .modal[open]::backdrop {
+  .modal[open]::backdrop,
+  .modal.is-closing,
+  .modal.is-closing::backdrop {
     animation: none;
   }
 }
@@ -6679,6 +6850,165 @@ button.code-warning:focus-visible {
   border-radius: var(--radius-lg);
   background: var(--bg);
   box-shadow: var(--card-shadow);
+}
+/*
+ * A finished event, in place of the tickets: its rating, thanks and a review form for the people who came, the
+ * attendees' comments for the organizers, and the organizer's recap as a chat of messages and pictures.
+ */
+.event-ended {
+  display: grid;
+  gap: 24px;
+  margin-top: 28px;
+}
+.event-ended h2,
+.event-ended h3 {
+  margin: 0;
+}
+.event-ended-head {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.stars {
+  letter-spacing: 1px;
+  color: var(--border);
+}
+.stars .is-on {
+  color: #e8a317;
+}
+.rating-summary {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 1.1rem;
+}
+.event-thanks {
+  margin: 0;
+  padding: 18px 22px;
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--success);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+/* The rating, and for an attendee the star button that opens the rating pop-up (any time). */
+.event-ended-rating {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.rate-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rate-star {
+  color: #e8a317;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.star-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.star-input button {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--border);
+  cursor: pointer;
+  transition: transform 0.12s ease, color 0.12s ease;
+}
+.star-input button.is-on {
+  color: #e8a317;
+}
+.star-input button:hover:not(:disabled) {
+  transform: scale(1.15);
+}
+.star-input button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* In the rating pop-up, Delete sits apart on the left. */
+.review-form .review-delete {
+  margin-right: auto;
+}
+.review-comments,
+.recap {
+  display: grid;
+  gap: 10px;
+}
+.review-comments p {
+  margin: 0;
+}
+.review-comment {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+/* The recap: one message after another, like a chat from the organizer, each with its date and time. */
+.recap-feed {
+  list-style: none;
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+}
+.recap-message {
+  display: grid;
+  gap: 6px;
+  max-width: 560px;
+}
+.recap-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.recap-delete {
+  margin-left: auto;
+  padding: 4px;
+}
+.recap-delete svg {
+  width: 15px;
+  height: 15px;
+}
+.recap-bubble {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 4px 18px 18px 18px;
+  background: var(--bg);
+}
+.recap-bubble img {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+}
+.recap-bubble p {
+  margin: 0;
+  padding: 12px 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.recap-composer {
+  display: grid;
+  gap: 8px;
+  max-width: 560px;
+}
+.recap-composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.recap-composer-actions .btn-primary {
+  margin-left: auto;
 }
 .event-posts-link {
   display: inline-block;

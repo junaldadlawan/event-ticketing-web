@@ -8,11 +8,15 @@ import { isEventOver } from '../utils/eventState';
 import { useAsync } from '../utils/useAsync';
 import { TicketCard } from './OrderDetailPage';
 
-/** Which tickets to show: "Unused" is a ticket still valid for entry, "Used" one already scanned at the door. */
-const FILTERS: { label: string; status?: TicketStatus; noun: string }[] = [
+/**
+ * Which tickets to show: "Unused" still gets you in, "Used" was scanned at the door, "Expired" was never used and its
+ * event is over. The API only knows the status (an expired ticket is still VALID), so `keep` splits VALID here.
+ */
+const FILTERS: { label: string; status?: TicketStatus; keep?: 'usable' | 'expired'; noun: string }[] = [
   { label: 'All', noun: 'tickets' },
-  { label: 'Unused', status: 'VALID', noun: 'unused tickets' },
+  { label: 'Unused', status: 'VALID', keep: 'usable', noun: 'unused tickets' },
   { label: 'Used', status: 'USED', noun: 'used tickets' },
+  { label: 'Expired', status: 'VALID', keep: 'expired', noun: 'expired tickets' },
 ];
 
 // The default order, sorted here because the API can't tell an expired ticket (valid, event over) from a usable one.
@@ -91,11 +95,12 @@ export function MyTicketsPage() {
 
   const { data, error, loading, reload } = useAsync(async () => {
     const upcomingFirst = sort === UPCOMING_FIRST;
-    // shortcut: "Upcoming first" loads the first 200 tickets and pages them here; ask the API for this order if
-    // anyone ever holds more.
+    // Sorted or filtered here (see above), so all of them are loaded and paged here.
+    // shortcut: the first 200 tickets only; ask the API for this order and filter if anyone ever holds more.
+    const local = upcomingFirst || Boolean(filter.keep);
     const all = await ticketApi.mine({
-      page: upcomingFirst ? 0 : page,
-      size: upcomingFirst ? 200 : PAGE_SIZE,
+      page: local ? 0 : page,
+      size: local ? 200 : PAGE_SIZE,
       sort: upcomingFirst ? 'e.startAt,asc' : sort,
       status: filter.status,
       eventId: eventId || undefined,
@@ -108,17 +113,19 @@ export function MyTicketsPage() {
     ]);
     const eventsById = new Map(events.map((e) => [e.id, e]));
     let tickets = all;
-    if (upcomingFirst) {
+    if (local) {
       const now = Date.now();
-      const usable = (t: (typeof all.content)[number]) => isUsable(t, eventsById.get(t.eventId), now);
+      const usable = (t: Ticket) => isUsable(t, eventsById.get(t.eventId), now);
+      const kept = filter.keep ? all.content.filter((t) => usable(t) === (filter.keep === 'usable')) : all.content;
       // Already soonest first: usable ones keep that, spent ones flip to latest first.
-      const ordered = [...all.content.filter(usable), ...all.content.filter((t) => !usable(t)).reverse()];
+      const ordered = upcomingFirst ? [...kept.filter(usable), ...kept.filter((t) => !usable(t)).reverse()] : kept;
       const pages = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE));
       tickets = {
         ...all,
         content: ordered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
         page,
         size: PAGE_SIZE,
+        totalElements: filter.keep ? ordered.length : all.totalElements,
         totalPage: pages,
         last: page >= pages - 1,
       };

@@ -1,7 +1,7 @@
 import { CustomerNotificationBell } from './CustomerNotificationBell';
 import { NotificationBell } from './NotificationBell';
 import { isAdmin as isAdminRole } from '../auth/roles';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fullName, isNewAccount } from '../utils/format';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -73,6 +73,20 @@ export function Layout() {
     // The customer home page is not a manager's landing screen: the management view starts at Event Management.
     if (isHost === true && !hideManagement && pathname === '/') navigate('/manage', { replace: true });
   }, [isHost, hideManagement, pathname, navigate]);
+
+  // Each new screen fades and rises in. Played on <main> (no remount), so a page keeps its state.
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const fade = mainRef.current?.animate(
+      [
+        { opacity: 0, transform: 'translateY(8px)' },
+        { opacity: 1, transform: 'none' },
+      ],
+      { duration: 400, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+    );
+    return () => fade?.cancel(); // a newer screen restarts it
+  }, [pathname]);
 
   async function confirmSwitch() {
     const next = switchingTo;
@@ -224,7 +238,7 @@ export function Layout() {
           ? "You'll see the app the way buyers do, without the Manage and Posts tabs. Switch back any time."
           : 'The Manage and Posts tabs come back, along with the Manage buttons on your events.'}
       </ConfirmDialog>
-      <main className="container main">
+      <main className="container main" ref={mainRef}>
         <BackButton />
         <Outlet />
       </main>

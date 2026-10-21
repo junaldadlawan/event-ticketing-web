@@ -107,3 +107,12 @@ export function isNewAccount(createdAt: string | null | undefined, now: number =
   const created = createdAt ? Date.parse(createdAt) : NaN;
   return Number.isFinite(created) && now - created >= 0 && now - created < NEW_ACCOUNT_DAYS * 24 * 60 * 60 * 1000;
 }
+
+/** A number of minutes in words: 90 -> "1 hour 30 minutes", 120 -> "2 hours", 45 -> "45 minutes". */
+export function minutesText(total: number): string {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  const hours = h ? `${h} hour${h === 1 ? '' : 's'}` : '';
+  const mins = m || !h ? `${m} minute${m === 1 ? '' : 's'}` : '';
+  return [hours, mins].filter(Boolean).join(' ');
+}

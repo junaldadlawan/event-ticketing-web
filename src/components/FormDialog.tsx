@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { useAnimatedDialog } from './useAnimatedDialog';
 
 /** A native <dialog> window with a title; `children` is the form (it should include its own buttons). */
 export function FormDialog({
@@ -13,13 +13,7 @@ export function FormDialog({
   onClose: () => void;
   children: ReactNode;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const d = dialog.current;
-    if (!d) return;
-    if (open && !d.open) d.showModal();
-    else if (!open && d.open) d.close();
-  }, [open]);
+  const { ref: dialog, rendered } = useAnimatedDialog(open);
   return (
     <dialog
       ref={dialog}
@@ -30,7 +24,7 @@ export function FormDialog({
         onClose();
       }}
     >
-      {open && (
+      {rendered && (
         <>
           <div className="modal-head">
             <h2>{title}</h2>

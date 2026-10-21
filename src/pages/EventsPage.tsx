@@ -5,6 +5,7 @@ import { eventApi } from '../api/endpoints';
 import { CategorySelect } from '../components/CategorySelect';
 import { SearchIcon } from '../components/DesignerIcons';
 import { EventCollection, ResultsBar, useEventView } from '../components/EventCollection';
+import { HeroWords } from '../components/HeroWords';
 import { HostCta } from '../components/HostCta';
 import { ManagedTag } from '../components/ManagedTag';
 import { Empty, ErrorBox, Pagination, Spinner } from '../components/ui';
@@ -37,8 +38,10 @@ export function EventsPage() {
 
   return (
     <>
-      <section className="slab events-hero">
-        <h1>Find your next event</h1>
+      <section className="slab stage events-hero">
+        <h1>
+          <HeroWords text="Find your next event" />
+        </h1>
         <p>Sunrise runs, noon markets, midnight sets: search them all.</p>
         <form className="search" onSubmit={onSearch}>
           <input

@@ -1,5 +1,10 @@
 import { ApiError, api, apiUrl } from './client';
 import type {
+  TicketSaleSettings,
+  EventReview,
+  EventReviewEntry,
+  EventReviewSummary,
+  RecapMessage,
   BackgroundFit,
   AppNotification,
   Cart,
@@ -227,6 +232,33 @@ export const postApi = {
   remove: (id: UUID) => api<void>(`/posts/${id}`, { method: 'DELETE' }),
 };
 
+/** Reviews of an ended event (BR-REVIEW-001). Only attendees (a used ticket) may write one, once it has ended. */
+export const reviewApi = {
+  /** Public: average and counts, no comments. */
+  summary: (eventId: UUID) => api<EventReviewSummary>(`/events/${eventId}/reviews/summary`),
+  /** The caller's own review (a 404 means none yet). */
+  mine: (eventId: UUID) => api<EventReview>(`/events/${eventId}/reviews/me`),
+  create: (eventId: UUID, rating: number, comment: string | null) =>
+    api<EventReview>(`/events/${eventId}/reviews`, { method: 'POST', body: { rating, comment } }),
+  update: (eventId: UUID, rating: number, comment: string | null) =>
+    api<EventReview>(`/events/${eventId}/reviews/me`, { method: 'PUT', body: { rating, comment } }),
+  remove: (eventId: UUID) => api<void>(`/events/${eventId}/reviews/me`, { method: 'DELETE' }),
+  /** Every review with its comment: the owner, organizers with ANALYTICS, or admins. */
+  list: (eventId: UUID, q: PageQuery = {}) =>
+    api<PageResponse<EventReviewEntry>>(`/events/${eventId}/reviews`, { query: { ...q } }),
+};
+
+/** An ended event's recap feed (BR-EVENT-RECAP-001): public to read; the owner or EVENTS organizers post. */
+export const recapApi = {
+  list: (eventId: UUID) => api<RecapMessage[]>(`/events/${eventId}/recap`),
+  /** Needs a body or a picture (a URL from uploadApi.image). */
+  post: (eventId: UUID, body: string | null, imageUrl: string | null) =>
+    api<RecapMessage>(`/events/${eventId}/recap`, { method: 'POST', body: { body, imageUrl } }),
+  /** The owner, an EVENTS organizer, or an admin. */
+  remove: (eventId: UUID, messageId: UUID) =>
+    api<void>(`/events/${eventId}/recap/${messageId}`, { method: 'DELETE' }),
+};
+
 export const uploadApi = {
   /** PNG/JPEG/WebP/GIF, max 5 MB. Returns an absolute URL. */
   image: (file: File) => {
@@ -354,6 +386,12 @@ export const payoutCardApi = {
 };
 
 /** Admin only: the payment gateway's fee, and who pays it. */
+/** Ticket-sale timing rules: any signed-in user may read them (the ticket type form shows them); admins change them. */
+export const ticketSaleSettingsApi = {
+  get: () => api<TicketSaleSettings>('/platform-settings/ticket-sales'),
+  update: (body: TicketSaleSettings) => api<TicketSaleSettings>('/platform-settings/ticket-sales', { method: 'PUT', body }),
+};
+
 export const gatewayFeeApi = {
   get: () => api<GatewayFeeSetting>('/payment-gateway-fee'),
   update: (body: GatewayFeeRequest) => api<GatewayFeeSetting>('/payment-gateway-fee', { method: 'PUT', body }),

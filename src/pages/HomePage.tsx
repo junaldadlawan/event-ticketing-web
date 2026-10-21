@@ -3,6 +3,7 @@ import { eventApi, postApi, ticketTypeApi } from '../api/endpoints';
 import type { Event, TicketType } from '../api/types';
 import { MoonIcon, SunIcon } from '../components/DesignerIcons';
 import { EventPostsFeed } from '../components/EventPostsFeed';
+import { HeroWords } from '../components/HeroWords';
 import { Empty, ErrorBox, Spinner } from '../components/ui';
 import { formatDateTime, formatMoney } from '../utils/format';
 import { useLivePosts } from '../utils/livePosts';
@@ -44,9 +45,11 @@ export function HomePage() {
 
   return (
     <>
-      <section className={`slab home-hero${next ? ' has-stub' : ''}`}>
+      <section className={`slab stage home-hero${next ? ' has-stub' : ''}`}>
         <div className="home-hero-copy">
-          <h1>Tickets for every hour of the day</h1>
+          <h1>
+            <HeroWords text="Tickets for every hour of the day" />
+          </h1>
           <p>
             {onSale.length > 0
               ? "From the dawn run to the midnight set, see what's on sale right now."

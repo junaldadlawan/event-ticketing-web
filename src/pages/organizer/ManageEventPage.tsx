@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
-import { eventApi, promoApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
+import { eventApi, promoApi, ticketSaleSettingsApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
 import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKind, TicketTypeUpdateRequest } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DeleteEventDialog } from '../../components/DeleteEventDialog';
@@ -13,7 +13,7 @@ import { EventFormDialog } from './CreateEventPage';
 import { SalesInsights } from '../../components/SalesInsights';
 import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon, TrashIcon } from '../../components/DesignerIcons';
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../components/ui';
-import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso } from '../../utils/format';
+import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso, minutesText } from '../../utils/format';
 import { sortTicketTypes } from '../../utils/ticketTypes';
 import { useHasPermission, useIsOrgManager } from '../../auth/useCanManage';
 import { useOrgNames } from '../../utils/useOrgNames';
@@ -475,10 +475,8 @@ function RowMenu({ label, children }: { label: string; children: (close: () => v
 /** Currencies a ticket can be priced in (all with cents, which the price field assumes). PHP first: PayMongo charges PHP. */
 const CURRENCIES = ['PHP', 'USD', 'EUR', 'GBP', 'SGD', 'AUD', 'CAD', 'HKD'].map((code) => ({ code }));
 
-/** Ticket sales close at the latest this long before the event starts. */
-const SALES_CLOSE_BEFORE_MS = 60 * 60 * 1000;
-/** And they must run at least this long, so a sale window is never a moment. */
-const MIN_SALE_WINDOW_MS = 60 * 60 * 1000;
+/** The platform's sale timing rules until the admin's settings load (the API's defaults; it checks them anyway). */
+const DEFAULT_SALE_SETTINGS = { salesCloseMinutesBeforeEvent: 60, minSaleDurationMinutes: 60 };
 
 /** Card colours to pick from (the supplied palette); null = follow the status colour. */
 const CARD_COLOURS: { name: string; value: string | null }[] = [
@@ -1038,8 +1036,12 @@ function TicketTypes({
   const [saleStartTime, setSaleStartTime] = useState('');
   const [saleEndDate, setSaleEndDate] = useState('');
   const [saleEndTime, setSaleEndTime] = useState('');
-  // The latest the sale can end: an hour before the event starts.
-  const latestEndMs = new Date(eventStartAt).getTime() - SALES_CLOSE_BEFORE_MS;
+  // The admin's sale timing rules: how long before the event sales close, and how long a sale must run.
+  const saleRules = useAsync(() => ticketSaleSettingsApi.get(), []).data ?? DEFAULT_SALE_SETTINGS;
+  const closeBefore = minutesText(saleRules.salesCloseMinutesBeforeEvent);
+  const minDuration = minutesText(saleRules.minSaleDurationMinutes);
+  // The latest the sale can end.
+  const latestEndMs = new Date(eventStartAt).getTime() - saleRules.salesCloseMinutesBeforeEvent * 60_000;
   const latestEnd = zonedParts(new Date(latestEndMs).toISOString(), timezone);
   const saleStartMs = startNow
     ? null
@@ -1053,14 +1055,25 @@ function TicketTypes({
     saleEndMs === null
       ? null
       : saleEndMs > latestEndMs
-        ? `Sales must end by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}, an hour before the event starts.`
-        : windowStartMs !== null && saleEndMs - windowStartMs < MIN_SALE_WINDOW_MS
+        ? `Sales must end by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}, ${closeBefore} before the event starts.`
+        : windowStartMs !== null && saleEndMs - windowStartMs < saleRules.minSaleDurationMinutes * 60_000
           ? startNow
-            ? 'Sales must run for at least an hour, so the end must be at least an hour from now.'
-            : 'Sales must run for at least an hour after they start.'
+            ? `Sales must run for at least ${minDuration}, so the end must be at least ${minDuration} from now.`
+            : `Sales must run for at least ${minDuration} after they start.`
           : null;
   const saleMissing = (!startNow && saleStartMs === null) || saleEndMs === null;
   const [maxPerOrder, setMaxPerOrder] = useState('');
+  // Blank = unlimited.
+  const [maxPerUser, setMaxPerUser] = useState('');
+  // Hours before the event the gates open; blank = not set.
+  const [gateHours, setGateHours] = useState('');
+  const gateMinutes = gateHours === '' ? null : Math.round(Number(gateHours) * 60);
+  const userLimit = maxPerUser === '' ? null : Number(maxPerUser);
+  // The API refuses a per-order limit above the per-buyer one (a blank per-order limit becomes the lower of 10 and it).
+  const limitWarning =
+    userLimit !== null && maxPerOrder !== '' && Number(maxPerOrder) > userLimit
+      ? "Max per order can't be more than the max per buyer."
+      : null;
   const [err, setErr] = useState<string | null>(null);
   // The "add" form lives in its own window (a modal dialog), opened by the button in the section header.
   const [adding, setAdding] = useState(false);
@@ -1084,6 +1097,8 @@ function TicketTypes({
     setSaleEndDate(latestEnd.date);
     setSaleEndTime(latestEnd.time);
     setMaxPerOrder('');
+    setMaxPerUser('');
+    setGateHours('');
     setAdding(true);
   }
 
@@ -1111,6 +1126,8 @@ function TicketTypes({
     setSaleEndDate(end.date);
     setSaleEndTime(end.time);
     setMaxPerOrder(String(tt.maxPerOrder));
+    setMaxPerUser(tt.maxPerUser == null ? '' : String(tt.maxPerUser));
+    setGateHours(tt.gateOpensMinutesBefore == null ? '' : String(tt.gateOpensMinutesBefore / 60));
     setAdding(true);
   }
   useEffect(() => {
@@ -1127,8 +1144,8 @@ function TicketTypes({
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setErr(null);
-    if (saleMissing || saleWarning) {
-      setErr(saleWarning ?? 'Fill in when the sale starts and ends.');
+    if (saleMissing || saleWarning || limitWarning) {
+      setErr(limitWarning ?? saleWarning ?? 'Fill in when the sale starts and ends.');
       return;
     }
     // "Start now": a new ticket type leaves the start out, so the API stamps it as it saves. An edit has to send
@@ -1149,6 +1166,8 @@ function TicketTypes({
         if (editStartAt !== new Date(editing.saleStartAt).toISOString()) body.saleStartAt = editStartAt;
         if (saleEndAt !== new Date(editing.saleEndAt).toISOString()) body.saleEndAt = saleEndAt;
         if (maxPerOrder && Number(maxPerOrder) !== editing.maxPerOrder) body.maxPerOrder = Number(maxPerOrder);
+        if (userLimit !== (editing.maxPerUser ?? null)) body.maxPerUser = userLimit;
+        if (gateMinutes !== (editing.gateOpensMinutesBefore ?? null)) body.gateOpensMinutesBefore = gateMinutes;
         if (Object.keys(body).length > 0) await ticketTypeApi.update(editing.id, body);
         reload();
         setAdding(false);
@@ -1162,6 +1181,8 @@ function TicketTypes({
         saleStartAt,
         saleEndAt,
         maxPerOrder: maxPerOrder ? Number(maxPerOrder) : undefined,
+        maxPerUser: userLimit,
+        gateOpensMinutesBefore: gateMinutes,
       });
       setName('');
       setPrice('');
@@ -1499,11 +1520,48 @@ function TicketTypes({
                   <input
                     type="number"
                     min={1}
+                    max={userLimit ?? undefined}
                     value={maxPerOrder}
                     onChange={(e) => setMaxPerOrder(e.target.value)}
                   />
                 </label>
               </div>
+              <div className="form-row">
+                <label>
+                  Max per buyer <span className="hint">(blank = unlimited)</span>
+                  <input
+                    type="number"
+                    min={1}
+                    placeholder="Unlimited"
+                    value={maxPerUser}
+                    onChange={(e) => setMaxPerUser(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Gates open <span className="hint">(hours before the event)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={24}
+                    step={0.25}
+                    placeholder="Not set"
+                    value={gateHours}
+                    onChange={(e) => setGateHours(e.target.value)}
+                  />
+                </label>
+              </div>
+              {limitWarning && (
+                <p className="hint warn" role="alert">
+                  {limitWarning}
+                </p>
+              )}
+              {gateMinutes !== null && gateMinutes >= 0 && gateMinutes <= 1440 && (
+                <p className="hint">
+                  Gates open at{' '}
+                  {formatDateTime(new Date(new Date(eventStartAt).getTime() - gateMinutes * 60_000).toISOString(), timezone)}
+                  {gateMinutes > 0 ? `, ${minutesText(gateMinutes)} before the event.` : ', when the event starts.'}
+                </p>
+              )}
               {editing && Number(quantity) !== editing.quantityTotal && (
                 <p className="hint">
                   Tickets already sold or held ({editing.quantityTotal - editing.quantityAvailable}) are kept. The
@@ -1565,7 +1623,7 @@ function TicketTypes({
               </div>
               <p className={`date-status small ${saleWarning ? 'warn' : 'muted'}`} role={saleWarning ? 'alert' : undefined}>
                 {saleWarning ??
-                  `Times in ${timezone}. Sales run at least an hour and close by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}, an hour before the event.`}
+                  `Times in ${timezone}. Sales run at least ${minDuration} and close by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}, ${closeBefore} before the event.`}
               </p>
             </fieldset>
           </div>
@@ -1575,8 +1633,8 @@ function TicketTypes({
             </button>
             <button
               className="btn btn-primary"
-              disabled={saleMissing || Boolean(saleWarning)}
-              title={saleWarning ?? (saleMissing ? 'Fill in when the sale starts and ends' : undefined)}
+              disabled={saleMissing || Boolean(saleWarning) || Boolean(limitWarning)}
+              title={limitWarning ?? saleWarning ?? (saleMissing ? 'Fill in when the sale starts and ends' : undefined)}
             >
               {editing ? 'Save changes' : 'Add ticket type'}
             </button>

@@ -619,7 +619,7 @@ export function TicketCard({
   if (layout === 'pass') {
     return (
       <article
-        className={`pass-card pass-${tone}${cardColour ? ' has-color' : ''}${torn ? ' is-used' : ''}${transferred ? ' is-given' : ''}${opensEvent ? ' is-link' : ''}`}
+        className={`pass-card pass-${tone}${cardColour ? ' has-color' : ''}${torn || expired ? ' is-used' : ''}${expired ? ' is-expired' : ''}${transferred ? ' is-given' : ''}${opensEvent ? ' is-link' : ''}`}
         style={cardColour ? ({ '--tt-color': cardColour } as CSSProperties) : undefined}
         {...openEvent}
       >
@@ -663,10 +663,11 @@ export function TicketCard({
           {event && <p>{formatDateTime(event.startAt, event.timezone)}</p>}
           {ticketType && <p>{ticketType.name} ticket</p>}
           {event && <Countdown startAt={event.startAt} endAt={event.endAt} />}
-          {/* Inked at the door; the "Used" chip already says it for screen readers. */}
-          {torn && (
-            <span className="pass-stamp" aria-hidden="true">
-              <strong>Admitted</strong>
+          {/* Inked at the door, or voided once the event is over unused; the status chip says it for screen readers. */}
+          {(torn || expired) && (
+            <span className={`pass-stamp${expired ? ' is-expired' : ''}`} aria-hidden="true">
+              <strong>{expired ? 'Expired' : 'Admitted'}</strong>
+              {expired && <span>Unused</span>}
               {checkIn && (
                 <span>
                   {new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: event?.timezone }).format(
@@ -690,7 +691,7 @@ export function TicketCard({
 
   return (
     <div
-      className={`tt-row ticket-owned tt-${tone}${transferred ? " is-given" : ""}${torn ? " is-torn" : ""}${layout === "list" ? " is-list" : ""}${cardColour ? " has-color" : ""}${opensEvent ? " is-link" : ""}`}
+      className={`tt-row ticket-owned tt-${tone}${transferred ? " is-given" : ""}${torn ? " is-torn" : ""}${torn || expired ? " is-spent" : ""}${layout === "list" ? " is-list" : ""}${cardColour ? " has-color" : ""}${opensEvent ? " is-link" : ""}`}
       style={cardColour ? ({ "--tt-color": cardColour } as CSSProperties) : undefined}
       {...openEvent}
     >

@@ -309,6 +309,10 @@ export interface TicketType {
   saleStartAt: string;
   saleEndAt: string;
   maxPerOrder: number;
+  /** Most tickets of this type one buyer may buy in total, across all their orders; null = unlimited. */
+  maxPerUser: number | null;
+  /** Gates open this many minutes before the event starts (shown to buyers only); null = not set. */
+  gateOpensMinutesBefore: number | null;
   /** While true the type can not be added to a cart (the organizer paused sales). */
   salesPaused: boolean;
   /** Where it sits in the event's list (0 = first), as arranged by the organizer. */
@@ -329,6 +333,15 @@ export interface TicketTypeCreateRequest {
   /** At least an hour before the event starts, or the API refuses it (400). */
   saleEndAt: string;
   maxPerOrder?: number;
+  /** Null or left out = unlimited. maxPerOrder can't be more (400). */
+  maxPerUser?: number | null;
+  gateOpensMinutesBefore?: number | null;
+}
+
+/** The ticket-sale timing rules an admin sets (BR-ADMIN-SETTINGS-002); they apply to new and edited sale windows. */
+export interface TicketSaleSettings {
+  salesCloseMinutesBeforeEvent: number;
+  minSaleDurationMinutes: number;
 }
 
 export interface CartItem {
@@ -419,6 +432,10 @@ export interface TicketTypeUpdateRequest {
   saleStartAt?: string;
   saleEndAt?: string;
   maxPerOrder?: number;
+  /** null = unlimited; left out leaves it as it is. */
+  maxPerUser?: number | null;
+  /** null = not set; left out leaves it as it is. */
+  gateOpensMinutesBefore?: number | null;
   /** true pauses sales, false resumes. */
   salesPaused?: boolean;
   /** "#RRGGBB"; null clears it, left out leaves it as it is. */
@@ -1031,4 +1048,43 @@ export interface AppNotification {
   status: 'PENDING' | 'SENT' | 'FAILED';
   sentAt: string | null;
   createdAt: string;
+}
+
+/** A review of an ended event (BR-REVIEW-001). The comment is only ever shown to its author and the organizers. */
+export interface EventReview {
+  id: UUID;
+  eventId: UUID;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A review as the organizers see it, with who wrote it. */
+export interface EventReviewEntry {
+  id: UUID;
+  rating: number;
+  comment: string | null;
+  reviewerName: string | null;
+  createdAt: string;
+}
+
+/** The public rating of an event: no comments, no reviewers. */
+export interface EventReviewSummary {
+  /** Null when nobody has rated it yet. */
+  averageRating: number | null;
+  count: number;
+  /** Reviews per star, keys "1" to "5". */
+  counts: Record<string, number>;
+}
+
+/** A message in an ended event's recap feed (BR-EVENT-RECAP-001). */
+export interface RecapMessage {
+  id: UUID;
+  body: string;
+  imageUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  authorName: string | null;
+  organizationName: string | null;
 }
