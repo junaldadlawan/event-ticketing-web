@@ -4146,8 +4146,13 @@ button.code-warning:focus-visible {
  * The tickets' shadow. Each card cuts its notches (and a used one its torn edge) with a mask, which also clips a
  * shadow of its own, so the shadow is a filter on the list around them: it follows every cut shape.
  */
-.tickets-panel > .stack {
+.tickets-panel > .stack,
+.ticket-groups .stack {
   filter: drop-shadow(0 4px 10px rgb(0 0 0 / 0.12));
+}
+/* My tickets under date headings ("Today", "Friday", "November"). */
+.ticket-groups > div + div {
+  margin-top: 28px;
 }
 .tickets-panel {
   background: var(--subtle);
