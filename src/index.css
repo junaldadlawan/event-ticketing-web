@@ -4164,6 +4164,57 @@ button.code-warning:focus-visible {
   border-color: var(--border);
 }
 
+/*
+ * Showing the tickets deals them out: they start as one pile at the top, slightly askew, and each slides out from
+ * under the one before into its place. Fast (the last card lands in about a second) and with no bounce. The z-index
+ * lives in the keyframes so it only applies while dealing and never covers a card's own menus afterwards.
+ */
+.ticket-deal-slot {
+  --tilt: -1.2deg;
+  position: relative;
+  animation: ticket-deal 0.52s cubic-bezier(0.2, 0.9, 0.1, 1) backwards;
+  animation-delay: calc(min(var(--i), 10) * 45ms);
+}
+.ticket-deal-slot:nth-child(even) {
+  --tilt: 0.9deg;
+}
+.my-tickets-grid > .ticket-deal-slot {
+  animation-name: ticket-deal-grid;
+}
+@keyframes ticket-deal {
+  from {
+    z-index: calc(40 - var(--i));
+    opacity: 0;
+    transform: translateY(calc(min(var(--i), 5) * -100% - 14px)) rotate(var(--tilt)) scale(0.97);
+  }
+  35% {
+    opacity: 1;
+  }
+  to {
+    z-index: calc(40 - var(--i));
+    transform: none;
+  }
+}
+@keyframes ticket-deal-grid {
+  from {
+    z-index: calc(40 - var(--i));
+    opacity: 0;
+    transform: translate(-18px, -30px) rotate(calc(var(--tilt) * 3)) scale(0.92);
+  }
+  35% {
+    opacity: 1;
+  }
+  to {
+    z-index: calc(40 - var(--i));
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticket-deal-slot {
+    animation: none;
+  }
+}
+
 .transfer-upload {
   align-self: flex-start;
   cursor: pointer;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { eventApi, orderApi, ticketApi, ticketTypeApi } from '../api/endpoints';
 import type { TicketStatus } from '../api/types';
@@ -122,20 +122,25 @@ export function MyTicketsPage() {
           <>
             <ResultsBar count={data.tickets.totalElements} noun="ticket" view={view} onViewChange={setView} />
             <section className="tickets-panel" aria-label="My tickets">
-              <div className={view === 'grid' ? 'my-tickets-grid' : 'stack'}>
-                {data.tickets.content.map((t) => (
-                  <TicketCard
-                    key={t.id}
-                    ticket={t}
-                    ticketType={data.types.get(t.ticketTypeId)}
-                    event={data.events.get(t.eventId)}
-                    layout={view === 'grid' ? 'pass' : 'list'}
-                    showOrderLink={myOrders.data?.has(t.orderId) ?? false}
-                    onChanged={() => {
-                      reload();
-                      events.reload(); // a transfer can take the last ticket of an event
-                    }}
-                  />
+              {/* Keyed on the view and the order, so each new arrangement deals the cards out again. */}
+              <div
+                key={view + data.tickets.content.map((t) => t.id).join()}
+                className={`ticket-deal ${view === 'grid' ? 'my-tickets-grid' : 'stack'}`}
+              >
+                {data.tickets.content.map((t, i) => (
+                  <div key={t.id} className="ticket-deal-slot" style={{ '--i': i } as CSSProperties}>
+                    <TicketCard
+                      ticket={t}
+                      ticketType={data.types.get(t.ticketTypeId)}
+                      event={data.events.get(t.eventId)}
+                      layout={view === 'grid' ? 'pass' : 'list'}
+                      showOrderLink={myOrders.data?.has(t.orderId) ?? false}
+                      onChanged={() => {
+                        reload();
+                        events.reload(); // a transfer can take the last ticket of an event
+                      }}
+                    />
+                  </div>
                 ))}
               </div>
             </section>
