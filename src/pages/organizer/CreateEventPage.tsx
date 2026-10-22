@@ -16,9 +16,13 @@ import { FormDialog } from '../../components/FormDialog';
 import { Empty, ErrorBox, Spinner } from '../../components/ui';
 import { useAsync } from '../../utils/useAsync';
 import { formatOffset, utcOffsetMinutes, zonedParts, zonedToIso } from '../../utils/zonedTime';
-import { TimeField } from '../../components/TimeField';
+import { MINUTES, StepSelect, TimeField } from '../../components/TimeField';
 import { isEventOver } from '../../utils/eventState';
 import { useOrgNames } from '../../utils/useOrgNames';
+import { formatDateTime, minutesText } from '../../utils/format';
+
+/** 0 to 24: the API takes a gate time of at most 24 hours (1440 minutes) before the start. */
+const GATE_HOURS = Array.from({ length: 25 }, (_, i) => String(i));
 
 /** The organizations the signed-in user can create events for (id + name). */
 async function loadMyOrganizations(isAdmin: boolean): Promise<{ id: string; name: string }[]> {
@@ -78,7 +82,7 @@ export function EventFormDialog({
 
 /**
  * Create a new event, or (with `existing`) edit one. After creation the API lets only the title, description,
- * category and images change, so editing shows the organization, venue, dates and timezone locked.
+ * category, images and gate time change, so editing shows the organization, venue, dates and timezone locked.
  */
 function EventForm({
   existing,
@@ -107,6 +111,8 @@ function EventForm({
   const [startTime, setStartTime] = useState(savedStart?.time ?? '00:00');
   const [endDate, setEndDate] = useState(savedEnd?.date ?? tomorrow);
   const [endTime, setEndTime] = useState(savedEnd?.time ?? '01:00');
+  // While ticked, the end date follows the start date (a new event starts ticked: both default to tomorrow).
+  const [sameDay, setSameDay] = useState(startDate === endDate);
   // A row's warning shows once focus has left that row (or on submit), not while it is being filled in.
   const [left, setLeft] = useState({ start: false, end: false });
   const leaveRow = (row: 'start' | 'end') => (e: FocusEvent<HTMLDivElement>) => {
@@ -117,6 +123,14 @@ function EventForm({
   );
   // The event's images, in order: uploaded files and pasted links alike.
   const [imageUrls, setImageUrls] = useState<string[]>(existing?.images ?? []);
+  // How long before the start the gates open, as hours and minutes; both blank = not set. Still editable after creation.
+  const savedGate = existing?.gateOpensMinutesBefore ?? null;
+  const [gateH, setGateH] = useState(savedGate == null ? '' : String(Math.floor(savedGate / 60)));
+  const [gateM, setGateM] = useState(savedGate == null ? '' : String(savedGate % 60).padStart(2, '0'));
+  // One part picked and the other still blank counts the blank one as 0.
+  const gateMinutes = gateH === '' && gateM === '' ? null : Number(gateH || 0) * 60 + Number(gateM || 0);
+  const gateWarning =
+    gateMinutes !== null && !(gateMinutes >= 0 && gateMinutes <= 1440) ? 'Gates can open at most 24 hours before the start.' : null;
   const [linkInput, setLinkInput] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -156,7 +170,7 @@ function EventForm({
 
   // Everything the form holds, compared with how it opened, to know whether closing would lose anything.
   const current = JSON.stringify([
-    orgChoice, title, description, category, venueId, startDate, startTime, endDate, endTime, timezone, imageUrls,
+    orgChoice, title, description, category, venueId, startDate, startTime, endDate, endTime, timezone, imageUrls, gateH, gateM,
   ]);
   const [initial] = useState(current);
   const dirty = current !== initial;
@@ -191,6 +205,13 @@ function EventForm({
   // A row's problem shows once focus has left it; otherwise the line under the dates gives the event's length.
   const shownWarning = (left.start && startWarning) || (left.end && endWarning) || null;
   const duration = startMs !== null && endMs !== null && endMs > startMs ? formatDuration(endMs - startMs) : null;
+  // Calendar days from today to the start date, both read in the event's timezone; only while the start is ahead.
+  const daysAway =
+    startMs !== null && startMs > now
+      ? (Date.parse(startDate) - Date.parse(zonedParts(new Date(now).toISOString(), timezone).date)) / 86_400_000
+      : null;
+  const startsIn =
+    daysAway === null ? null : daysAway === 0 ? 'Starts today' : daysAway === 1 ? 'Starts tomorrow' : `Starts in ${daysAway} days`;
 
   // Create stays off until every required field is filled in and the dates make sense.
   const missing = [
@@ -202,12 +223,12 @@ function EventForm({
     !locked && endMs === null && 'end date and time',
     !timezone && 'timezone',
   ].filter(Boolean);
-  const blocked = ended || missing.length > 0 || Boolean(startWarning || endWarning);
+  const blocked = ended || missing.length > 0 || Boolean(startWarning || endWarning || gateWarning);
   const blockedHint = ended
     ? 'This event has ended and can no longer be changed'
     : missing.length > 0
       ? `Fill in: ${missing.join(', ')}`
-      : (startWarning ?? endWarning ?? undefined);
+      : (startWarning ?? endWarning ?? gateWarning ?? undefined);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -220,7 +241,15 @@ function EventForm({
     try {
       const imageList = imageUrls;
       if (existing) {
-        onSaved(await eventApi.update(existing.id, { title, description, category, images: imageList }));
+        onSaved(
+          await eventApi.update(existing.id, {
+            title,
+            description,
+            category,
+            images: imageList,
+            ...(gateMinutes !== savedGate && { gateOpensMinutesBefore: gateMinutes }),
+          }),
+        );
         return;
       }
       const created = await eventApi.create({
@@ -234,6 +263,7 @@ function EventForm({
         endAt: zonedToIso(endDate, endTime, timezone),
         timezone,
         images: imageList.length ? imageList : undefined,
+        gateOpensMinutesBefore: gateMinutes,
       });
       onSaved(created);
     } catch (err) {
@@ -333,7 +363,16 @@ function EventForm({
               Start date
               <span className="required-mark" aria-hidden="true">*</span>
             </span>
-            <input type="date" required disabled={locked} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <input
+              type="date"
+              required
+              disabled={locked}
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                if (sameDay) setEndDate(e.target.value);
+              }}
+            />
           </label>
           <label>
             <span>
@@ -343,6 +382,21 @@ function EventForm({
             <TimeField value={startTime} onChange={setStartTime} disabled={locked} />
           </label>
         </div>
+        {!locked && (
+          // Not a <label>: only the box itself toggles it, not the whole row.
+          <div className="same-day">
+            <input
+              type="checkbox"
+              aria-label="Same-day event"
+              checked={sameDay}
+              onChange={(e) => {
+                setSameDay(e.target.checked);
+                if (e.target.checked) setEndDate(startDate);
+              }}
+            />
+            <span aria-hidden="true">Same-day event</span>
+          </div>
+        )}
         <div className="date-time-row" onBlur={leaveRow('end')}>
           <label>
             <span>
@@ -352,7 +406,8 @@ function EventForm({
             <input
               type="date"
               required
-              disabled={locked}
+              disabled={locked || sameDay}
+              title={!locked && sameDay ? 'Same as the start date. Untick "Same-day event" to change it.' : undefined}
               min={startDate || undefined}
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
@@ -368,7 +423,7 @@ function EventForm({
         </div>
         {/* Always one line tall, so the form never jumps: the date problem, else how long the event lasts. */}
         <p className={`date-status small ${shownWarning ? 'warn' : 'muted'}`} role={shownWarning ? 'alert' : undefined}>
-          {shownWarning ?? (duration ? `Duration: ${duration}` : '\u00a0')}
+          {shownWarning ?? ([duration && `Duration: ${duration}`, startsIn].filter(Boolean).join(' · ') || '\u00a0')}
         </p>
         <label>
           <span>
@@ -383,6 +438,38 @@ function EventForm({
             ))}
           </select>
         </label>
+        <label>
+          <span>
+            Gates open <span className="hint">(before the start, optional)</span>
+          </span>
+          {/* The start and end time pickers' dropdowns, as hours and minutes. */}
+          <span className="time-field gate-field">
+            <StepSelect label="Hours" placeholder="--" options={GATE_HOURS} value={gateH} onChange={setGateH} disabled={ended} required={false} />
+            <span className="muted small">hr</span>
+            <StepSelect label="Minutes" placeholder="--" options={MINUTES} value={gateM} onChange={setGateM} disabled={ended} required={false} />
+            <span className="muted small">min</span>
+            {gateMinutes !== null && !ended && (
+              <button
+                type="button"
+                className="btn-link"
+                onClick={() => {
+                  setGateH('');
+                  setGateM('');
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </span>
+        </label>
+        {(gateWarning || (gateMinutes !== null && startMs !== null)) && (
+          <p className={`hint${gateWarning ? ' warn' : ''}`} role={gateWarning ? 'alert' : undefined}>
+            {gateWarning ??
+              `Gates open at ${formatDateTime(new Date(startMs! - gateMinutes! * 60_000).toISOString(), timezone)}${
+                gateMinutes! > 0 ? `, ${minutesText(gateMinutes!)} before the start.` : ', when the event starts.'
+              }`}
+          </p>
+        )}
         <div className="event-images">
           <div className="row-between">
             <span>

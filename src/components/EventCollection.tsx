@@ -5,7 +5,8 @@ import { Link } from 'react-router-dom';
 import type { Event } from '../api/types';
 import { formatDateTime, humanize } from '../utils/format';
 import { isDaytime } from '../utils/timeOfDay';
-import { isEventOver } from '../utils/eventState';
+import { isEventOver, startsSoonIn } from '../utils/eventState';
+import { useNow } from '../utils/useNow';
 import { MoonIcon, SunIcon } from './DesignerIcons';
 import { EventImage } from './EventImage';
 import { StatusBadge } from './ui';
@@ -95,18 +96,20 @@ export function EventCollection({
   /** Show each event as a ticket (sun or moon stub by time of day) instead of a picture card. */
   tickets?: boolean;
 }) {
+  const now = useNow(1000).getTime(); // ticks the "Starts in" countdowns
   if (tickets) {
     return (
       <ul className={`event-tickets${view === 'list' ? ' is-list' : ''}`}>
         {events.map((ev) => {
           const day = isDaytime(ev);
           const over = isEventOver(ev);
+          const soon = over ? null : startsSoonIn(ev, now);
           const image = assetUrl(ev.images?.[0]);
           // The picture goes on top; the day / night gradient behind it shows if the picture is missing or fails to load.
           const sky = day ? 'linear-gradient(160deg, #ffd37a, #ff8e7a)' : 'linear-gradient(160deg, #8c6bea, #1b1b5e)';
           return (
             <li key={ev.id}>
-              <Link to={hrefFor(ev)} className={`event-ticket ${day ? 'is-day' : 'is-night'}${over ? ' is-completed' : ''}`}>
+              <Link to={hrefFor(ev)} className={`event-ticket ${day ? 'is-day' : 'is-night'}${over ? ' is-completed' : ''}${soon?.shake ? ' is-soon' : ''}`}>
                 <span
                   className={`event-ticket-stub${image ? ' has-image' : ''}`}
                   style={image ? { backgroundImage: `url("${image}"), ${sky}` } : undefined}
@@ -120,6 +123,7 @@ export function EventCollection({
                     <span className="muted small">{humanize(ev.category)}</span>
                     <span className="card-tags">
                       {tag?.(ev)}
+                      {soon && <SoonBadge in={soon.left} />}
                       <StatusBadge status={over ? 'COMPLETED' : ev.status} />
                     </span>
                   </span>
@@ -140,14 +144,17 @@ export function EventCollection({
     <div className={view === 'grid' ? 'event-grid' : 'event-list'}>
       {events.map((ev) => {
         const over = isEventOver(ev);
+        const soon = over ? null : startsSoonIn(ev, now);
+        const draft = ev.status === 'DRAFT';
         return (
-          <Link key={ev.id} to={hrefFor(ev)} className={`card event-card${over ? ' is-completed' : ''}`}>
+          <Link key={ev.id} to={hrefFor(ev)} className={`card event-card${over ? ' is-completed' : ''}${soon?.shake ? ' is-soon' : ''}${draft ? ' is-draft' : ''}`}>
             <EventImage event={ev} size={view === 'grid' ? 'md' : 'sm'} />
             <div className="card-body">
               <div className="row-between">
                 <span className="eyebrow">{ev.category}</span>
                 <span className="card-tags">
                   {tag?.(ev)}
+                  {soon && <SoonBadge in={soon.left} />}
                   <StatusBadge status={over ? 'COMPLETED' : ev.status} />
                 </span>
               </div>
@@ -157,11 +164,21 @@ export function EventCollection({
               {extra && <p className="muted small">{extra(ev)}</p>}
             </div>
             {over && <CompletedStamp />}
+            {draft && (
+              <span className="draft-flag" aria-hidden="true">
+                Not published yet
+              </span>
+            )}
           </Link>
         );
       })}
     </div>
   );
+}
+
+/** "Starts in 3h" on an event that begins within a day; the card itself gives a little shake (see .is-soon). */
+function SoonBadge({ in: left }: { in: string }) {
+  return <span className="soon-badge">🔥 Starts in {left}</span>;
 }
 
 /** A big rubber-stamp "Completed" across the card of an event that has ended (the badge carries the text for screen readers). */

@@ -20,6 +20,7 @@ export function ProfileTabs({ children }: { children: ReactNode }) {
             <NavLink to="/profile/payment">Payment</NavLink>
           </>
         )}
+        <NavLink to="/profile/notifications">Notifications</NavLink>
       </nav>
       <div className="settings-panel">{children}</div>
     </div>

@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
+import { assetUrl } from '../api/client';
 import { eventApi, postApi, ticketTypeApi } from '../api/endpoints';
 import type { Event, TicketType } from '../api/types';
 import { MoonIcon, SunIcon } from '../components/DesignerIcons';
+import { EventCollection } from '../components/EventCollection';
 import { EventPostsFeed } from '../components/EventPostsFeed';
 import { HeroWords } from '../components/HeroWords';
 import { Empty, ErrorBox, Spinner } from '../components/ui';
@@ -10,11 +12,23 @@ import { useLivePosts } from '../utils/livePosts';
 import { isDaytime } from '../utils/timeOfDay';
 import { useAsync } from '../utils/useAsync';
 import { saleState } from './EventLandingPage';
-import { isEventOver } from '../utils/eventState';
+import { formatDuration as duration, isEventOver, isOngoing } from '../utils/eventState';
+import { useNow } from '../utils/useNow';
 
 interface OnSale {
   event: Event;
   live: TicketType[];
+}
+
+/** The stub's picture, with the day / night gradient behind it for an event without one (same as the Events page). */
+function stubProps(event: Event, day: boolean) {
+  const image = assetUrl(event.images?.[0]);
+  const sky = day ? 'linear-gradient(160deg, #ffd37a, #ff8e7a)' : 'linear-gradient(160deg, #8c6bea, #1b1b5e)';
+  return {
+    className: `event-ticket-stub${image ? ' has-image' : ''}`,
+    style: image ? { backgroundImage: `url("${image}"), ${sky}` } : undefined,
+    title: day ? 'Daytime event' : 'Evening event',
+  };
 }
 
 const cheapest = (live: TicketType[]) => live.reduce((a, b) => (b.price.amount < a.price.amount ? b : a));
@@ -37,11 +51,17 @@ export function HomePage() {
   useLivePosts(() => postApi.list({ page: 0, size: 20 }), postsQuery.setData);
   const posts = postsQuery.data?.content ?? [];
 
+  const now = useNow().getTime(); // keeps the ongoing events' progress current
+
   if (loading) return <Spinner />;
   if (error || !data) return <ErrorBox message={error ?? 'Could not load the home page'} />;
 
   const onSale = data.filter((d) => d.live.length > 0);
   const next = onSale[0]; // events come soonest first
+  // Already started and not over yet.
+  const ongoing = data
+    .map((d) => d.event)
+    .filter((e) => isOngoing(e, now));
 
   return (
     <>
@@ -83,6 +103,23 @@ export function HomePage() {
         )}
       </section>
 
+      {ongoing.length > 0 && (
+        <>
+          <h2>Happening now</h2>
+          <EventCollection
+            events={ongoing}
+            view="list"
+            hrefFor={(ev) => `/events/${ev.id}`}
+            tickets
+            extra={(ev) => {
+              const start = new Date(ev.startAt).getTime();
+              const end = new Date(ev.endAt).getTime();
+              return `Started ${duration(now - start)} ago · ${duration(end - now)} left · runs ${duration(end - start)}`;
+            }}
+          />
+        </>
+      )}
+
       <h2>On sale now</h2>
       {onSale.length === 0 ? (
         <Empty>
@@ -96,7 +133,7 @@ export function HomePage() {
             return (
               <li key={event.id}>
                 <Link to={`/events/${event.id}`} className={`event-ticket ${day ? 'is-day' : 'is-night'}`}>
-                  <span className="event-ticket-stub" title={day ? 'Daytime event' : 'Evening event'}>
+                  <span {...stubProps(event, day)}>
                     {day ? <SunIcon /> : <MoonIcon />}
                     <span className="sr-only">{day ? 'Daytime event' : 'Evening event'}</span>
                   </span>

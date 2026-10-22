@@ -205,7 +205,9 @@ export type OrganizationPermission =
   | 'ORDERS_REFUNDS'
   | 'FINANCE'
   | 'ANALYTICS'
-  | 'TEAM';
+  | 'TEAM'
+  /** Upload and remove versions of the scanner app (shared by every organization); the only permission check-in staff can hold. */
+  | 'SCANNER_APP';
 
 export type OrganizationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
 
@@ -273,6 +275,8 @@ export interface Event {
   images: string[] | null;
   status: EventStatus;
   ticketPrefix: string;
+  /** Gates open this many minutes before the start (BR-TICKET-GATE-001, display only); null = not set. */
+  gateOpensMinutesBefore: number | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -287,6 +291,8 @@ export interface EventCreateRequest {
   endAt: string;
   timezone: string;
   images?: string[];
+  /** 0-1440; null or left out = not set. */
+  gateOpensMinutesBefore?: number | null;
 }
 
 export interface EventUpdateRequest {
@@ -294,6 +300,8 @@ export interface EventUpdateRequest {
   description?: string;
   category?: string;
   images?: string[];
+  /** null clears it; left out leaves it as it is. */
+  gateOpensMinutesBefore?: number | null;
 }
 
 export type TicketTypeKind = 'GENERAL_ADMISSION' | 'RESERVED_SEATING';
@@ -311,8 +319,6 @@ export interface TicketType {
   maxPerOrder: number;
   /** Most tickets of this type one buyer may buy in total, across all their orders; null = unlimited. */
   maxPerUser: number | null;
-  /** Gates open this many minutes before the event starts (shown to buyers only); null = not set. */
-  gateOpensMinutesBefore: number | null;
   /** While true the type can not be added to a cart (the organizer paused sales). */
   salesPaused: boolean;
   /** Where it sits in the event's list (0 = first), as arranged by the organizer. */
@@ -335,7 +341,6 @@ export interface TicketTypeCreateRequest {
   maxPerOrder?: number;
   /** Null or left out = unlimited. maxPerOrder can't be more (400). */
   maxPerUser?: number | null;
-  gateOpensMinutesBefore?: number | null;
 }
 
 /** The ticket-sale timing rules an admin sets (BR-ADMIN-SETTINGS-002); they apply to new and edited sale windows. */
@@ -434,8 +439,6 @@ export interface TicketTypeUpdateRequest {
   maxPerOrder?: number;
   /** null = unlimited; left out leaves it as it is. */
   maxPerUser?: number | null;
-  /** null = not set; left out leaves it as it is. */
-  gateOpensMinutesBefore?: number | null;
   /** true pauses sales, false resumes. */
   salesPaused?: boolean;
   /** "#RRGGBB"; null clears it, left out leaves it as it is. */
@@ -1035,9 +1038,26 @@ export type NotificationType =
   | 'WAITLIST_AVAILABILITY'
   | 'REFUND_CONFIRMATION'
   | 'DISPUTE_RESOLVED'
-  | 'ACCOUNT_MODERATION_ACTION';
+  | 'ACCOUNT_MODERATION_ACTION'
+  | 'GATE_OPEN'
+  | 'EVENT_STARTING'
+  | 'REVIEW_REQUEST';
 
-/** One notification sent to the signed-in user (GET /users/me/notifications). The API sends the kind, not the wording. */
+/** The types a user may turn off (BR-NOTIFY-002); the rest are always sent. */
+export type OptionalNotificationType =
+  | 'EVENT_REMINDER'
+  | 'GATE_OPEN'
+  | 'EVENT_STARTING'
+  | 'REVIEW_REQUEST'
+  | 'EVENT_CHANGE'
+  | 'WAITLIST_AVAILABILITY';
+
+/** GET/PUT /users/me/notification-preferences. All on by default; a PUT may send only some. */
+export interface NotificationPreferences {
+  preferences: Partial<Record<OptionalNotificationType, boolean>>;
+}
+
+/** One notification sent to the signed-in user (GET /users/me/notifications). Only the lifecycle types carry their own wording. */
 export interface AppNotification {
   id: UUID;
   type: NotificationType;
@@ -1046,6 +1066,10 @@ export interface AppNotification {
   relatedObjectType: string | null;
   relatedObjectId: UUID | null;
   status: 'PENDING' | 'SENT' | 'FAILED';
+  /** Server-written text for the event lifecycle types ("Bantayog 2026 is tomorrow at 6:18 PM."); null for the older types. */
+  message: string | null;
+  /** The event a lifecycle notification is about. */
+  eventId: UUID | null;
   sentAt: string | null;
   createdAt: string;
 }
@@ -1087,4 +1111,62 @@ export interface RecapMessage {
   updatedAt: string;
   authorName: string | null;
   organizationName: string | null;
+}
+
+/** One scan attempt on an event's history (GET /events/{id}/check-in-records): scan facts only, no buyer details. */
+export interface CheckInHistoryItem {
+  id: UUID;
+  ticketId: UUID | null;
+  ticketNumber: string | null;
+  ticketTypeId: UUID | null;
+  ticketTypeName: string | null;
+  /** SCANNER_DEVICE: scanned online. RECONCILED_FALLBACK: scanned offline and uploaded afterwards. */
+  sourceType: 'SCANNER_DEVICE' | 'RECONCILED_FALLBACK';
+  /** The scanner device id, or the fallback scan id. */
+  sourceId: UUID;
+  /** The scanner device's label; null for a reconciled fallback scan. */
+  scannerName: string | null;
+  scannerLocation: string | null;
+  scannedAt: string;
+  result: 'VALID' | 'DUPLICATE' | 'INVALID' | 'WRONG_EVENT';
+}
+
+/** Counts of an event's scans for the same filters as the history (GET /events/{id}/check-in-summary). */
+export interface CheckInSummary {
+  total: number;
+  valid: number;
+  duplicate: number;
+  invalid: number;
+  wrongEvent: number;
+  /** Scans by a scanner device. */
+  online: number;
+  /** Fallback scans reconciled later. */
+  offline: number;
+  /** Tickets with at least one VALID scan. */
+  uniqueTicketsAdmitted: number;
+  /** Tickets of the event that are not refunded or cancelled. */
+  ticketsAdmittable: number;
+}
+
+export interface ScannerDeviceSummary {
+  id: UUID;
+  name: string;
+  location: string | null;
+  status: 'ACTIVE' | 'REVOKED';
+}
+
+/** One uploaded version of the scanner app, an Android APK (GET /scanner-app/latest, GET /admin/scanner-app). */
+export interface ScannerApp {
+  id: UUID;
+  versionName: string;
+  /** The Android versionCode; the newest upload is the highest one. */
+  versionCode: number;
+  /** Bytes. */
+  size: number;
+  /** Hex SHA-256 of the file, to check what was downloaded. */
+  sha256: string;
+  uploadedAt: string;
+  uploadedBy: UUID;
+  releaseNotes: string | null;
+  downloadUrl: string;
 }

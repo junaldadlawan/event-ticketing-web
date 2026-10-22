@@ -22,9 +22,12 @@ import { MyTicketsPage } from './pages/MyTicketsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ManageEventPage } from './pages/organizer/ManageEventPage';
 import { CustomerPaymentPage } from './pages/CustomerPaymentPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { ManageFinancePage } from './pages/organizer/ManageFinancePage';
 import { ManageSettingsPage } from './pages/organizer/ManageSettingsPage';
 import { TeamPage } from './pages/organizer/TeamPage';
+import { ScannerPage } from './pages/organizer/ScannerPage';
+import { AdminScannerPage } from './pages/admin/AdminScannerPage';
 import { ManageEventsPage } from './pages/organizer/ManageEventsPage';
 import { TicketDesignerPage } from './pages/organizer/TicketDesignerPage';
 
@@ -48,7 +51,8 @@ export default function App() {
         <Route path="orders/:orderId" element={<RequireAuth><OrderDetailPage /></RequireAuth>} />
         <Route path="profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="profile/payment" element={<RequireAuth><CustomerPaymentPage /></RequireAuth>} />
-        <Route path="settings" element={<Navigate to="/profile/payment" replace />} />
+        <Route path="profile/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
+        <Route path="settings"element={<Navigate to="/profile/payment" replace />} />
         <Route path="apply" element={<RequireAuth><ApplyOrganizerPage /></RequireAuth>} />
 
         <Route path="admin/posts" element={<RequireAuth><AdminPostsPage /></RequireAuth>} />
@@ -59,6 +63,8 @@ export default function App() {
         <Route path="admin/payouts/generate" element={<RequireAuth><AdminGeneratePayoutPage /></RequireAuth>} />
         <Route path="admin/settings" element={<RequireAuth><AdminSettingsPage /></RequireAuth>} />
         <Route path="admin/settings/:section" element={<RequireAuth><AdminSettingsPage /></RequireAuth>} />
+        <Route path="admin/scanner" element={<RequireAuth><AdminScannerPage /></RequireAuth>} />
+        <Route path="manage/scanner" element={<RequireAuth><ScannerPage /></RequireAuth>} />
         <Route path="manage" element={<RequireAuth><ManageEventsPage /></RequireAuth>} />
         <Route path="manage/team" element={<RequireAuth><TeamPage /></RequireAuth>} />
         <Route path="manage/finance" element={<RequireAuth><ManageFinancePage /></RequireAuth>} />

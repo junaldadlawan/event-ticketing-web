@@ -8,7 +8,7 @@ import { formatDateTime } from '../utils/format';
 const EVERY_MS = 5 * 60_000;
 const SHOWN = 10;
 
-/** What each kind of notification says. The API sends only the kind and what it is about, not the wording. */
+/** What each kind of notification says. The lifecycle types also carry the API's own message, shown instead of the hint. */
 const TEXT: Record<NotificationType, { title: string; hint: string }> = {
   ORDER_CONFIRMATION: { title: 'Order confirmed', hint: 'Your tickets are ready.' },
   PAYMENT_RECEIPT: { title: 'Payment received', hint: 'Your receipt is on the order.' },
@@ -19,10 +19,14 @@ const TEXT: Record<NotificationType, { title: string; hint: string }> = {
   REFUND_CONFIRMATION: { title: 'Refund issued', hint: 'Your refund is on its way.' },
   DISPUTE_RESOLVED: { title: 'Your report was reviewed', hint: 'We have an outcome for your problem report.' },
   ACCOUNT_MODERATION_ACTION: { title: 'Account update', hint: 'There was a change to your account.' },
+  GATE_OPEN: { title: 'Gates are open', hint: 'You can head in now.' },
+  EVENT_STARTING: { title: 'Starting now', hint: 'Your event is starting.' },
+  REVIEW_REQUEST: { title: 'How was it?', hint: 'Rate the event you attended.' },
 };
 
 /** Where a notification opens: the order or event it is about, else the list that holds it. */
 function target(n: AppNotification): string | null {
+  if (n.eventId) return `/events/${n.eventId}`;
   if (n.relatedObjectType === 'Order' && n.relatedObjectId) return `/orders/${n.relatedObjectId}`;
   if (n.relatedObjectType === 'Event' && n.relatedObjectId) return `/events/${n.relatedObjectId}`;
   if (n.type === 'REFUND_CONFIRMATION' || n.type === 'DISPUTE_RESOLVED') return '/orders';
@@ -30,24 +34,24 @@ function target(n: AppNotification): string | null {
   return null;
 }
 
-const seenKey = (userId: string) => `et.notificationsSeen.${userId}`;
-const readSeen = (userId: string) => {
+const readKey = (userId: string) => `et.notificationsRead.${userId}`;
+const readIds = (userId: string): string[] => {
   try {
-    return localStorage.getItem(seenKey(userId)) ?? '';
+    return JSON.parse(localStorage.getItem(readKey(userId)) ?? '[]');
   } catch {
-    return '';
+    return [];
   }
 };
 
 /**
  * The bell in the customer's top bar: the latest notifications sent to them (GET /users/me/notifications). The API has
- * no read flag, so "new" means newer than the last time this browser opened the bell.
+ * no read flag, so "read" means this browser opened that notification.
  */
 export function CustomerNotificationBell({ userId }: { userId: string }) {
   const navigate = useNavigate();
   const [items, setItems] = useState<AppNotification[]>([]);
   const [open, setOpen] = useState(false);
-  const [seen, setSeen] = useState(() => readSeen(userId));
+  const [read, setRead] = useState(() => new Set(readIds(userId)));
   const root = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -82,32 +86,34 @@ export function CustomerNotificationBell({ userId }: { userId: string }) {
     };
   }, [open]);
 
-  const unread = items.filter((n) => n.createdAt > seen).length;
+  // Closing the bell (however it closes) marks what it showed as read; they stay marked as new while it is open.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  useEffect(() => {
+    if (!open) return;
+    return () => {
+      const ids = itemsRef.current.map((n) => n.id);
+      setRead((r) => {
+        const next = new Set([...r, ...ids]);
+        try {
+          localStorage.setItem(readKey(userId), JSON.stringify([...next].slice(-100)));
+        } catch {
+          // not saved: they show as new again next visit
+        }
+        return next;
+      });
+    };
+  }, [open, userId]);
+
+  const unread = items.filter((n) => !read.has(n.id)).length;
 
   function toggle() {
     if (!open) void load();
-    // Opening the bell is what "reads" them: the dot goes away, the new ones stay marked until it is closed.
-    if (open && items[0]) {
-      try {
-        localStorage.setItem(seenKey(userId), items[0].createdAt);
-      } catch {
-        // not saved: the dot comes back next visit
-      }
-      setSeen(items[0].createdAt);
-    }
     setOpen((o) => !o);
   }
 
   function go(n: AppNotification) {
     const to = target(n);
-    if (items[0]) {
-      try {
-        localStorage.setItem(seenKey(userId), items[0].createdAt);
-      } catch {
-        // not saved
-      }
-      setSeen(items[0].createdAt);
-    }
     setOpen(false);
     if (to) navigate(to);
   }
@@ -124,7 +130,11 @@ export function CustomerNotificationBell({ userId }: { userId: string }) {
         onClick={toggle}
       >
         <BellIcon />
-        {unread > 0 && <span className="bell-dot" aria-hidden="true" />}
+        {unread > 0 && !open && (
+          <span className="bell-dot bell-count" aria-hidden="true">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
       </button>
       {open && (
         <div className="popover-panel bell-panel" role="menu">
@@ -140,11 +150,14 @@ export function CustomerNotificationBell({ userId }: { userId: string }) {
                     key={n.id}
                     type="button"
                     role="menuitem"
-                    className={`bell-item${n.createdAt > seen ? ' is-unread' : ''}`}
+                    className={`bell-item${read.has(n.id) ? '' : ' is-unread'}`}
                     onClick={() => go(n)}
                   >
-                    <strong>{text.title}</strong>
-                    {text.hint && <span className="muted small">{text.hint}</span>}
+                    <strong>
+                      {text.title}
+                      {!read.has(n.id) && <span className="bell-new">New</span>}
+                    </strong>
+                    {(n.message ?? text.hint) && <span className="muted small">{n.message ?? text.hint}</span>}
                     <span className="muted small">{formatDateTime(n.createdAt)}</span>
                   </button>
                 );

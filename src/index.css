@@ -4126,6 +4126,55 @@ button.code-warning:focus-visible {
   aspect-ratio: 1;
   image-rendering: pixelated;
 }
+.qr-pass-scanned {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: min(240px, 100%);
+  aspect-ratio: 1;
+  font-size: 2rem;
+  font-weight: 800;
+  font-stretch: 75%;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #15803d;
+}
+.qr-pass-check {
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  font-size: 4rem;
+  line-height: 1;
+  animation: qr-scanned-pop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.modal.qr-pass.scanned .qr-pass-top {
+  background: #15803d;
+  transition: background 0.4s;
+}
+.modal.qr-pass.scanned .qr-pass-top p {
+  color: #dcfce7;
+}
+.modal.qr-pass.scanned .qr-pass-number {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+@keyframes qr-scanned-pop {
+  from {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qr-pass-check {
+    animation: none;
+  }
+}
 .qr-pass-number {
   font-size: 2rem;
   font-weight: 800;
@@ -4711,6 +4760,25 @@ button.code-warning:focus-visible {
 }
 .profile-row dd:last-child {
   grid-column: 2 / -1;
+}
+.profile-notifications {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 32px;
+}
+.profile-notifications h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.profile-notifications .check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.profile-notifications .check-row input {
+  width: auto;
+  margin: 0;
 }
 .profile-inline {
   display: flex;
@@ -8123,6 +8191,23 @@ button.code-warning:focus-visible {
   text-align-last: center;
   cursor: pointer;
 }
+/* "Same-day event" (event form): only the box is clickable, the text beside it is not. */
+.same-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.same-day input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Gates open (event form): hours and minutes pickers, each followed by its unit. */
+.gate-field {
+  align-items: center;
+  flex-wrap: wrap;
+}
 .time-steps {
   display: flex;
   flex-direction: column;
@@ -8378,4 +8463,353 @@ button.code-warning:focus-visible {
   .cart-hold {
     white-space: normal;
   }
+}
+
+/* An event that starts within a day: a pill and a short shake now and then. */
+.soon-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff1e6;
+  color: #c2410c;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.event-card.is-soon,
+.pass-card.is-soon,
+.tt-row.is-soon,
+.event-ticket.is-soon {
+  animation: soon-shake 5s ease-in-out infinite;
+}
+.event-card.is-soon:hover,
+.pass-card.is-soon:hover,
+.tt-row.is-soon:hover,
+.event-ticket.is-soon:hover {
+  animation: none;
+}
+@keyframes soon-shake {
+  0%,
+  86%,
+  100% {
+    transform: none;
+  }
+  88% {
+    transform: translateX(-3px) rotate(-0.8deg);
+  }
+  90% {
+    transform: translateX(3px) rotate(0.8deg);
+  }
+  92% {
+    transform: translateX(-2px) rotate(-0.5deg);
+  }
+  94% {
+    transform: translateX(2px) rotate(0.5deg);
+  }
+  96% {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .event-card.is-soon,
+  .pass-card.is-soon,
+  .tt-row.is-soon,
+  .event-ticket.is-soon {
+    animation: none;
+  }
+}
+
+/* A notification not opened yet stands out; an opened one fades back. */
+.bell-item.is-unread {
+  border-left: 4px solid var(--warn);
+  background: var(--bg, #fff);
+}
+.bell-item:not(.is-unread) {
+  opacity: 0.7;
+}
+.bell-new {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--warn);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+/* The bell's red dot with the number of unopened notifications in it. */
+.bell-dot.bell-count {
+  top: -2px;
+  right: -2px;
+  display: grid;
+  place-items: center;
+  width: auto;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+
+/* The search row: every control the same height. */
+.events-hero .search {
+  align-items: stretch;
+}
+
+.qr-pass-body .qr-pass-invite {
+  max-width: 28ch;
+  color: #15803d;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.events-section-gap {
+  margin-top: 32px;
+}
+
+/*
+ * The grid card as a paper ticket: the slab and the white stub are cut apart by a tear line with a notch on each side
+ * (each half cuts its own notches with a mask, as on the QR pass); the shadow is a filter so it follows the cut shape.
+ */
+.pass-card {
+  --edge: var(--border);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.14));
+}
+.pass-card:hover {
+  box-shadow: none;
+  filter: drop-shadow(0 10px 16px rgb(0 0 0 / 0.2));
+}
+.pass-card.pass-good {
+  --edge: var(--success);
+}
+.pass-card.pass-info {
+  --edge: var(--text);
+}
+.pass-card.pass-bad {
+  --edge: var(--danger);
+}
+.pass-card.pass-warn {
+  --edge: var(--warn);
+}
+.pass-card.has-color {
+  --edge: var(--tt-color);
+}
+.pass-card-top {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  -webkit-mask:
+    radial-gradient(circle at 0 100%, #0000 12px, #000 12.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 100%, #0000 12px, #000 12.5px) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle at 0 100%, #0000 12px, #000 12.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 100%, #0000 12px, #000 12.5px) right / 51% 100% no-repeat;
+}
+.pass-card-body {
+  position: relative;
+  border-bottom: 6px solid var(--edge);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: var(--bg);
+  -webkit-mask:
+    radial-gradient(circle at 0 0, #0000 12px, #000 12.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 0, #0000 12px, #000 12.5px) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle at 0 0, #0000 12px, #000 12.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 0, #0000 12px, #000 12.5px) right / 51% 100% no-repeat;
+}
+/* The perforation between the notches. */
+.pass-card-body::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 18px;
+  right: 18px;
+  border-top: 2px dashed var(--border);
+}
+
+/* The Check-ins window: wide, stats in one row, filters in one row, one line per scan. */
+.modal.modal-large {
+  width: min(1040px, calc(100vw - 32px));
+}
+.checkin-stats {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 16px 0;
+}
+@media (max-width: 760px) {
+  .checkin-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.checkin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.checkin-filters input[type='search'] {
+  flex: 1 1 200px;
+  max-width: 280px;
+}
+.checkin-filters .btn {
+  margin-left: auto;
+}
+.checkin-table {
+  overflow-x: auto;
+}
+.checkin-table td,
+.checkin-table th {
+  white-space: nowrap;
+}
+
+/* Fixed size, so the window does not jump when a filter leaves no scans; the list scrolls inside it. */
+.modal.modal-large {
+  width: min(1240px, calc(100vw - 32px));
+  height: calc(100vh - 48px);
+  max-height: 900px;
+}
+.modal.modal-large[open] {
+  display: flex;
+  flex-direction: column;
+}
+.checkin-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 12px;
+}
+.checkin-body .empty {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+}
+
+/* "Happening now" sits right under the results bar. */
+.results-bar + h2 {
+  margin-top: 0;
+}
+
+.scanner-app,
+.scanner-upload {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+  padding: 20px;
+}
+.scanner-app h2,
+.scanner-upload h2 {
+  margin: 0;
+}
+.scanner-app code {
+  overflow-wrap: anywhere;
+}
+.scanner-app-notes {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.scanner-app-placeholder {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 20px;
+  border-style: dashed;
+}
+.scanner-app-placeholder > div {
+  display: grid;
+  gap: 10px;
+}
+.scanner-app-tile {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--muted, #888);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.scanner-guide {
+  max-width: 720px;
+  margin-top: 32px;
+}
+.scanner-guide h2 {
+  margin-top: 0;
+}
+.scanner-guide h3 {
+  margin: 24px 0 8px;
+  font-size: 1rem;
+}
+.scanner-guide ol,
+.scanner-guide ul {
+  margin: 0 0 8px;
+  padding-left: 22px;
+}
+.scanner-guide li {
+  margin-bottom: 6px;
+}
+
+/* The stub of a ticket type for a read-only viewer: "Admit one" instead of the price and actions. */
+.tt-admit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.tt-admit svg {
+  width: 28px;
+  height: 28px;
+}
+.tt-admit strong {
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.tt-admit span {
+  color: var(--muted, #6b6b6b);
+  font-size: 0.8rem;
+}
+
+/* Manage events: one stacked card for every event; the list view is the same card in a single column. */
+.manage-cards.is-list .event-grid {
+  grid-template-columns: minmax(0, 420px);
+}
+
+/* A draft event: reads as unfinished, like a sketch not yet published (dashed outline, washed-out cover, a note on it). */
+.event-card.is-draft {
+  position: relative;
+  border: 2px dashed var(--warn);
+  background: var(--bg);
+}
+.event-card.is-draft:hover {
+  border-color: var(--warn);
+}
+.event-card.is-draft .event-image {
+  filter: grayscale(0.85) contrast(0.9);
+  opacity: 0.7;
+  outline: 1px dashed var(--warn);
+  outline-offset: -6px;
+}
+.event-card.is-draft h3 {
+  font-style: italic;
+}
+.draft-flag {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  padding: 3px 10px;
+  border: 1px dashed var(--warn);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--warn);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.event-list .event-card.is-draft .draft-flag {
+  display: none;
 }

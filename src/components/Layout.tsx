@@ -60,19 +60,24 @@ export function Layout() {
   const hideManagement = useManagementHidden() || isHost !== true;
   const { pathname } = useLocation();
   // An owner or organizer (not an admin) looking at the management view.
+  // Check-in staff only read events and download the scanner app: no Team, Finance or Settings.
+  const scanner = position === 'Scanner';
   const orgMemberView = Boolean(user) && !isAdminRole(user?.role) && isHost === true && !hideManagement;
 
   // Switching to the customer view while on a management page takes you to the customer side.
   useEffect(() => {
+    if (scanner && /^\/manage\/(team|finance|settings|new)(\/|$)/.test(pathname)) navigate('/manage', { replace: true });
     // A customer (or a host browsing as one) who lands on a management address is sent to the home page.
     if (isHost === false || (isHost === true && hideManagement)) {
       if (/^\/(manage|admin)(\/|$)/.test(pathname)) navigate('/', { replace: true });
     }
     // And the other way: buying, orders, card wallet and applying to host are the customer view's only.
     if (isHost === true && !hideManagement && CUSTOMER_ONLY.test(pathname)) navigate('/manage', { replace: true });
+    // The event search is the customer's: an owner or organizer in the management view has no Events tab, so it goes to Event Management too.
+    if (orgMemberView && pathname === '/events') navigate('/manage', { replace: true });
     // The customer home page is not a manager's landing screen: the management view starts at Event Management.
     if (isHost === true && !hideManagement && pathname === '/') navigate('/manage', { replace: true });
-  }, [isHost, hideManagement, pathname, navigate]);
+  }, [isHost, hideManagement, scanner, orgMemberView, pathname, navigate]);
 
   // Each new screen fades and rises in. Played on <main> (no remount), so a page keeps its state.
   const mainRef = useRef<HTMLElement>(null);
@@ -124,12 +129,13 @@ export function Layout() {
           {user && !hideManagement && (
             <nav className="nav" aria-label="Organizer">
               {/* Team and Settings live under /manage too, so Event Management is not highlighted there */}
-              <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/settings', '/manage/finance'].includes(pathname) ? 'active' : '')}>
+              <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/settings', '/manage/finance', '/manage/scanner'].includes(pathname) ? 'active' : '')}>
                 Event Management
               </NavLink>
-              {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/team">Team</NavLink>}
+              {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/team">Team</NavLink>}
               {!isAdminRole(user.role) && canFinance && <NavLink to="/manage/finance">Finance &amp; Payouts</NavLink>}
-              {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/settings">Settings</NavLink>}
+              {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/settings">Settings</NavLink>}
+              {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/scanner">Scanner</NavLink>}
               {isAdminRole(user.role) && (
                 <>
                   <NavLink to="/admin/posts">Posts</NavLink>
@@ -137,6 +143,7 @@ export function Layout() {
                   <NavLink to="/admin/users">Users</NavLink>
                   <NavLink to="/admin/payouts">Finance &amp; Payouts</NavLink>
                   <NavLink to="/admin/disputes">Disputes</NavLink>
+                  <NavLink to="/admin/scanner">Scanner</NavLink>
                   <NavLink to="/admin/settings">Settings</NavLink>
                 </>
               )}

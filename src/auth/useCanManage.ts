@@ -193,7 +193,13 @@ function orgPosition(userId: UUID): Promise<string | null> {
       .then((orgs) => Promise.all(orgs.filter((o) => o.status === 'APPROVED').map((o) => organizationApi.members(o.id).catch(() => []))))
       .then((lists) => {
         const roles = lists.flat().filter((m) => m.userId === userId).flatMap((m) => m.roles);
-        return roles.includes('OWNER') ? 'Organization Owner' : roles.includes('ORGANIZER') ? 'Organizer' : null;
+        return roles.includes('OWNER')
+          ? 'Organization Owner'
+          : roles.includes('ORGANIZER')
+            ? 'Organizer'
+            : roles.includes('CHECK_IN_STAFF')
+              ? 'Scanner'
+              : null;
       })
       .catch(() => null);
     positionCache.set(userId, result);
@@ -201,7 +207,7 @@ function orgPosition(userId: UUID): Promise<string | null> {
   return result;
 }
 
-/** What to call the management view for this user: "Super admin", "Admin", "Organization Owner" or "Organizer" (null while checking). */
+/** What to call the management view for this user: "Super admin", "Admin", "Organization Owner", "Organizer" or "Scanner" (check-in staff: sees events read-only; null while checking). */
 export function usePosition(): string | null {
   const { user } = useAuth();
   const [position, setPosition] = useState<string | null>(null);

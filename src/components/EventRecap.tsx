@@ -258,8 +258,21 @@ function ReviewComments({ eventId }: { eventId: string }) {
   );
 }
 
+/** Plain text with its http(s) links made clickable (opening in a new tab). */
+function linkify(text: string) {
+  return text.split(/(https?:\/\/\S+)/g).map((part, i) =>
+    i % 2 === 1 ? (
+      <a key={i} href={part} target="_blank" rel="noopener noreferrer">
+        {part}
+      </a>
+    ) : (
+      part
+    ),
+  );
+}
+
 /** The organizer's messages and pictures after the event, like a chat, oldest first. */
-function RecapFeed({ event, canPost, canDelete }: { event: Event; canPost: boolean; canDelete: boolean }) {
+export function RecapFeed({ event, canPost, canDelete }: { event: Event; canPost: boolean; canDelete: boolean }) {
   const feed = useAsync(() => recapApi.list(event.id), [event.id]);
   const [body, setBody] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -308,7 +321,7 @@ function RecapFeed({ event, canPost, canDelete }: { event: Event; canPost: boole
     <div className="recap">
       <h3>From the organizer</h3>
       {messages.length === 0 ? (
-        <p className="muted small">Share photos and a few words about how the event went. Everyone can see them.</p>
+        <p className="muted small">Share photos, links and a few words about how the event went. Everyone who joined can see them.</p>
       ) : (
         <ol className="recap-feed">
           {messages.map((m) => (
@@ -332,7 +345,7 @@ function RecapFeed({ event, canPost, canDelete }: { event: Event; canPost: boole
               </div>
               <div className="recap-bubble">
                 {m.imageUrl && <img src={assetUrl(m.imageUrl)} alt="" loading="lazy" />}
-                {m.body && <p>{m.body}</p>}
+                {m.body && <p>{linkify(m.body)}</p>}
               </div>
             </li>
           ))}

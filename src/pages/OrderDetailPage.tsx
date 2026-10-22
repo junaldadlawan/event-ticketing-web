@@ -16,7 +16,8 @@ import { parseUserQr, readQrFromImage } from '../utils/userQr';
 import { ErrorBox, Spinner, StatusBadge, SuccessBox } from '../components/ui';
 import { formatDateTime, formatMoney, humanize } from '../utils/format';
 import { useAsync } from '../utils/useAsync';
-import { isEventOver } from '../utils/eventState';
+import { isEventOver, isOngoing, startsSoonIn } from '../utils/eventState';
+import { useNow } from '../utils/useNow';
 
 /** How often an open order re-reads its tickets' status. */
 const REFRESH_MS = 10_000;
@@ -227,6 +228,7 @@ function QrPass({
   ticket,
   ticketType,
   event,
+  scanned,
   onClose,
 }: {
   /** The QR code as a PNG data URL; null keeps the pass closed. */
@@ -234,6 +236,8 @@ function QrPass({
   ticket: Ticket;
   ticketType?: TicketType;
   event?: Event;
+  /** The door staff scanned it while the pass was open. */
+  scanned: boolean;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -243,10 +247,17 @@ function QrPass({
     if (qr && !d.open) d.showModal();
     else if (!qr && d.open) d.close();
   }, [qr]);
+  // Scanned at the door while the pass is open: show "Scanned" in place of the code, then close.
+  useEffect(() => {
+    if (!qr || !scanned) return;
+    const timer = window.setTimeout(onClose, 3500);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qr, scanned]);
   return (
     <dialog
       ref={dialog}
-      className="modal qr-pass"
+      className={`modal qr-pass${scanned ? ' scanned' : ''}`}
       aria-label={`QR code for ticket ${ticket.ticketNumber}`}
       onCancel={(e) => {
         e.preventDefault(); // Escape closes it
@@ -264,9 +275,21 @@ function QrPass({
             {ticketType && <p>{ticketType.name} ticket</p>}
           </div>
           <div className="qr-pass-body">
-            <img src={qr} alt={`QR code for ticket ${ticket.ticketNumber}`} />
+            {scanned ? (
+              <div className="qr-pass-scanned" role="status">
+                <span className="qr-pass-check" aria-hidden="true">
+                  ✓
+                </span>
+                Scanned
+              </div>
+            ) : (
+              <img src={qr} alt={`QR code for ticket ${ticket.ticketNumber}`} />
+            )}
             <strong className="qr-pass-number">{ticket.ticketNumber}</strong>
-            <p>Show this at the entrance. If it won't scan, turn your screen brightness up.</p>
+            {!scanned && event && isOngoing(event) && (
+              <p className="qr-pass-invite">What are you waiting for? Come join the event. We're excited to have you!</p>
+            )}
+            {!scanned && <p>Show this at the entrance. If it won't scan, turn your screen brightness up.</p>}
           </div>
         </>
       )}
@@ -320,6 +343,26 @@ export function TicketCard({
       if (v) URL.revokeObjectURL(v.url);
       return null;
     });
+  }
+  // While the QR is on screen, ask the API whether the door scanned it. The list is only reloaded once the pass closes:
+  // a scanned ticket can move to another group or filter, which would remount this card and tear the pass away.
+  const [scanned, setScanned] = useState(false);
+  useEffect(() => {
+    if (!qr) return;
+    const timer = window.setInterval(() => {
+      ticketApi
+        .get(ticket.id)
+        .then((t) => t.status === 'USED' && setScanned(true))
+        .catch(() => {});
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [qr, ticket.id]);
+  function closeQr() {
+    setQr(null);
+    if (scanned) {
+      setScanned(false);
+      onChanged();
+    }
   }
   const ownedByMe = user?.id === ticket.ownerId;
   // A transfer keeps the ticket VALID and changes its owner, so only the buyer looking at a ticket they no longer
@@ -412,6 +455,9 @@ export function TicketCard({
   // The ticket's status in the same words and colours as the ticket cards elsewhere.
   // A ticket nobody scanned before its event finished: still VALID to the API, but it can no longer get anyone in.
   const expired = ticket.status === 'VALID' && Boolean(event && isEventOver(event));
+  // Starts in 3 hours or less: the card shakes like the event cards do.
+  const now = useNow(60_000).getTime();
+  const soon = usable && !expired && Boolean(event && startsSoonIn(event, now)?.shake);
   const statusLabel = expired ? 'Expired, unused' : humanize(ticket.status);
   const tone: 'good' | 'warn' | 'bad' | 'info' | 'muted' =
     expired ? 'muted' : ticket.status === 'VALID' ? 'good' : ticket.status === 'USED' ? 'muted' : /CANCEL|REFUND|VOID/.test(ticket.status) ? 'bad' : 'info';
@@ -546,7 +592,7 @@ export function TicketCard({
         onClose={() => setShowTransfer(false)}
       />
 
-      <QrPass qr={qr} ticket={ticket} ticketType={ticketType} event={event} onClose={() => setQr(null)} />
+      <QrPass qr={qr} ticket={ticket} ticketType={ticketType} event={event} scanned={scanned} onClose={closeQr} />
 
       {checkIn && (
         <FormDialog open={showingScan} title="Scan record" onClose={() => setShowingScan(false)}>
@@ -619,7 +665,7 @@ export function TicketCard({
   if (layout === 'pass') {
     return (
       <article
-        className={`pass-card pass-${tone}${cardColour ? ' has-color' : ''}${torn || expired ? ' is-used' : ''}${expired ? ' is-expired' : ''}${transferred ? ' is-given' : ''}${opensEvent ? ' is-link' : ''}`}
+        className={`pass-card pass-${tone}${cardColour ? ' has-color' : ''}${torn || expired ? ' is-used' : ''}${expired ? ' is-expired' : ''}${soon ? ' is-soon' : ''}${transferred ? ' is-given' : ''}${opensEvent ? ' is-link' : ''}`}
         style={cardColour ? ({ '--tt-color': cardColour } as CSSProperties) : undefined}
         {...openEvent}
       >
@@ -662,7 +708,7 @@ export function TicketCard({
           <h3>{event ? <Link to={`/events/${event.id}`}>{event.title}</Link> : (ticketType?.name ?? 'Ticket')}</h3>
           {event && <p>{formatDateTime(event.startAt, event.timezone)}</p>}
           {ticketType && <p>{ticketType.name} ticket</p>}
-          {event && <Countdown startAt={event.startAt} endAt={event.endAt} />}
+          {event && <Countdown startAt={event.startAt} endAt={event.endAt} status={event.status} />}
           {/* Inked at the door, or voided once the event is over unused; the status chip says it for screen readers. */}
           {(torn || expired) && (
             <span className={`pass-stamp${expired ? ' is-expired' : ''}`} aria-hidden="true">
@@ -691,7 +737,7 @@ export function TicketCard({
 
   return (
     <div
-      className={`tt-row ticket-owned tt-${tone}${transferred ? " is-given" : ""}${torn ? " is-torn" : ""}${torn || expired ? " is-spent" : ""}${layout === "list" ? " is-list" : ""}${cardColour ? " has-color" : ""}${opensEvent ? " is-link" : ""}`}
+      className={`tt-row ticket-owned tt-${tone}${transferred ? " is-given" : ""}${soon ? " is-soon" : ""}${torn ? " is-torn" : ""}${torn || expired ? " is-spent" : ""}${layout === "list" ? " is-list" : ""}${cardColour ? " has-color" : ""}${opensEvent ? " is-link" : ""}`}
       style={cardColour ? ({ "--tt-color": cardColour } as CSSProperties) : undefined}
       {...openEvent}
     >
@@ -713,7 +759,7 @@ export function TicketCard({
             ticket.eventId
           )}
         </p>
-        {event && <Countdown startAt={event.startAt} endAt={event.endAt} />}
+        {event && <Countdown startAt={event.startAt} endAt={event.endAt} status={event.status} />}
         {facts}
         {messages}
       </div>
@@ -830,8 +876,9 @@ function TransferIcon() {
   );
 }
 
-function Countdown({ startAt, endAt }: { startAt: string; endAt?: string | null }) {
-  const now = new Date();
+function Countdown({ startAt, endAt, status }: { startAt: string; endAt?: string | null; status: Event["status"] }) {
+  const now = useNow(1000); // ticks the last-day countdown
+  const soon = startsSoonIn({ status, startAt }, now.getTime());
   const start = new Date(startAt);
   const end = endAt ? new Date(endAt) : null;
   const dayOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -855,6 +902,7 @@ function Countdown({ startAt, endAt }: { startAt: string; endAt?: string | null 
     label = `${days} days to go`;
     tone = days <= 7 ? 'soon' : 'later';
   }
+  if (soon) return <p className="countdown"><span className="soon-badge">🔥 Starts in {soon.left}</span></p>;
   return (
     <p className={`countdown countdown-${tone}`}>
       <span aria-hidden="true" className="countdown-dot" />

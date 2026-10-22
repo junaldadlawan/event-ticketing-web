@@ -101,7 +101,7 @@ function TicketSaleSettingsPanel() {
       <SuccessBox message={msg} />
       <dl className="setting-row">
         <dt>Ticket sales close</dt>
-        <dd>{!s ? '…' : s.salesCloseMinutesBeforeEvent ? `${minutesText(s.salesCloseMinutesBeforeEvent)} before the event starts` : 'When the event starts'}</dd>
+        <dd>{!s ? '…' : s.salesCloseMinutesBeforeEvent ? `${minutesText(s.salesCloseMinutesBeforeEvent)} before the event ends` : 'When the event ends'}</dd>
         <button type="button" className="btn btn-sm" disabled={!s} onClick={() => setEditing(true)}>
           Edit
         </button>
@@ -167,7 +167,7 @@ function TicketSaleSettingsForm({
   return (
     <form className="form" onSubmit={submit}>
       <label>
-        Sales close <span className="hint">(hours before the event starts; 0 = when it starts)</span>
+        Sales close <span className="hint">(hours before the event ends; 0 = when it ends)</span>
         <input type="number" required min={0} max={168} step={0.25} value={closeHours} onChange={(e) => setCloseHours(e.target.value)} />
       </label>
       <label>

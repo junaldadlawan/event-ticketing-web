@@ -38,7 +38,7 @@ export function NotificationBell() {
 
   const unread = alert && read !== alert.paymentId ? 1 : 0;
 
-  function openIssue() {
+  function markRead() {
     if (!alert) return;
     try {
       localStorage.setItem(READ_KEY, alert.paymentId);
@@ -46,6 +46,10 @@ export function NotificationBell() {
       // not saved: the dot comes back next visit
     }
     setRead(alert.paymentId);
+  }
+
+  function openIssue() {
+    markRead();
     setOpen(false);
     navigate('/admin/settings/finance', { state: { highlight: 'gateway-fee' } });
   }
@@ -59,7 +63,10 @@ export function NotificationBell() {
         aria-expanded={open}
         aria-label={unread ? `Notifications, ${unread} new` : 'Notifications'}
         title="Notifications"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          if (!open) markRead(); // opening the bell reads it
+          setOpen((o) => !o);
+        }}
       >
         <BellIcon />
         {unread > 0 && <span className="bell-dot" aria-hidden="true" />}

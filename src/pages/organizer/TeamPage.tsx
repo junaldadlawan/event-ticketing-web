@@ -25,9 +25,10 @@ const PERMISSIONS: { value: OrganizationPermission; label: string; hint: string 
   { value: 'FINANCE', label: 'Finance', hint: 'payout accounts, cards and payouts' },
   { value: 'ANALYTICS', label: 'Analytics', hint: 'sales and audience insights, activity logs' },
   { value: 'TEAM', label: 'Team', hint: 'add, change and remove members' },
+  { value: 'SCANNER_APP', label: 'Scanner app', hint: 'upload and remove versions of the scanner app, which every organization shares' },
 ];
-// The API's default for a new organizer: everything but TEAM.
-const DEFAULT_PERMISSIONS = PERMISSIONS.map((p) => p.value).filter((p) => p !== 'TEAM');
+// The API's default for a new organizer: everything but TEAM and SCANNER_APP.
+const DEFAULT_PERMISSIONS = PERMISSIONS.map((p) => p.value).filter((p) => p !== 'TEAM' && p !== 'SCANNER_APP');
 
 const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
 
@@ -76,6 +77,9 @@ export function TeamPage() {
   const [picked, setPicked] = useState<User | null>(null);
   const [role, setRole] = useState<OrganizationRole>('ORGANIZER');
   const [addPerms, setAddPerms] = useState<OrganizationPermission[]>(DEFAULT_PERMISSIONS);
+  // Check-in staff can be allowed to publish the scanner app (the only permission they can hold).
+  const [addScanner, setAddScanner] = useState(false);
+  const [editScanner, setEditScanner] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -104,7 +108,12 @@ export function TeamPage() {
     setError(null);
     setMsg(null);
     try {
-      await organizationApi.assignMember(selected, picked.id, role, role === 'ORGANIZER' ? addPerms : undefined);
+      await organizationApi.assignMember(
+        selected,
+        picked.id,
+        role,
+        role === 'ORGANIZER' ? addPerms : role === 'CHECK_IN_STAFF' && addScanner ? ['SCANNER_APP'] : undefined,
+      );
       setMsg(`Added as ${humanize(role)}.`);
       setPicked(null);
       members.reload();
@@ -119,6 +128,7 @@ export function TeamPage() {
     setEditing(m);
     setEditRoles(m.roles.filter((r) => ASSIGNABLE.includes(r)));
     setEditPerms(m.roles.includes('ORGANIZER') ? (m.permissions ?? []) : grantable(DEFAULT_PERMISSIONS));
+    setEditScanner(Boolean(m.permissions?.includes('SCANNER_APP')));
     setEditError(null);
   }
 
@@ -130,7 +140,14 @@ export function TeamPage() {
     setMsg(null);
     try {
       const organizer = editRoles.includes('ORGANIZER');
-      await organizationApi.setMemberRoles(selected, editing.userId, editRoles, organizer ? editPerms : undefined);
+      // Staff without the organizer role keep only SCANNER_APP, which this sends explicitly (empty = take it away).
+      const staffOnly = editRoles.includes('CHECK_IN_STAFF') && !organizer;
+      await organizationApi.setMemberRoles(
+        selected,
+        editing.userId,
+        editRoles,
+        organizer ? editPerms : staffOnly ? (editScanner ? ['SCANNER_APP'] : []) : undefined,
+      );
       setMsg(`${nameOf(editing)} is now ${editRoles.map(humanize).join(' and ')}.`);
       setEditing(null);
       members.reload();
@@ -201,7 +218,7 @@ export function TeamPage() {
           {list.map((m) => {
             const isMe = m.userId === user?.id;
             const name = nameOf(m);
-            const perms = m.roles.includes('ORGANIZER') && !m.roles.includes('OWNER') ? (m.permissions ?? []) : [];
+            const perms = (m.roles.includes('ORGANIZER') || m.roles.includes('CHECK_IN_STAFF')) && !m.roles.includes('OWNER') ? (m.permissions ?? []) : [];
             return (
               <li key={m.userId} className="row-between admin-member">
                 <span className="admin-person">
@@ -275,6 +292,14 @@ export function TeamPage() {
               <PermissionChecks value={grantable(addPerms)} onChange={setAddPerms} held={held} />
             </fieldset>
           )}
+          {role === 'CHECK_IN_STAFF' && (
+            <label className="check-row" title={held.includes('SCANNER_APP') ? undefined : "You don't have this permission yourself"}>
+              <input type="checkbox" checked={addScanner} disabled={!held.includes('SCANNER_APP')} onChange={(e) => setAddScanner(e.target.checked)} />
+              <span>
+                Can upload the scanner app <span className="muted small">· shared by every organization</span>
+              </span>
+            </label>
+          )}
           <small className="muted">
             Ask the person to open their profile and show you their My QR code (or send you the picture), then scan it
             here. The owner role can&apos;t be assigned.
@@ -302,6 +327,14 @@ export function TeamPage() {
                 </label>
                 {r === 'ORGANIZER' && editRoles.includes('ORGANIZER') && (
                   <PermissionChecks value={editPerms} onChange={setEditPerms} held={held} />
+                )}
+                {r === 'CHECK_IN_STAFF' && editRoles.includes('CHECK_IN_STAFF') && !editRoles.includes('ORGANIZER') && (
+                  <label className="check-row" title={held.includes('SCANNER_APP') ? undefined : "You don't have this permission yourself"}>
+                    <input type="checkbox" checked={editScanner} disabled={!held.includes('SCANNER_APP')} onChange={(e) => setEditScanner(e.target.checked)} />
+                    <span>
+                      Can upload the scanner app <span className="muted small">· shared by every organization</span>
+                    </span>
+                  </label>
                 )}
               </div>
             ))}

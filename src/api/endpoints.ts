@@ -1,5 +1,9 @@
 import { ApiError, api, apiUrl } from './client';
 import type {
+  ScannerApp,
+  CheckInHistoryItem,
+  CheckInSummary,
+  ScannerDeviceSummary,
   TicketSaleSettings,
   EventReview,
   EventReviewEntry,
@@ -7,6 +11,7 @@ import type {
   RecapMessage,
   BackgroundFit,
   AppNotification,
+  NotificationPreferences,
   Cart,
   CheckoutPayment,
   Dispute,
@@ -86,6 +91,14 @@ export interface PageQuery {
   page?: number;
   size?: number;
   sort?: string;
+}
+
+export interface CheckInFilter {
+  result?: CheckInHistoryItem['result'];
+  sourceType?: CheckInHistoryItem['sourceType'];
+  scannerDeviceId?: UUID;
+  /** Ticket number contains this text. */
+  ticketNumber?: string;
 }
 
 export const authApi = {
@@ -177,6 +190,12 @@ export const eventApi = {
   publish: (id: UUID) => api<Event>(`/events/${id}/publish`, { method: 'POST' }),
   cancel: (id: UUID) => api<Event>(`/events/${id}/cancel`, { method: 'POST' }),
   remove: (id: UUID) => api<void>(`/events/${id}`, { method: 'DELETE' }),
+  /** The event's scan history, newest first (owner, organizer, check-in staff, admin). Scan facts only. */
+  checkInRecords: (id: UUID, q: CheckInFilter & PageQuery = {}) =>
+    api<PageResponse<CheckInHistoryItem>>(`/events/${id}/check-in-records`, { query: { ...q } }),
+  /** Counts of those scans for the same filters. */
+  checkInSummary: (id: UUID, q: CheckInFilter = {}) => api<CheckInSummary>(`/events/${id}/check-in-summary`, { query: { ...q } }),
+  scannerDevices: (id: UUID) => api<ScannerDeviceSummary[]>(`/events/${id}/scanner-devices`),
   orders: (id: UUID, q: PageQuery = {}) =>
     api<PageResponse<Order>>(`/events/${id}/orders`, { query: { ...q } }),
   /** Who changed what on the event, newest first (its owner / organizers, or an admin). */
@@ -407,6 +426,10 @@ export const payoutWalletApi = {
 export const notificationApi = {
   /** The signed-in user's notifications (any role). The API has no read flag. */
   mine: () => api<AppNotification[]>('/users/me/notifications'),
+  preferences: () => api<NotificationPreferences>('/users/me/notification-preferences'),
+  /** Partial is fine: types left out stay as they are. Returns all of them after the change. */
+  updatePreferences: (preferences: NotificationPreferences['preferences']) =>
+    api<NotificationPreferences>('/users/me/notification-preferences', { method: 'PUT', body: { preferences } }),
 };
 
 export const disputeApi = {
@@ -531,4 +554,26 @@ export const waitlistApi = {
   /** Join the line for a sold-out ticket type (omit the id to wait for the event in general). */
   join: (eventId: UUID, ticketTypeId?: UUID) =>
     api<WaitlistEntry>(`/events/${eventId}/waitlist`, { method: 'POST', body: ticketTypeId ? { ticketTypeId } : {} }),
+};
+
+export const scannerAppApi = {
+  /** The newest version (an admin, or check-in staff of some organization); 404 when nothing was uploaded yet. */
+  latest: () => api<ScannerApp>('/scanner-app/latest'),
+  /** Every upload, newest first (an admin, or a member holding SCANNER_APP). */
+  list: () => api<ScannerApp[]>('/scanner-app/uploads'),
+  /** An admin, or a member holding SCANNER_APP. The file must be a real APK (400 otherwise); an already uploaded versionCode is a 409. */
+  upload: (file: File, versionName: string, versionCode: number, releaseNotes: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('versionName', versionName);
+    form.append('versionCode', String(versionCode));
+    if (releaseNotes) form.append('releaseNotes', releaseNotes);
+    return api<ScannerApp>('/scanner-app/uploads', { method: 'POST', body: form });
+  },
+  remove: (id: UUID) => api<void>(`/scanner-app/uploads/${id}`, { method: 'DELETE' }),
+  /** The APK as a Blob. Needs the bearer token, so a plain <a href> won't work. */
+  download: async (id: UUID) => {
+    const res = await api<Response>(`/scanner-app/${id}/download`, { raw: true, headers: { Accept: '*/*' } });
+    return res.blob();
+  },
 };

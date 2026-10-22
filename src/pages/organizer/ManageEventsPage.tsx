@@ -2,20 +2,23 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useMatch, useNavigate, useSearchParams } from 'react-router-dom';
 import { eventApi } from '../../api/endpoints';
-import type { EventStatus } from '../../api/types';
+import type { Event, EventStatus } from '../../api/types';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { CategorySelect } from '../../components/CategorySelect';
 import { PlusIcon, SearchIcon } from '../../components/DesignerIcons';
 import { EventCollection, ResultsBar, useEventView } from '../../components/EventCollection';
 import { EventFormDialog } from './CreateEventPage';
 import { Empty, ErrorBox, Pagination, Spinner, PageHeader } from '../../components/ui';
+import { dateGroupLabel, groupInRuns } from '../../utils/dateGroups';
+import { formatDuration, isEventOver, isOngoing } from '../../utils/eventState';
 import { humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
+import { useNow } from '../../utils/useNow';
 import { useOrgNames } from '../../utils/useOrgNames';
 import { LogsButton } from '../../components/LogsButton';
 import { useAuth } from '../../auth/AuthContext';
 import { isAdmin } from '../../auth/roles';
-import { useHasPermission } from '../../auth/useCanManage';
+import { useHasPermission, usePosition } from '../../auth/useCanManage';
 
 const STATUSES: EventStatus[] = [
   'DRAFT',
@@ -40,6 +43,8 @@ export function ManageEventsPage() {
   const { user } = useAuth();
   const platformLogs = isAdmin(user?.role);
   const canCreate = useHasPermission('EVENTS', 'any');
+  // Check-in staff only read events: no logs, no editing.
+  const scanner = usePosition() === 'Scanner';
   // /manage/new opens the New event window over this list.
   const navigate = useNavigate();
   const creating = useMatch('/manage/new') !== null;
@@ -72,6 +77,19 @@ export function ManageEventsPage() {
   }
 
   const filtered = Boolean(keyword || category || status);
+  // Events running right now, from this page of results, with how long they have been on.
+  const now = useNow().getTime();
+  const ongoing = data?.content.filter((e) => isOngoing(e, now)) ?? [];
+  const rest = data?.content.filter((e) => !isOngoing(e, now)) ?? [];
+  // Still to come, soonest first and grouped by when (Today, Tomorrow, a weekday, Later this month, a month); then the ended ones.
+  const toCome = rest.filter((e) => !isEventOver(e, now)).sort((a, b) => a.startAt.localeCompare(b.startAt));
+  const completed = rest.filter((e) => isEventOver(e, now));
+  const extra = (ev: Event) => (
+    <>
+      {orgNames.size > 1 && orgNames.get(ev.organizationId) && <>{orgNames.get(ev.organizationId)} · </>}
+      Prefix <code>{ev.ticketPrefix}</code>
+    </>
+  );
 
   return (
     <>
@@ -87,7 +105,7 @@ export function ManageEventsPage() {
           lede={orgNames.size > 0 ? [...orgNames.values()].join(' · ') : undefined}
           actions={
             <>
-              <LogsButton area="EVENTS" title="Event Management" organizations={platformLogs ? undefined : 'mine'} />
+              {!scanner && <LogsButton area="EVENTS" title="Event Management" organizations={platformLogs ? undefined : 'mine'} />}
               {canCreate && (
                 <Link to="/manage/new" className="btn btn-cta">
                   <PlusIcon />
@@ -146,17 +164,37 @@ export function ManageEventsPage() {
         data && (
           <>
             <ResultsBar count={data.totalElements} view={view} onViewChange={setView} />
-            <EventCollection
-              events={data.content}
-              view={view}
-              hrefFor={(ev) => `/manage/events/${ev.id}`}
-              extra={(ev) => (
-                <>
-                  {orgNames.size > 1 && orgNames.get(ev.organizationId) && <>{orgNames.get(ev.organizationId)} · </>}
-                  Prefix <code>{ev.ticketPrefix}</code>
-                </>
-              )}
-            />
+            {/* Every event is the same stacked card (cover on top, details below); the list view only makes it one column. */}
+            <div className={`manage-cards${view === 'list' ? ' is-list' : ''}`}>
+            {ongoing.length > 0 && (
+              <>
+                <h2>Happening now</h2>
+                <EventCollection
+                  events={ongoing}
+                  view="grid"
+                  hrefFor={(ev) => `/manage/events/${ev.id}`}
+                  extra={(ev) => (
+                    <>
+                      Running for {formatDuration(now - new Date(ev.startAt).getTime())} ·{' '}
+                      {formatDuration(new Date(ev.endAt).getTime() - now)} left · {extra(ev)}
+                    </>
+                  )}
+                />
+              </>
+            )}
+            {groupInRuns(toCome, (e) => dateGroupLabel(e.startAt)).map((g) => (
+              <section key={g.start} aria-label={g.label}>
+                <h2 className={ongoing.length > 0 || g.start > 0 ? 'events-section-gap' : undefined}>{g.label}</h2>
+                <EventCollection events={g.items} view="grid" hrefFor={(ev) => `/manage/events/${ev.id}`} extra={extra} />
+              </section>
+            ))}
+            {completed.length > 0 && (
+              <section aria-label="Completed">
+                <h2 className={ongoing.length > 0 || toCome.length > 0 ? 'events-section-gap' : undefined}>Completed</h2>
+                <EventCollection events={completed} view="grid" hrefFor={(ev) => `/manage/events/${ev.id}`} extra={extra} />
+              </section>
+            )}
+            </div>
             <Pagination page={data} onChange={(p) => update({ page: String(p) })} />
           </>
         )

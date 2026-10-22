@@ -91,6 +91,17 @@ export function EventDetailPage() {
           <dt>Starts</dt>
           <dd>{formatDateTime(event.startAt, event.timezone)}</dd>
         </div>
+        {event.gateOpensMinutesBefore != null && (
+          <div>
+            <dt>Gates open</dt>
+            <dd>
+              {formatDateTime(
+                new Date(Date.parse(event.startAt) - event.gateOpensMinutesBefore * 60_000).toISOString(),
+                event.timezone,
+              )}
+            </dd>
+          </div>
+        )}
         <div>
           <dt>Ends</dt>
           <dd>{formatDateTime(event.endAt, event.timezone)}</dd>
@@ -222,15 +233,6 @@ function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketT
           {humanize(tt.kind)} · {tt.quantityAvailable} of {tt.quantityTotal} left · max{' '}
           {tt.maxPerOrder} per order
           {tt.maxPerUser != null && <> · max {tt.maxPerUser} per buyer</>}
-          {tt.gateOpensMinutesBefore != null && (
-            <>
-              {' '}· gates open{' '}
-              {tt.gateOpensMinutesBefore % 60 === 0
-                ? `${tt.gateOpensMinutesBefore / 60} h`
-                : `${tt.gateOpensMinutesBefore} min`}{' '}
-              before start
-            </>
-          )}
         </p>
         {note && <p className="small warn">{note}</p>}
         <ErrorBox message={error} />
