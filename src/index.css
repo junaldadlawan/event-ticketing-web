@@ -8775,10 +8775,6 @@ button.code-warning:focus-visible {
   font-size: 0.8rem;
 }
 
-/* Manage events: one stacked card for every event; the list view is the same card in a single column. */
-.manage-cards.is-list .event-grid {
-  grid-template-columns: minmax(0, 420px);
-}
 
 /* A draft event: reads as unfinished, like a sketch not yet published (dashed outline, washed-out cover, a note on it). */
 .event-card.is-draft {
@@ -8800,16 +8796,61 @@ button.code-warning:focus-visible {
 }
 .draft-flag {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: 24px;
+  left: 24px;
+  max-width: calc(100% - 48px);
   padding: 3px 10px;
+  overflow: hidden;
   border: 1px dashed var(--warn);
   border-radius: 999px;
   background: var(--bg);
   color: var(--warn);
   font-size: 0.78rem;
   font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
+/* In the list view the note sits at the bottom right of the row, under the status. */
 .event-list .event-card.is-draft .draft-flag {
-  display: none;
+  top: auto;
+  left: auto;
+  right: 22px;
+  bottom: 16px;
+  max-width: 45%;
+}
+
+/* Start, end and length of an event on one line; it is cut off with an ellipsis when the card is too narrow. */
+.when-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.results-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.refresh-button {
+  width: 28px;
+  height: 28px;
+}
+.refresh-button.is-spinning svg {
+  animation: refresh-spin 0.8s linear infinite;
+}
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .refresh-button.is-spinning svg {
+    animation: none;
+  }
+}
+
+/* A top-bar tab shown as an icon only (the gear for Settings). */
+.nav a.nav-icon {
+  display: inline-flex;
+  align-items: center;
 }

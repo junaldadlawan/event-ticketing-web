@@ -1,5 +1,6 @@
 import { ApiError, api, apiUrl } from './client';
 import type {
+  DraftEventSettings,
   ScannerApp,
   CheckInHistoryItem,
   CheckInSummary,
@@ -409,6 +410,13 @@ export const payoutCardApi = {
 export const ticketSaleSettingsApi = {
   get: () => api<TicketSaleSettings>('/platform-settings/ticket-sales'),
   update: (body: TicketSaleSettings) => api<TicketSaleSettings>('/platform-settings/ticket-sales', { method: 'PUT', body }),
+};
+
+/** When an unpublished draft is deleted: any signed-in user may read it; admins change it. */
+export const draftEventSettingsApi = {
+  get: () => api<DraftEventSettings>('/platform-settings/draft-events'),
+  update: (autoDeleteMinutesBeforeStart: number) =>
+    api<DraftEventSettings>('/platform-settings/draft-events', { method: 'PUT', body: { autoDeleteMinutesBeforeStart } }),
 };
 
 export const gatewayFeeApi = {

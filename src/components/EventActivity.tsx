@@ -15,6 +15,7 @@ const ACTIONS: Record<string, string> = {
   'event.published': 'published the event',
   'event.cancelled': 'cancelled the event',
   'event.deleted': 'deleted the event',
+  'event.auto_deleted_unpublished': 'deleted the draft because it was not published in time',
   'event.completed': 'marked the event completed after it ended',
   'ticket_type.created': 'added the ticket type',
   'ticket_type.updated': 'edited the ticket type',

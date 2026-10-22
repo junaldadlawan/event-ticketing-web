@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import type { Event } from '../api/types';
 import { formatDateTime, humanize } from '../utils/format';
 import { isDaytime } from '../utils/timeOfDay';
-import { isEventOver, startsSoonIn } from '../utils/eventState';
+import { draftDeletesIn, formatDuration, isEventOver, startsSoonIn } from '../utils/eventState';
 import { useNow } from '../utils/useNow';
 import { MoonIcon, SunIcon } from './DesignerIcons';
 import { EventImage } from './EventImage';
@@ -41,17 +41,34 @@ export function ResultsBar({
   noun = 'event',
   view,
   onViewChange,
+  onRefresh,
+  refreshing = false,
 }: {
   count: number;
   /** What is being counted, singular ("event", "ticket"). */
   noun?: string;
   view: EventView;
   onViewChange: (v: EventView) => void;
+  /** Adds a reload button next to the count. */
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
   return (
     <div className="results-bar">
-      <span className="muted small">
+      <span className="muted small results-count">
         {count} {count === 1 ? noun : `${noun}s`}
+        {onRefresh && (
+          <button
+            type="button"
+            className={`icon-button refresh-button${refreshing ? ' is-spinning' : ''}`}
+            title="Reload"
+            aria-label="Reload"
+            disabled={refreshing}
+            onClick={onRefresh}
+          >
+            <RefreshIcon />
+          </button>
+        )}
       </span>
       <div className="segmented" role="group" aria-label="Layout">
         <button
@@ -85,6 +102,7 @@ export function EventCollection({
   extra,
   tag,
   tickets = false,
+  stamp = true,
 }: {
   events: Event[];
   view: EventView;
@@ -95,6 +113,8 @@ export function EventCollection({
   tag?: (e: Event) => ReactNode;
   /** Show each event as a ticket (sun or moon stub by time of day) instead of a picture card. */
   tickets?: boolean;
+  /** Rubber-stamp "Completed" across an ended event's card (a list that is already headed "Completed" leaves it off). */
+  stamp?: boolean;
 }) {
   const now = useNow(1000).getTime(); // ticks the "Starts in" countdowns
   if (tickets) {
@@ -128,10 +148,10 @@ export function EventCollection({
                     </span>
                   </span>
                   <strong className="event-ticket-title">{ev.title}</strong>
-                  <span className="muted small">{formatDateTime(ev.startAt, ev.timezone)}</span>
+                  <span className="muted small when-line">{whenLine(ev)}</span>
                   <span className="muted small">{ev.venue ? ev.venue.name : 'Online'}</span>
-                  {extra && <span className="muted small">{extra(ev)}</span>}
-                  {over && <CompletedStamp />}
+                  {extra?.(ev) && <span className="muted small">{extra(ev)}</span>}
+                  {over && stamp && <CompletedStamp />}
                 </span>
               </Link>
             </li>
@@ -159,14 +179,24 @@ export function EventCollection({
                 </span>
               </div>
               <h3>{ev.title}</h3>
-              <p className="muted small">{formatDateTime(ev.startAt, ev.timezone)}</p>
+              {view === 'grid' ? (
+                // The narrow stacked card: start and end on their own lines.
+                <>
+                  <p className="muted small">Starts {formatDateTime(ev.startAt, ev.timezone)}</p>
+                  <p className="muted small">
+                    Ends {formatDateTime(ev.endAt, ev.timezone)} · {formatDuration(new Date(ev.endAt).getTime() - new Date(ev.startAt).getTime())}
+                  </p>
+                </>
+              ) : (
+                <p className="muted small when-line">{whenLine(ev)}</p>
+              )}
               <p className="muted small">{ev.venue ? ev.venue.name : 'Online'}</p>
-              {extra && <p className="muted small">{extra(ev)}</p>}
+              {extra?.(ev) && <p className="muted small">{extra(ev)}</p>}
             </div>
-            {over && <CompletedStamp />}
+            {over && stamp && <CompletedStamp />}
             {draft && (
               <span className="draft-flag" aria-hidden="true">
-                Not published yet
+                {draftDeletesIn(ev, now) ? `Deletes in ${draftDeletesIn(ev, now)}` : 'Not published yet'}
               </span>
             )}
           </Link>
@@ -181,12 +211,27 @@ function SoonBadge({ in: left }: { in: string }) {
   return <span className="soon-badge">🔥 Starts in {left}</span>;
 }
 
+/** "Oct 22, 2026, 6:00 AM → Oct 22, 2026, 7:00 AM · 1h": start, end and how long it lasts, on one line, in the event's timezone. */
+function whenLine(ev: Event) {
+  const length = formatDuration(new Date(ev.endAt).getTime() - new Date(ev.startAt).getTime());
+  return `${formatDateTime(ev.startAt, ev.timezone)} → ${formatDateTime(ev.endAt, ev.timezone)} · ${length}`;
+}
+
 /** A big rubber-stamp "Completed" across the card of an event that has ended (the badge carries the text for screen readers). */
 function CompletedStamp() {
   return (
     <span className="completed-stamp" aria-hidden="true">
       Completed
     </span>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 11a8 8 0 0 0-14.9-3M4 5v4h4" />
+      <path d="M4 13a8 8 0 0 0 14.9 3M20 19v-4h-4" />
+    </svg>
   );
 }
 

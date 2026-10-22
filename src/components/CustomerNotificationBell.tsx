@@ -22,6 +22,8 @@ const TEXT: Record<NotificationType, { title: string; hint: string }> = {
   GATE_OPEN: { title: 'Gates are open', hint: 'You can head in now.' },
   EVENT_STARTING: { title: 'Starting now', hint: 'Your event is starting.' },
   REVIEW_REQUEST: { title: 'How was it?', hint: 'Rate the event you attended.' },
+  EVENT_DRAFT_WARNING: { title: 'Draft will be deleted', hint: 'Publish it before the deadline.' },
+  EVENT_DRAFT_DELETED: { title: 'Draft deleted', hint: 'It was not published in time.' },
 };
 
 /** Where a notification opens: the order or event it is about, else the list that holds it. */

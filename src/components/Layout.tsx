@@ -18,6 +18,16 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { useUnsavedChangesApi } from './UnsavedChanges';
 import { ViewSwitcher } from './ViewSwitcher';
 
+/** A gear: the Settings tab. */
+function SettingsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
 function CartIcon() {
   return (
     <svg
@@ -62,6 +72,8 @@ export function Layout() {
   // An owner or organizer (not an admin) looking at the management view.
   // Check-in staff only read events and download the scanner app: no Team, Finance or Settings.
   const scanner = position === 'Scanner';
+  // The gear for Settings, always the last of the management tabs (owners, organizers and admins; not check-in staff).
+  const settingsTo = user && !hideManagement ? (isAdminRole(user.role) ? '/admin/settings' : isHost === true && !scanner ? '/manage/settings' : null) : null;
   const orgMemberView = Boolean(user) && !isAdminRole(user?.role) && isHost === true && !hideManagement;
 
   // Switching to the customer view while on a management page takes you to the customer side.
@@ -134,7 +146,6 @@ export function Layout() {
               </NavLink>
               {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/team">Team</NavLink>}
               {!isAdminRole(user.role) && canFinance && <NavLink to="/manage/finance">Finance &amp; Payouts</NavLink>}
-              {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/settings">Settings</NavLink>}
               {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/scanner">Scanner</NavLink>}
               {isAdminRole(user.role) && (
                 <>
@@ -144,8 +155,12 @@ export function Layout() {
                   <NavLink to="/admin/payouts">Finance &amp; Payouts</NavLink>
                   <NavLink to="/admin/disputes">Disputes</NavLink>
                   <NavLink to="/admin/scanner">Scanner</NavLink>
-                  <NavLink to="/admin/settings">Settings</NavLink>
                 </>
+              )}
+              {settingsTo && (
+                <NavLink to={settingsTo} className="nav-icon" aria-label="Settings" title="Settings">
+                  <SettingsIcon />
+                </NavLink>
               )}
             </nav>
           )}

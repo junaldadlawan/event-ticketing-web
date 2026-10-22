@@ -44,3 +44,10 @@ export function formatDuration(ms: number): string {
   const m = Math.max(0, Math.round(ms / 60_000));
   return m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ''}` : `${m}m`;
 }
+
+/** "5h 12m": how long until an unpublished draft is deleted, once that is 24 hours or less away (null before then, or when the rule is off). */
+export function draftDeletesIn(event: Pick<Event, 'autoDeleteAt'>, now = Date.now()): string | null {
+  if (!event.autoDeleteAt) return null;
+  const ms = new Date(event.autoDeleteAt).getTime() - now;
+  return ms > SOON_MS ? null : formatDuration(Math.max(ms, 0));
+}

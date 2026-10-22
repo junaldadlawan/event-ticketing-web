@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Navigate, NavLink, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
-import { gatewayFeeApi, platformFeeApi, ticketSaleSettingsApi } from '../../api/endpoints';
+import { draftEventSettingsApi, gatewayFeeApi, platformFeeApi, ticketSaleSettingsApi } from '../../api/endpoints';
 import type { FeePayer, GatewayFeePayer, GatewayFeeRequest, GatewayFeeSetting, Money, PlatformFeeRule, PlatformFeeRuleRequest, TicketSaleSettings } from '../../api/types';
 import { FormDialog } from '../../components/FormDialog';
 import { Empty, ErrorBox, SuccessBox, PageHeader } from '../../components/ui';
@@ -49,7 +49,16 @@ type FeeDialog =
 
 /** One entry per admin tab, in the tab bar's order. Only the ones with something to set have a panel so far. */
 const SECTIONS: { key: string; label: string; panel?: () => ReactNode }[] = [
-  { key: 'events', label: 'Event Management', panel: () => <TicketSaleSettingsPanel /> },
+  {
+    key: 'events',
+    label: 'Event Management',
+    panel: () => (
+      <>
+        <TicketSaleSettingsPanel />
+        <DraftSettingsPanel />
+      </>
+    ),
+  },
   { key: 'posts', label: 'Posts' },
   { key: 'organizations', label: 'Organizations' },
   { key: 'users', label: 'Users' },
@@ -126,6 +135,79 @@ function TicketSaleSettingsPanel() {
             }}
           />
         )}
+      </FormDialog>
+    </>
+  );
+}
+
+/** When an unpublished draft is deleted: that many hours before the event starts (0 = never). The API checks every minute. */
+function DraftSettingsPanel() {
+  const settings = useAsync(() => draftEventSettingsApi.get(), []);
+  const [editing, setEditing] = useState(false);
+  const [hours, setHours] = useState('1');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const s = settings.data;
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setErr(null);
+    try {
+      settings.setData(await draftEventSettingsApi.update(Math.round(Number(hours) * 60)));
+      setEditing(false);
+      setMsg('Draft cleanup saved.');
+    } catch (ex) {
+      setErr(errorMessage(ex));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <ErrorBox message={settings.error} />
+      <SuccessBox message={msg} />
+      <dl className="setting-row">
+        <dt>Unpublished drafts</dt>
+        <dd>
+          {!s
+            ? '…'
+            : s.autoDeleteMinutesBeforeStart === 0
+              ? 'Never deleted'
+              : `Deleted ${minutesText(s.autoDeleteMinutesBeforeStart)} before the event starts, or once it has started`}
+        </dd>
+        <button
+          type="button"
+          className="btn btn-sm"
+          disabled={!s}
+          onClick={() => {
+            setHours(String((s?.autoDeleteMinutesBeforeStart ?? 60) / 60));
+            setErr(null);
+            setEditing(true);
+          }}
+        >
+          Edit
+        </button>
+      </dl>
+      <p className="muted small">The owner and organizers are warned 24 hours before a draft is deleted.</p>
+      <FormDialog open={editing} title="Unpublished drafts" onClose={() => setEditing(false)}>
+        <form className="form" onSubmit={save}>
+          <label>
+            Delete a draft <span className="hint">(hours before the event starts; 0 = never delete)</span>
+            <input type="number" required min={0} max={168} step={0.25} value={hours} onChange={(e) => setHours(e.target.value)} />
+          </label>
+          <ErrorBox message={err} />
+          <div className="modal-actions">
+            <button type="button" className="btn" disabled={busy} onClick={() => setEditing(false)}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" disabled={busy}>
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </form>
       </FormDialog>
     </>
   );

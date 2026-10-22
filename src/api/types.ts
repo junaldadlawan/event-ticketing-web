@@ -277,6 +277,8 @@ export interface Event {
   ticketPrefix: string;
   /** Gates open this many minutes before the start (BR-TICKET-GATE-001, display only); null = not set. */
   gateOpensMinutesBefore: number | null;
+  /** A DRAFT only: when it is deleted if nobody publishes it; null for any other status or when the rule is off. */
+  autoDeleteAt?: string | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -1041,7 +1043,9 @@ export type NotificationType =
   | 'ACCOUNT_MODERATION_ACTION'
   | 'GATE_OPEN'
   | 'EVENT_STARTING'
-  | 'REVIEW_REQUEST';
+  | 'REVIEW_REQUEST'
+  | 'EVENT_DRAFT_WARNING'
+  | 'EVENT_DRAFT_DELETED';
 
 /** The types a user may turn off (BR-NOTIFY-002); the rest are always sent. */
 export type OptionalNotificationType =
@@ -1169,4 +1173,12 @@ export interface ScannerApp {
   uploadedBy: UUID;
   releaseNotes: string | null;
   downloadUrl: string;
+}
+
+/** When an unpublished draft is deleted (PUT /platform-settings/draft-events, admins). */
+export interface DraftEventSettings {
+  /** A draft starting within this many minutes (or already started) is deleted; 0 = off. */
+  autoDeleteMinutesBeforeStart: number;
+  updatedBy: string | null;
+  updatedAt: string | null;
 }

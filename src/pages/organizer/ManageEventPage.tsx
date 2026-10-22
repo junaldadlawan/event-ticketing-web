@@ -20,12 +20,13 @@ import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../compone
 import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso, minutesText } from '../../utils/format';
 import { sortTicketTypes } from '../../utils/ticketTypes';
 import { useHasPermission, useIsOrgManager, usePosition } from '../../auth/useCanManage';
+import { useNow } from '../../utils/useNow';
 import { useOrgNames } from '../../utils/useOrgNames';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { useAsync } from '../../utils/useAsync';
 import { TimeField } from '../../components/TimeField';
 import { zonedParts, zonedToIso } from '../../utils/zonedTime';
-import { formatDuration, isEventOver } from '../../utils/eventState';
+import { draftDeletesIn, formatDuration, isEventOver } from '../../utils/eventState';
 
 /** Tooltip on the controls an ended event greys out. */
 const ENDED_TIP = 'This event has ended and can no longer be changed';
@@ -74,6 +75,7 @@ export function ManageEventPage() {
   const canAnalytics = useHasPermission('ANALYTICS', event?.organizationId);
   // Check-in staff get the event's details only: no ticket types (prices, sales) below the header.
   const scanner = usePosition() === 'Scanner';
+  const now = useNow(30_000).getTime(); // keeps a draft's deletion countdown current
   const canEditTickets = useIsOrgManager(event?.organizationId) && canEvents;
   const orgName = useOrgNames(event ? [event.organizationId] : []).get(event?.organizationId ?? '');
 
@@ -206,6 +208,12 @@ export function ManageEventPage() {
         )}
         </div>
       </section>
+
+      {draftDeletesIn(event, now) && (
+        <p className="alert alert-warning" role="status">
+          This draft is deleted in {draftDeletesIn(event, now)} unless you publish it first.
+        </p>
+      )}
 
       {/* The launch steps and the "You're live" note are for people who can edit the event, not read-only viewers. */}
       {canEvents && (

@@ -50,7 +50,7 @@ export function ManageEventsPage() {
   const creating = useMatch('/manage/new') !== null;
   const [view, setView] = useEventView('et.manageView');
 
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () =>
       eventApi.managed({
         keyword,
@@ -82,14 +82,13 @@ export function ManageEventsPage() {
   const ongoing = data?.content.filter((e) => isOngoing(e, now)) ?? [];
   const rest = data?.content.filter((e) => !isOngoing(e, now)) ?? [];
   // Still to come, soonest first and grouped by when (Today, Tomorrow, a weekday, Later this month, a month); then the ended ones.
-  const toCome = rest.filter((e) => !isEventOver(e, now)).sort((a, b) => a.startAt.localeCompare(b.startAt));
-  const completed = rest.filter((e) => isEventOver(e, now));
-  const extra = (ev: Event) => (
-    <>
-      {orgNames.size > 1 && orgNames.get(ev.organizationId) && <>{orgNames.get(ev.organizationId)} · </>}
-      Prefix <code>{ev.ticketPrefix}</code>
-    </>
-  );
+  // Drafts are one group of their own, whatever their date.
+  const drafts = rest.filter((e) => e.status === 'DRAFT');
+  const toCome = rest.filter((e) => e.status !== 'DRAFT' && !isEventOver(e, now)).sort((a, b) => a.startAt.localeCompare(b.startAt));
+  const completed = rest.filter((e) => e.status !== 'DRAFT' && isEventOver(e, now));
+  // The organization's name, only when the list mixes several.
+  const orgLabel = (ev: Event) => (orgNames.size > 1 ? orgNames.get(ev.organizationId) : undefined);
+  const extra = (ev: Event) => orgLabel(ev) ?? null;
 
   return (
     <>
@@ -163,35 +162,41 @@ export function ManageEventsPage() {
       ) : (
         data && (
           <>
-            <ResultsBar count={data.totalElements} view={view} onViewChange={setView} />
-            {/* Every event is the same stacked card (cover on top, details below); the list view only makes it one column. */}
-            <div className={`manage-cards${view === 'list' ? ' is-list' : ''}`}>
+            <ResultsBar count={data.totalElements} view={view} onViewChange={setView} onRefresh={reload} refreshing={loading} />
+            <div>
             {ongoing.length > 0 && (
               <>
                 <h2>Happening now</h2>
                 <EventCollection
                   events={ongoing}
-                  view="grid"
+                  view={view}
                   hrefFor={(ev) => `/manage/events/${ev.id}`}
                   extra={(ev) => (
                     <>
                       Running for {formatDuration(now - new Date(ev.startAt).getTime())} ·{' '}
-                      {formatDuration(new Date(ev.endAt).getTime() - now)} left · {extra(ev)}
+                      {formatDuration(new Date(ev.endAt).getTime() - now)} left
+                      {orgLabel(ev) && <> · {orgLabel(ev)}</>}
                     </>
                   )}
                 />
               </>
             )}
+            {drafts.length > 0 && (
+              <section aria-label="Drafts">
+                <h2 className={ongoing.length > 0 ? 'events-section-gap' : undefined}>Drafts</h2>
+                <EventCollection events={drafts} view={view} hrefFor={(ev) => `/manage/events/${ev.id}`} extra={extra} />
+              </section>
+            )}
             {groupInRuns(toCome, (e) => dateGroupLabel(e.startAt)).map((g) => (
               <section key={g.start} aria-label={g.label}>
-                <h2 className={ongoing.length > 0 || g.start > 0 ? 'events-section-gap' : undefined}>{g.label}</h2>
-                <EventCollection events={g.items} view="grid" hrefFor={(ev) => `/manage/events/${ev.id}`} extra={extra} />
+                <h2 className={ongoing.length > 0 || drafts.length > 0 || g.start > 0 ? 'events-section-gap' : undefined}>{g.label}</h2>
+                <EventCollection events={g.items} view={view} hrefFor={(ev) => `/manage/events/${ev.id}`} extra={extra} />
               </section>
             ))}
             {completed.length > 0 && (
               <section aria-label="Completed">
-                <h2 className={ongoing.length > 0 || toCome.length > 0 ? 'events-section-gap' : undefined}>Completed</h2>
-                <EventCollection events={completed} view="grid" hrefFor={(ev) => `/manage/events/${ev.id}`} extra={extra} />
+                <h2 className={ongoing.length > 0 || drafts.length > 0 || toCome.length > 0 ? 'events-section-gap' : undefined}>Completed</h2>
+                <EventCollection events={completed} view={view} hrefFor={(ev) => `/manage/events/${ev.id}`} extra={extra} stamp={false} />
               </section>
             )}
             </div>
