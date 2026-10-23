@@ -1,7 +1,20 @@
 import { ApiError, api, apiUrl } from './client';
 import type {
+  OrganizationChangeRequest,
+  OrganizationUpdate,
+  DraftEventSettings,
+  ScannerApp,
+  CheckInHistoryItem,
+  CheckInSummary,
+  ScannerDeviceSummary,
+  TicketSaleSettings,
+  EventReview,
+  EventReviewEntry,
+  EventReviewSummary,
+  RecapMessage,
   BackgroundFit,
   AppNotification,
+  NotificationPreferences,
   Cart,
   CheckoutPayment,
   Dispute,
@@ -33,6 +46,7 @@ import type {
   ModerationActionRequest,
   ModerationTargetType,
   OrganizationMember,
+  OrganizationPermission,
   OrganizationRole,
   OrganizationStatus,
   Payout,
@@ -56,6 +70,8 @@ import type {
   RegisterDetails,
   CodePlacement,
   Ticket,
+  TicketStatus,
+  MyTicketEvent,
   TicketTemplate,
   TicketTemplateFormat,
   TextField,
@@ -78,6 +94,14 @@ export interface PageQuery {
   page?: number;
   size?: number;
   sort?: string;
+}
+
+export interface CheckInFilter {
+  result?: CheckInHistoryItem['result'];
+  sourceType?: CheckInHistoryItem['sourceType'];
+  scannerDeviceId?: UUID;
+  /** Ticket number contains this text. */
+  ticketNumber?: string;
 }
 
 export const authApi = {
@@ -169,6 +193,12 @@ export const eventApi = {
   publish: (id: UUID) => api<Event>(`/events/${id}/publish`, { method: 'POST' }),
   cancel: (id: UUID) => api<Event>(`/events/${id}/cancel`, { method: 'POST' }),
   remove: (id: UUID) => api<void>(`/events/${id}`, { method: 'DELETE' }),
+  /** The event's scan history, newest first (owner, organizer, check-in staff, admin). Scan facts only. */
+  checkInRecords: (id: UUID, q: CheckInFilter & PageQuery = {}) =>
+    api<PageResponse<CheckInHistoryItem>>(`/events/${id}/check-in-records`, { query: { ...q } }),
+  /** Counts of those scans for the same filters. */
+  checkInSummary: (id: UUID, q: CheckInFilter = {}) => api<CheckInSummary>(`/events/${id}/check-in-summary`, { query: { ...q } }),
+  scannerDevices: (id: UUID) => api<ScannerDeviceSummary[]>(`/events/${id}/scanner-devices`),
   orders: (id: UUID, q: PageQuery = {}) =>
     api<PageResponse<Order>>(`/events/${id}/orders`, { query: { ...q } }),
   /** Who changed what on the event, newest first (its owner / organizers, or an admin). */
@@ -224,6 +254,33 @@ export const postApi = {
   remove: (id: UUID) => api<void>(`/posts/${id}`, { method: 'DELETE' }),
 };
 
+/** Reviews of an ended event (BR-REVIEW-001). Only attendees (a used ticket) may write one, once it has ended. */
+export const reviewApi = {
+  /** Public: average and counts, no comments. */
+  summary: (eventId: UUID) => api<EventReviewSummary>(`/events/${eventId}/reviews/summary`),
+  /** The caller's own review (a 404 means none yet). */
+  mine: (eventId: UUID) => api<EventReview>(`/events/${eventId}/reviews/me`),
+  create: (eventId: UUID, rating: number, comment: string | null) =>
+    api<EventReview>(`/events/${eventId}/reviews`, { method: 'POST', body: { rating, comment } }),
+  update: (eventId: UUID, rating: number, comment: string | null) =>
+    api<EventReview>(`/events/${eventId}/reviews/me`, { method: 'PUT', body: { rating, comment } }),
+  remove: (eventId: UUID) => api<void>(`/events/${eventId}/reviews/me`, { method: 'DELETE' }),
+  /** Every review with its comment: the owner, organizers with ANALYTICS, or admins. */
+  list: (eventId: UUID, q: PageQuery = {}) =>
+    api<PageResponse<EventReviewEntry>>(`/events/${eventId}/reviews`, { query: { ...q } }),
+};
+
+/** An ended event's recap feed (BR-EVENT-RECAP-001): public to read; the owner or EVENTS organizers post. */
+export const recapApi = {
+  list: (eventId: UUID) => api<RecapMessage[]>(`/events/${eventId}/recap`),
+  /** Needs a body or a picture (a URL from uploadApi.image). */
+  post: (eventId: UUID, body: string | null, imageUrl: string | null) =>
+    api<RecapMessage>(`/events/${eventId}/recap`, { method: 'POST', body: { body, imageUrl } }),
+  /** The owner, an EVENTS organizer, or an admin. */
+  remove: (eventId: UUID, messageId: UUID) =>
+    api<void>(`/events/${eventId}/recap/${messageId}`, { method: 'DELETE' }),
+};
+
 export const uploadApi = {
   /** PNG/JPEG/WebP/GIF, max 5 MB. Returns an absolute URL. */
   image: (file: File) => {
@@ -235,28 +292,54 @@ export const uploadApi = {
 
 export const organizationApi = {
   /** Submit an organizer application; it starts as PENDING until an admin approves it. */
-  apply: (name: string, documents: OrganizationDocument[]) =>
-    api<Organization>('/organizations', { method: 'POST', body: { name, documents } }),
+  apply: (name: string, documents: OrganizationDocument[], details: Omit<OrganizationUpdate, 'name'> = {}) =>
+    api<Organization>('/organizations', { method: 'POST', body: { name, documents, ...details } }),
   /** Members and their roles. Only members of the organization (or admins) may call this. */
   members: (orgId: UUID) => api<OrganizationMember[]>(`/organizations/${orgId}/members`),
+  /** The caller's own membership with its permissions (BR-ORG-008); 404 when they are not a member. */
+  myMembership: (orgId: UUID) => api<OrganizationMember>(`/organizations/${orgId}/members/me`),
   get: (orgId: UUID) => api<Organization>(`/organizations/${orgId}`),
   /** The caller's organizations, any status (owner / organizer / applicant). Needs GET /organizations/mine on the API. */
   mine: () => api<Organization[]>('/organizations/mine'),
   /** Admin: every organization, optionally only one status (PENDING / APPROVED / REJECTED / SUSPENDED). */
   list: (status?: OrganizationStatus) =>
     api<Organization[]>('/organizations', { query: { status } }),
-  rename: (orgId: UUID, name: string) =>
-    api<Organization>(`/organizations/${orgId}`, { method: 'PATCH', body: { name } }),
+  /** Owner, or an organizer with TEAM: asks for the change (only the fields that differ); an admin approves it first. */
+  requestChange: (orgId: UUID, body: OrganizationUpdate) =>
+    api<OrganizationChangeRequest>(`/organizations/${orgId}`, { method: 'PATCH', body }),
+  /** Admin: send a pending application back to its applicant with a message (409 when it is not pending). */
+  requestRevision: (orgId: UUID, message: string) =>
+    api<Organization>(`/organizations/${orgId}/request-revision`, { method: 'POST', body: { message } }),
+  /** The applicant edits their own pending application directly; it clears the revision flag and tells the admins. */
+  editApplication: (orgId: UUID, body: OrganizationUpdate) =>
+    api<Organization>(`/organizations/${orgId}`, { method: 'PATCH', body }),
+  /** The pending request and the history, newest first (members and admins). */
+  changeRequests: (orgId: UUID) => api<OrganizationChangeRequest[]>(`/organizations/${orgId}/change-requests`),
+  /** Only the person who made it, while it is pending. */
+  withdrawChange: (orgId: UUID, id: UUID) => api<void>(`/organizations/${orgId}/change-requests/${id}`, { method: 'DELETE' }),
+  /** Admin: every request, newest first, with the current values next to the requested ones. */
+  allChangeRequests: (q: PageQuery & { status?: OrganizationChangeRequest['status'] } = {}) =>
+    api<PageResponse<OrganizationChangeRequest>>('/admin/organization-change-requests', { query: { ...q } }),
+  approveChange: (id: UUID) => api<OrganizationChangeRequest>(`/admin/organization-change-requests/${id}/approve`, { method: 'POST' }),
+  rejectChange: (id: UUID, reason: string) =>
+    api<OrganizationChangeRequest>(`/admin/organization-change-requests/${id}/reject`, { method: 'POST', body: { reason } }),
   approve: (orgId: UUID) => api<Organization>(`/organizations/${orgId}/approve`, { method: 'POST' }),
   reject: (orgId: UUID, reason?: string) =>
     api<Organization>(`/organizations/${orgId}/reject`, { method: 'POST', body: reason ? { reason } : {} }),
   /** OWNER can't be assigned here (it only comes from approving the application). */
-  assignMember: (orgId: UUID, userId: UUID, role: OrganizationRole) =>
-    api<OrganizationMember>(`/organizations/${orgId}/members`, { method: 'POST', body: { userId, role } }),
-  /** Owner only: replace a member's roles with exactly this set (not OWNER, not empty: remove them instead). */
-  setMemberRoles: (orgId: UUID, userId: UUID, roles: OrganizationRole[]) =>
-    api<OrganizationMember>(`/organizations/${orgId}/members/${userId}/roles`, { method: 'PUT', body: { roles } }),
-  /** Owner only: remove a member and all their roles (the owner can't be removed). */
+  /** `permissions` only with ORGANIZER; left out, a new organizer gets everything but TEAM. */
+  assignMember: (orgId: UUID, userId: UUID, role: OrganizationRole, permissions?: OrganizationPermission[]) =>
+    api<OrganizationMember>(`/organizations/${orgId}/members`, { method: 'POST', body: { userId, role, permissions } }),
+  /**
+   * Owner, or an organizer with TEAM: replace a member's roles with exactly this set (not OWNER, not empty: remove
+   * them instead). `permissions` only with ORGANIZER; left out, they are kept.
+   */
+  setMemberRoles: (orgId: UUID, userId: UUID, roles: OrganizationRole[], permissions?: OrganizationPermission[]) =>
+    api<OrganizationMember>(`/organizations/${orgId}/members/${userId}/roles`, {
+      method: 'PUT',
+      body: { roles, permissions },
+    }),
+  /** Owner, or an organizer with TEAM: remove a member and all their roles (the owner can't be removed). */
   removeMember: (orgId: UUID, userId: UUID) =>
     api<void>(`/organizations/${orgId}/members/${userId}`, { method: 'DELETE' }),
 };
@@ -342,6 +425,19 @@ export const payoutCardApi = {
 };
 
 /** Admin only: the payment gateway's fee, and who pays it. */
+/** Ticket-sale timing rules: any signed-in user may read them (the ticket type form shows them); admins change them. */
+export const ticketSaleSettingsApi = {
+  get: () => api<TicketSaleSettings>('/platform-settings/ticket-sales'),
+  update: (body: TicketSaleSettings) => api<TicketSaleSettings>('/platform-settings/ticket-sales', { method: 'PUT', body }),
+};
+
+/** When an unpublished draft is deleted: any signed-in user may read it; admins change it. */
+export const draftEventSettingsApi = {
+  get: () => api<DraftEventSettings>('/platform-settings/draft-events'),
+  update: (autoDeleteMinutesBeforeStart: number) =>
+    api<DraftEventSettings>('/platform-settings/draft-events', { method: 'PUT', body: { autoDeleteMinutesBeforeStart } }),
+};
+
 export const gatewayFeeApi = {
   get: () => api<GatewayFeeSetting>('/payment-gateway-fee'),
   update: (body: GatewayFeeRequest) => api<GatewayFeeSetting>('/payment-gateway-fee', { method: 'PUT', body }),
@@ -357,6 +453,10 @@ export const payoutWalletApi = {
 export const notificationApi = {
   /** The signed-in user's notifications (any role). The API has no read flag. */
   mine: () => api<AppNotification[]>('/users/me/notifications'),
+  preferences: () => api<NotificationPreferences>('/users/me/notification-preferences'),
+  /** Partial is fine: types left out stay as they are. Returns all of them after the change. */
+  updatePreferences: (preferences: NotificationPreferences['preferences']) =>
+    api<NotificationPreferences>('/users/me/notification-preferences', { method: 'PUT', body: { preferences } }),
 };
 
 export const disputeApi = {
@@ -444,6 +544,11 @@ export const orderApi = {
 };
 
 export const ticketApi = {
+  /** Every ticket the caller holds now (bought, or transferred to them), soonest event first. */
+  mine: (q: PageQuery & { status?: TicketStatus; eventId?: UUID } = {}) =>
+    api<PageResponse<Ticket>>('/users/me/tickets', { query: { ...q } }),
+  /** The events the caller holds tickets for now, soonest first, with how many. */
+  myEvents: () => api<MyTicketEvent[]>('/users/me/tickets/events'),
   get: (id: UUID) => api<Ticket>(`/tickets/${id}`),
   transfer: (id: UUID, toUserId: UUID) =>
     api<Ticket>(`/tickets/${id}/transfer`, { method: 'POST', body: { toUserId } }),
@@ -476,4 +581,26 @@ export const waitlistApi = {
   /** Join the line for a sold-out ticket type (omit the id to wait for the event in general). */
   join: (eventId: UUID, ticketTypeId?: UUID) =>
     api<WaitlistEntry>(`/events/${eventId}/waitlist`, { method: 'POST', body: ticketTypeId ? { ticketTypeId } : {} }),
+};
+
+export const scannerAppApi = {
+  /** The newest version (an admin, or check-in staff of some organization); 404 when nothing was uploaded yet. */
+  latest: () => api<ScannerApp>('/scanner-app/latest'),
+  /** Every upload, newest first (an admin, or a member holding SCANNER_APP). */
+  list: () => api<ScannerApp[]>('/scanner-app/uploads'),
+  /** An admin, or a member holding SCANNER_APP. The file must be a real APK (400 otherwise); an already uploaded versionCode is a 409. */
+  upload: (file: File, versionName: string, versionCode: number, releaseNotes: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('versionName', versionName);
+    form.append('versionCode', String(versionCode));
+    if (releaseNotes) form.append('releaseNotes', releaseNotes);
+    return api<ScannerApp>('/scanner-app/uploads', { method: 'POST', body: form });
+  },
+  remove: (id: UUID) => api<void>(`/scanner-app/uploads/${id}`, { method: 'DELETE' }),
+  /** The APK as a Blob. Needs the bearer token, so a plain <a href> won't work. */
+  download: async (id: UUID) => {
+    const res = await api<Response>(`/scanner-app/${id}/download`, { raw: true, headers: { Accept: '*/*' } });
+    return res.blob();
+  },
 };

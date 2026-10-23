@@ -192,8 +192,22 @@ export interface OrganizationMember {
   email?: string | null;
   /** Null when unset, or for a caller who is only check-in staff. */
   phoneNumber?: string | null;
+  /** BR-ORG-008: every permission for the owner, an organizer's chosen set, empty for anyone else. */
+  permissions?: OrganizationPermission[];
   avatarUrl?: string | null;
 }
+
+/** What an ORGANIZER may do in their organization (BR-ORG-008); a missing one is a 403 from the API. */
+export type OrganizationPermission =
+  | 'EVENTS'
+  | 'PROMO_CODES'
+  | 'CHECK_IN'
+  | 'ORDERS_REFUNDS'
+  | 'FINANCE'
+  | 'ANALYTICS'
+  | 'TEAM'
+  /** Upload and remove versions of the scanner app (shared by every organization); the only permission check-in staff can hold. */
+  | 'SCANNER_APP';
 
 export type OrganizationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
 
@@ -210,11 +224,53 @@ export interface Organization {
   documents: OrganizationDocument[];
   ownerId: UUID | null;
   rejectionReason: string | null;
+  /** The person who applied; the owner once the application is approved. */
+  createdBy?: UUID | null;
   createdAt: string;
   /** Last change (approval, rejection, suspension, rename...). */
   updatedAt?: string | null;
   /** When an admin approved the application (absent until the API records it). */
   approvedAt?: string | null;
+  /** Optional details; changed only through an admin-approved change request. */
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  address?: string | null;
+  description?: string | null;
+  /** True while an admin has asked the applicant to revise this pending application (BR-ORG-010). */
+  revisionRequested?: boolean;
+  revisionMessage?: string | null;
+  revisionRequestedAt?: string | null;
+}
+
+/** The organization details a change request can carry (any subset; an empty string clears a detail). */
+export interface OrganizationUpdate {
+  name?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  address?: string;
+  description?: string;
+  /** Only when the applicant edits their own pending application. */
+  documents?: OrganizationDocument[];
+}
+
+/** A changed value: text (null = cleared), or the document list ({type, url} items). */
+export type ChangeValue = string | null | OrganizationDocument[];
+
+/** A request to change an organization's details, waiting for an admin (BR-ORG-009). */
+export interface OrganizationChangeRequest {
+  id: UUID;
+  organizationId: UUID;
+  organizationName: string;
+  requestedBy: UUID;
+  /** The changed fields only; null = clear it. */
+  requested: Record<string, ChangeValue>;
+  /** The organization's values for those same fields now. */
+  current: Record<string, ChangeValue>;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  createdAt: string;
+  decidedBy: UUID | null;
+  decidedAt: string | null;
+  rejectionReason: string | null;
 }
 
 export interface Category {
@@ -261,6 +317,10 @@ export interface Event {
   images: string[] | null;
   status: EventStatus;
   ticketPrefix: string;
+  /** Gates open this many minutes before the start (BR-TICKET-GATE-001, display only); null = not set. */
+  gateOpensMinutesBefore: number | null;
+  /** A DRAFT only: when it is deleted if nobody publishes it; null for any other status or when the rule is off. */
+  autoDeleteAt?: string | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -275,6 +335,8 @@ export interface EventCreateRequest {
   endAt: string;
   timezone: string;
   images?: string[];
+  /** 0-1440; null or left out = not set. */
+  gateOpensMinutesBefore?: number | null;
 }
 
 export interface EventUpdateRequest {
@@ -282,6 +344,8 @@ export interface EventUpdateRequest {
   description?: string;
   category?: string;
   images?: string[];
+  /** null clears it; left out leaves it as it is. */
+  gateOpensMinutesBefore?: number | null;
 }
 
 export type TicketTypeKind = 'GENERAL_ADMISSION' | 'RESERVED_SEATING';
@@ -297,12 +361,16 @@ export interface TicketType {
   saleStartAt: string;
   saleEndAt: string;
   maxPerOrder: number;
+  /** Most tickets of this type one buyer may buy in total, across all their orders; null = unlimited. */
+  maxPerUser: number | null;
   /** While true the type can not be added to a cart (the organizer paused sales). */
   salesPaused: boolean;
   /** Where it sits in the event's list (0 = first), as arranged by the organizer. */
   position: number;
   /** When it was created (tie-break for the order). */
   createdAt?: string;
+  /** The card colour the organizer picked, "#RRGGBB" (uppercase from the API); null = none. */
+  color?: string | null;
 }
 
 export interface TicketTypeCreateRequest {
@@ -315,6 +383,14 @@ export interface TicketTypeCreateRequest {
   /** At least an hour before the event starts, or the API refuses it (400). */
   saleEndAt: string;
   maxPerOrder?: number;
+  /** Null or left out = unlimited. maxPerOrder can't be more (400). */
+  maxPerUser?: number | null;
+}
+
+/** The ticket-sale timing rules an admin sets (BR-ADMIN-SETTINGS-002); they apply to new and edited sale windows. */
+export interface TicketSaleSettings {
+  salesCloseMinutesBeforeEvent: number;
+  minSaleDurationMinutes: number;
 }
 
 export interface CartItem {
@@ -354,6 +430,28 @@ export interface Ticket {
   status: TicketStatus;
   createdAt: string;
   updatedAt?: string;
+  /** Only on a USED ticket: the valid scan that checked it in (never duplicate or invalid attempts). */
+  checkIn?: TicketCheckIn | null;
+}
+
+/** An event the user holds tickets for now, for My tickets' event filter (GET /users/me/tickets/events). */
+export interface MyTicketEvent {
+  id: UUID;
+  title: string;
+  startAt: string;
+  timezone: string;
+  /** Tickets the user holds for it now, any status. */
+  ticketCount: number;
+}
+
+export interface TicketCheckIn {
+  scannedAt: string;
+  /** Where the scan was made, e.g. "Gate A"; null when the scanner had none. */
+  scannerLocation: string | null;
+  /** The scanner device (or the fallback source) that made the scan. */
+  scannerId: UUID;
+  /** The device's name; null for a fallback scan. */
+  scannerName: string | null;
 }
 
 export type OrderStatus = 'PENDING' | 'PAID' | 'CANCELLED' | 'REFUNDED' | 'PARTIALLY_REFUNDED';
@@ -383,8 +481,12 @@ export interface TicketTypeUpdateRequest {
   saleStartAt?: string;
   saleEndAt?: string;
   maxPerOrder?: number;
+  /** null = unlimited; left out leaves it as it is. */
+  maxPerUser?: number | null;
   /** true pauses sales, false resumes. */
   salesPaused?: boolean;
+  /** "#RRGGBB"; null clears it, left out leaves it as it is. */
+  color?: string | null;
 }
 
 export type DiscountType = 'PERCENTAGE' | 'FIXED';
@@ -980,9 +1082,31 @@ export type NotificationType =
   | 'WAITLIST_AVAILABILITY'
   | 'REFUND_CONFIRMATION'
   | 'DISPUTE_RESOLVED'
-  | 'ACCOUNT_MODERATION_ACTION';
+  | 'ACCOUNT_MODERATION_ACTION'
+  | 'GATE_OPEN'
+  | 'EVENT_STARTING'
+  | 'REVIEW_REQUEST'
+  | 'EVENT_DRAFT_WARNING'
+  | 'EVENT_DRAFT_DELETED'
+  | 'ORGANIZATION_CHANGE_REQUESTED'
+  | 'ORGANIZATION_CHANGE_DECIDED'
+  | 'ORGANIZATION_REVISION_REQUESTED';
 
-/** One notification sent to the signed-in user (GET /users/me/notifications). The API sends the kind, not the wording. */
+/** The types a user may turn off (BR-NOTIFY-002); the rest are always sent. */
+export type OptionalNotificationType =
+  | 'EVENT_REMINDER'
+  | 'GATE_OPEN'
+  | 'EVENT_STARTING'
+  | 'REVIEW_REQUEST'
+  | 'EVENT_CHANGE'
+  | 'WAITLIST_AVAILABILITY';
+
+/** GET/PUT /users/me/notification-preferences. All on by default; a PUT may send only some. */
+export interface NotificationPreferences {
+  preferences: Partial<Record<OptionalNotificationType, boolean>>;
+}
+
+/** One notification sent to the signed-in user (GET /users/me/notifications). Only the lifecycle types carry their own wording. */
 export interface AppNotification {
   id: UUID;
   type: NotificationType;
@@ -991,6 +1115,115 @@ export interface AppNotification {
   relatedObjectType: string | null;
   relatedObjectId: UUID | null;
   status: 'PENDING' | 'SENT' | 'FAILED';
+  /** Server-written text for the event lifecycle types ("Bantayog 2026 is tomorrow at 6:18 PM."); null for the older types. */
+  message: string | null;
+  /** The event a lifecycle notification is about. */
+  eventId: UUID | null;
   sentAt: string | null;
   createdAt: string;
+}
+
+/** A review of an ended event (BR-REVIEW-001). The comment is only ever shown to its author and the organizers. */
+export interface EventReview {
+  id: UUID;
+  eventId: UUID;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A review as the organizers see it, with who wrote it. */
+export interface EventReviewEntry {
+  id: UUID;
+  rating: number;
+  comment: string | null;
+  reviewerName: string | null;
+  createdAt: string;
+}
+
+/** The public rating of an event: no comments, no reviewers. */
+export interface EventReviewSummary {
+  /** Null when nobody has rated it yet. */
+  averageRating: number | null;
+  count: number;
+  /** Reviews per star, keys "1" to "5". */
+  counts: Record<string, number>;
+}
+
+/** A message in an ended event's recap feed (BR-EVENT-RECAP-001). */
+export interface RecapMessage {
+  id: UUID;
+  body: string;
+  imageUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  authorName: string | null;
+  organizationName: string | null;
+}
+
+/** One scan attempt on an event's history (GET /events/{id}/check-in-records): scan facts only, no buyer details. */
+export interface CheckInHistoryItem {
+  id: UUID;
+  ticketId: UUID | null;
+  ticketNumber: string | null;
+  ticketTypeId: UUID | null;
+  ticketTypeName: string | null;
+  /** SCANNER_DEVICE: scanned online. RECONCILED_FALLBACK: scanned offline and uploaded afterwards. */
+  sourceType: 'SCANNER_DEVICE' | 'RECONCILED_FALLBACK';
+  /** The scanner device id, or the fallback scan id. */
+  sourceId: UUID;
+  /** The scanner device's label; null for a reconciled fallback scan. */
+  scannerName: string | null;
+  scannerLocation: string | null;
+  scannedAt: string;
+  result: 'VALID' | 'DUPLICATE' | 'INVALID' | 'WRONG_EVENT';
+}
+
+/** Counts of an event's scans for the same filters as the history (GET /events/{id}/check-in-summary). */
+export interface CheckInSummary {
+  total: number;
+  valid: number;
+  duplicate: number;
+  invalid: number;
+  wrongEvent: number;
+  /** Scans by a scanner device. */
+  online: number;
+  /** Fallback scans reconciled later. */
+  offline: number;
+  /** Tickets with at least one VALID scan. */
+  uniqueTicketsAdmitted: number;
+  /** Tickets of the event that are not refunded or cancelled. */
+  ticketsAdmittable: number;
+}
+
+export interface ScannerDeviceSummary {
+  id: UUID;
+  name: string;
+  location: string | null;
+  status: 'ACTIVE' | 'REVOKED';
+}
+
+/** One uploaded version of the scanner app, an Android APK (GET /scanner-app/latest, GET /admin/scanner-app). */
+export interface ScannerApp {
+  id: UUID;
+  versionName: string;
+  /** The Android versionCode; the newest upload is the highest one. */
+  versionCode: number;
+  /** Bytes. */
+  size: number;
+  /** Hex SHA-256 of the file, to check what was downloaded. */
+  sha256: string;
+  uploadedAt: string;
+  uploadedBy: UUID;
+  releaseNotes: string | null;
+  downloadUrl: string;
+}
+
+/** When an unpublished draft is deleted (PUT /platform-settings/draft-events, admins). */
+export interface DraftEventSettings {
+  /** A draft starting within this many minutes (or already started) is deleted; 0 = off. */
+  autoDeleteMinutesBeforeStart: number;
+  updatedBy: string | null;
+  updatedAt: string | null;
 }

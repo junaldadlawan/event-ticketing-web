@@ -258,7 +258,6 @@ export function ProfilePage() {
         </div>
       </dl>
 
-
       <MyQrDialog open={qrOpen} onClose={() => setQrOpen(false)} userId={user.id} name={fullName(user)} />
     </div>
     </ProfileTabs>

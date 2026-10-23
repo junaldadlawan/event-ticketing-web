@@ -2,7 +2,7 @@ import { isAdmin as isAdminRole } from './roles';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../api/client';
 import { eventApi, organizationApi } from '../api/endpoints';
-import type { OrganizationRole, UUID } from '../api/types';
+import type { OrganizationPermission, OrganizationRole, UUID } from '../api/types';
 import { useAuth } from './AuthContext';
 
 /** Roles that may edit an organization's events (matches the API's own rule). */
@@ -132,6 +132,56 @@ export function useIsOrgManager(organizationId: UUID | null | undefined): boolea
   return allowed;
 }
 
+// Per user + organization, per page load. Like the caches above, only decides what to show: the API enforces it.
+const permissionCache = new Map<string, Promise<OrganizationPermission[]>>();
+
+function myPermissions(userId: UUID, orgId: UUID): Promise<OrganizationPermission[]> {
+  const key = `${userId}:${orgId}`;
+  let result = permissionCache.get(key);
+  if (!result) {
+    result = organizationApi
+      .myMembership(orgId)
+      .then((m) => m.permissions ?? [])
+      // Not a member (404): no permissions.
+      .catch(() => []);
+    permissionCache.set(key, result);
+  }
+  return result;
+}
+
+/** The permissions the user holds in any of their approved organizations. */
+function anyOrgPermissions(userId: UUID): Promise<OrganizationPermission[]> {
+  return organizationApi
+    .mine()
+    .then((orgs) => Promise.all(orgs.filter((o) => o.status === 'APPROVED').map((o) => myPermissions(userId, o.id))))
+    .then((lists) => lists.flat())
+    .catch(() => []);
+}
+
+/**
+ * Whether the signed-in user holds `permission` in `organizationId` (BR-ORG-008), or in any of their organizations
+ * with 'any'. Admins always do (their access is unchanged). False while checking or before the organization is known.
+ */
+export function useHasPermission(permission: OrganizationPermission, organizationId: UUID | 'any' | null | undefined): boolean {
+  const { user } = useAuth();
+  const [allowed, setAllowed] = useState(false);
+
+  useEffect(() => {
+    setAllowed(false);
+    if (!user || !organizationId) return;
+    if (isAdminRole(user.role)) return setAllowed(true);
+    let cancelled = false;
+    (organizationId === 'any' ? anyOrgPermissions(user.id) : myPermissions(user.id, organizationId)).then(
+      (perms) => !cancelled && setAllowed(perms.includes(permission)),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [user, organizationId, permission]);
+
+  return allowed;
+}
+
 // Per user, per page load: the user's best organization role ("Organization Owner" beats "Organizer").
 const positionCache = new Map<UUID, Promise<string | null>>();
 
@@ -143,7 +193,13 @@ function orgPosition(userId: UUID): Promise<string | null> {
       .then((orgs) => Promise.all(orgs.filter((o) => o.status === 'APPROVED').map((o) => organizationApi.members(o.id).catch(() => []))))
       .then((lists) => {
         const roles = lists.flat().filter((m) => m.userId === userId).flatMap((m) => m.roles);
-        return roles.includes('OWNER') ? 'Organization Owner' : roles.includes('ORGANIZER') ? 'Organizer' : null;
+        return roles.includes('OWNER')
+          ? 'Organization Owner'
+          : roles.includes('ORGANIZER')
+            ? 'Organizer'
+            : roles.includes('CHECK_IN_STAFF')
+              ? 'Scanner'
+              : null;
       })
       .catch(() => null);
     positionCache.set(userId, result);
@@ -151,7 +207,7 @@ function orgPosition(userId: UUID): Promise<string | null> {
   return result;
 }
 
-/** What to call the management view for this user: "Super admin", "Admin", "Organization Owner" or "Organizer" (null while checking). */
+/** What to call the management view for this user: "Super admin", "Admin", "Organization Owner", "Organizer" or "Scanner" (check-in staff: sees events read-only; null while checking). */
 export function usePosition(): string | null {
   const { user } = useAuth();
   const [position, setPosition] = useState<string | null>(null);

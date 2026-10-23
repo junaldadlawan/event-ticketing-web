@@ -1,14 +1,14 @@
 import { CustomerNotificationBell } from './CustomerNotificationBell';
 import { NotificationBell } from './NotificationBell';
 import { isAdmin as isAdminRole } from '../auth/roles';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fullName, isNewAccount } from '../utils/format';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useAuthDialog } from '../auth/AuthDialog';
 import { useManagementHidden, useViewMode } from '../auth/ViewMode';
 import type { ViewMode } from '../auth/ViewMode';
-import { useIsHost, usePosition } from '../auth/useCanManage';
+import { useHasPermission, useIsHost, usePosition } from '../auth/useCanManage';
 import { useCart } from '../cart/CartContext';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { Avatar } from './Avatar';
@@ -17,6 +17,16 @@ import { BackButton } from './BackButton';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useUnsavedChangesApi } from './UnsavedChanges';
 import { ViewSwitcher } from './ViewSwitcher';
+
+/** A gear: the Settings tab. */
+function SettingsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
 
 function CartIcon() {
   return (
@@ -38,6 +48,9 @@ function CartIcon() {
   );
 }
 
+/** Screens only the customer view has; the management view (admin, owner, organizer) never shows them. */
+const CUSTOMER_ONLY = /^\/(cart|checkout|orders|tickets|apply|profile\/payment)(\/|$)/;
+
 export function Layout() {
   const { user, logout } = useAuth();
   const { openAuth } = useAuthDialog();
@@ -50,23 +63,47 @@ export function Layout() {
   const [switchingTo, setSwitchingTo] = useState<ViewMode | null>(null);
   const isHost = useIsHost();
   const position = usePosition();
+  const canFinance = useHasPermission('FINANCE', 'any');
   const { mode, setMode } = useViewMode();
   // Management tabs are for people who run events (or admins): a plain customer never sees them. While that is
   // still being checked (isHost === null) they stay hidden too.
   const hideManagement = useManagementHidden() || isHost !== true;
   const { pathname } = useLocation();
   // An owner or organizer (not an admin) looking at the management view.
+  // Check-in staff only read events and download the scanner app: no Team, Finance or Settings.
+  const scanner = position === 'Scanner';
+  // The gear for Settings, always the last of the management tabs (owners, organizers and admins; not check-in staff).
+  const settingsTo = user && !hideManagement ? (isAdminRole(user.role) ? '/admin/settings' : isHost === true && !scanner ? '/manage/settings' : null) : null;
   const orgMemberView = Boolean(user) && !isAdminRole(user?.role) && isHost === true && !hideManagement;
 
   // Switching to the customer view while on a management page takes you to the customer side.
   useEffect(() => {
+    if (scanner && /^\/manage\/(team|finance|settings|new)(\/|$)/.test(pathname)) navigate('/manage', { replace: true });
     // A customer (or a host browsing as one) who lands on a management address is sent to the home page.
     if (isHost === false || (isHost === true && hideManagement)) {
       if (/^\/(manage|admin)(\/|$)/.test(pathname)) navigate('/', { replace: true });
     }
+    // And the other way: buying, orders, card wallet and applying to host are the customer view's only.
+    if (isHost === true && !hideManagement && CUSTOMER_ONLY.test(pathname)) navigate('/manage', { replace: true });
+    // The event search is the customer's: an owner or organizer in the management view has no Events tab, so it goes to Event Management too.
+    if (orgMemberView && pathname === '/events') navigate('/manage', { replace: true });
     // The customer home page is not a manager's landing screen: the management view starts at Event Management.
     if (isHost === true && !hideManagement && pathname === '/') navigate('/manage', { replace: true });
-  }, [isHost, hideManagement, pathname, navigate]);
+  }, [isHost, hideManagement, scanner, orgMemberView, pathname, navigate]);
+
+  // Each new screen fades and rises in. Played on <main> (no remount), so a page keeps its state.
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const fade = mainRef.current?.animate(
+      [
+        { opacity: 0, transform: 'translateY(8px)' },
+        { opacity: 1, transform: 'none' },
+      ],
+      { duration: 400, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+    );
+    return () => fade?.cancel(); // a newer screen restarts it
+  }, [pathname]);
 
   async function confirmSwitch() {
     const next = switchingTo;
@@ -104,21 +141,26 @@ export function Layout() {
           {user && !hideManagement && (
             <nav className="nav" aria-label="Organizer">
               {/* Team and Settings live under /manage too, so Event Management is not highlighted there */}
-              <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/settings', '/manage/finance'].includes(pathname) ? 'active' : '')}>
-                Event Management
+              <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/finance', '/manage/scanner'].includes(pathname) && !pathname.startsWith('/manage/settings') ? 'active' : '')}>
+                {isAdminRole(user.role) ? 'Event Management' : 'Events'}
               </NavLink>
-              {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/team">Team</NavLink>}
-              {!isAdminRole(user.role) && position === 'Organization Owner' && <NavLink to="/manage/finance">Finance &amp; Payouts</NavLink>}
-              {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/settings">Settings</NavLink>}
+              {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/team">Team &amp; access</NavLink>}
+              {!isAdminRole(user.role) && canFinance && <NavLink to="/manage/finance">Finance</NavLink>}
+              {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/scanner">Check-in</NavLink>}
               {isAdminRole(user.role) && (
                 <>
                   <NavLink to="/admin/posts">Posts</NavLink>
                   <NavLink to="/admin/organizations">Organizations</NavLink>
                   <NavLink to="/admin/users">Users</NavLink>
-                  <NavLink to="/admin/payouts">Finance &amp; Payouts</NavLink>
+                  <NavLink to="/admin/payouts">Finance</NavLink>
                   <NavLink to="/admin/disputes">Disputes</NavLink>
-                  <NavLink to="/admin/settings">Settings</NavLink>
+                  <NavLink to="/admin/scanner">Check-in</NavLink>
                 </>
+              )}
+              {settingsTo && (
+                <NavLink to={settingsTo} className="nav-icon" aria-label="Settings" title="Settings">
+                  <SettingsIcon />
+                </NavLink>
               )}
             </nav>
           )}
@@ -147,7 +189,7 @@ export function Layout() {
                       </span>
                     )}
                   </NavLink>
-                  <NavLink to="/orders" className="cart-link" title="My orders" aria-label="My orders">
+                  <NavLink to="/tickets" className="cart-link" title="My tickets" aria-label="My tickets">
                     <TicketIcon />
                   </NavLink>
                 </nav>
@@ -218,7 +260,7 @@ export function Layout() {
           ? "You'll see the app the way buyers do, without the Manage and Posts tabs. Switch back any time."
           : 'The Manage and Posts tabs come back, along with the Manage buttons on your events.'}
       </ConfirmDialog>
-      <main className="container main">
+      <main className="container main" ref={mainRef}>
         <BackButton />
         <Outlet />
       </main>
@@ -226,11 +268,12 @@ export function Layout() {
         <div className="container footer-inner">
           <span>© {new Date().getFullYear()} events</span>
           <nav className="footer-links" aria-label="Footer">
-            <Link to="/events">Events</Link>
-            <Link to="/apply">Host an event</Link>
+            {/* Same as the header: no customer links in the management view. */}
+            {!orgMemberView && <Link to="/events">Events</Link>}
+            {(!user || hideManagement) && <Link to="/apply">Host an event</Link>}
             {user ? (
               <>
-                <Link to="/orders">Orders</Link>
+                {hideManagement && <Link to="/orders">Orders</Link>}
                 {!hideManagement && <Link to="/manage">Event Management</Link>}
                 <Link to="/profile">Profile</Link>
               </>

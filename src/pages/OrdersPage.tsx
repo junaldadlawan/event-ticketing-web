@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { orderApi } from '../api/endpoints';
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge, PageHeader } from '../components/ui';
+import { ProfileTabs } from '../components/ProfileTabs';
 import { formatDateTime, formatMoney } from '../utils/format';
 import { useAsync } from '../utils/useAsync';
 
@@ -13,8 +14,8 @@ export function OrdersPage() {
   );
 
   return (
-    <>
-      <PageHeader title="My orders" />
+    <ProfileTabs>
+      <PageHeader title="Orders" />
       <ErrorBox message={error} />
       {loading && !data ? (
         <Spinner />
@@ -59,6 +60,6 @@ export function OrdersPage() {
           </>
         )
       )}
-    </>
+    </ProfileTabs>
   );
 }

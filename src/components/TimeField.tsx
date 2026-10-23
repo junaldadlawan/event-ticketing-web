@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1));
-const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+export const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
 const HALVES = ['AM', 'PM'];
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -22,11 +22,13 @@ export function TimeField({ value, onChange, disabled }: { value: string; onChan
   // A value set from outside (cleared, or filled in by the form) replaces the parts shown. The value this picker
   // last produced itself is remembered, so a half-picked time is not wiped while its value is still "".
   const produced = useRef(value);
-  if (value !== produced.current) {
+  // An effect, not a render-time update: React's double render in development would otherwise drop the change.
+  useEffect(() => {
+    if (value === produced.current) return;
     produced.current = value;
     const next = timeParts(value);
-    if (next.hour !== parts.hour || next.minute !== parts.minute || next.half !== parts.half) setParts(next);
-  }
+    setParts((p) => (next.hour !== p.hour || next.minute !== p.minute || next.half !== p.half ? next : p));
+  }, [value]);
   function pick(next: Partial<typeof parts>) {
     const p = { ...parts, ...next };
     setParts(p);
@@ -44,13 +46,14 @@ export function TimeField({ value, onChange, disabled }: { value: string; onChan
 }
 
 /** A dropdown with up / down arrows beside it that move to the next / previous option, wrapping around at the ends. */
-function StepSelect({
+export function StepSelect({
   label,
   placeholder,
   options,
   value,
   onChange,
   disabled,
+  required = true,
 }: {
   label: string;
   /** Shown while nothing is chosen; without one the first option is the starting value. */
@@ -59,6 +62,7 @@ function StepSelect({
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  required?: boolean;
 }) {
   function step(by: number) {
     const i = options.indexOf(value);
@@ -68,7 +72,7 @@ function StepSelect({
   }
   return (
     <span className="time-part">
-      <select required disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
+      <select required={required} disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
         {placeholder && (
           <option value="" disabled>
             {placeholder}

@@ -33,11 +33,12 @@ export function LogsButton({ area, title, organizations }: { area: ActivityArea;
             .map(({ id, name }) => ({ id, name }))
         : organizations.filter((o) => o.id);
     if (admin) return orgs;
-    const needed = OWNER_ONLY.includes(area) ? ['OWNER'] : ['OWNER', 'ORGANIZER'];
+    // Logs need ANALYTICS (BR-ORG-008), which the owner always holds.
     const allowed = await Promise.all(
       orgs.map(async (o) => {
-        const me = (await organizationApi.members(o.id)).find((m) => m.userId === user.id);
-        return me?.roles.some((r) => needed.includes(r)) ? o : null;
+        const me = await organizationApi.myMembership(o.id).catch(() => null);
+        const ok = me?.permissions?.includes('ANALYTICS') && (!OWNER_ONLY.includes(area) || me.roles.includes('OWNER'));
+        return ok ? o : null;
       }),
     );
     return allowed.filter((o): o is Org => o !== null);

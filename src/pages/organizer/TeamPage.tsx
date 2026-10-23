@@ -2,9 +2,10 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { errorMessage } from '../../api/client';
 import { organizationApi } from '../../api/endpoints';
-import type { OrganizationMember, OrganizationRole, User } from '../../api/types';
+import type { OrganizationMember, OrganizationPermission, OrganizationRole, User } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { Avatar } from '../../components/Avatar';
+import { Button, FormActions } from '../../components/Button';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { EditIcon } from '../../components/DesignerIcons';
 import { FormDialog } from '../../components/FormDialog';
@@ -16,7 +17,52 @@ import { useAsync } from '../../utils/useAsync';
 
 const ASSIGNABLE: OrganizationRole[] = ['ORGANIZER', 'CHECK_IN_STAFF'];
 
-/** Team tab for an organization's owner and organizers: who is a member and with which role; the owner adds, edits and removes people. */
+/** What an organizer may do (BR-ORG-008), in the order the checkboxes show them. */
+const PERMISSIONS: { value: OrganizationPermission; label: string; hint: string }[] = [
+  { value: 'EVENTS', label: 'Events', hint: 'events, ticket types, seat maps, venues, ticket designs' },
+  { value: 'PROMO_CODES', label: 'Promo codes', hint: 'create, edit, pause and delete codes' },
+  { value: 'CHECK_IN', label: 'Check-in', hint: 'check-in settings and scanner devices' },
+  { value: 'ORDERS_REFUNDS', label: 'Orders & refunds', hint: 'orders, refunds, refund and resale policies' },
+  { value: 'FINANCE', label: 'Finance', hint: 'payout accounts, cards and payouts' },
+  { value: 'ANALYTICS', label: 'Analytics', hint: 'sales and audience insights, activity logs' },
+  { value: 'TEAM', label: 'Team', hint: 'add, change and remove members' },
+  { value: 'SCANNER_APP', label: 'Scanner app', hint: 'upload and remove versions of the scanner app, which every organization shares' },
+];
+// The API's default for a new organizer: everything but TEAM and SCANNER_APP.
+const DEFAULT_PERMISSIONS = PERMISSIONS.map((p) => p.value).filter((p) => p !== 'TEAM' && p !== 'SCANNER_APP');
+
+const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
+
+/** The organizer permission checkboxes; one the caller doesn't hold can't be granted (the API answers 403). */
+function PermissionChecks({
+  value,
+  onChange,
+  held,
+}: {
+  value: OrganizationPermission[];
+  onChange: (next: OrganizationPermission[]) => void;
+  held: OrganizationPermission[];
+}) {
+  return (
+    <div className="team-perms">
+      {PERMISSIONS.map((p) => (
+        <label key={p.value} className="check-row" title={held.includes(p.value) ? undefined : "You don't have this permission yourself"}>
+          <input
+            type="checkbox"
+            checked={value.includes(p.value)}
+            disabled={!held.includes(p.value)}
+            onChange={() => onChange(toggle(value, p.value))}
+          />
+          <span>
+            {p.label} <span className="muted small">· {p.hint}</span>
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/** Team tab for an organization's owner and organizers: who is a member, with which role and permissions. */
 export function TeamPage() {
   const { user } = useAuth();
   const orgs = useAsync(
@@ -31,21 +77,32 @@ export function TeamPage() {
   );
   const [picked, setPicked] = useState<User | null>(null);
   const [role, setRole] = useState<OrganizationRole>('ORGANIZER');
+  const [addPerms, setAddPerms] = useState<OrganizationPermission[]>(DEFAULT_PERMISSIONS);
+  // Check-in staff can be allowed to publish the scanner app (the only permission they can hold).
+  const [addScanner, setAddScanner] = useState(false);
+  // The Add a member window.
+  const [adding, setAdding] = useState(false);
+  const [editScanner, setEditScanner] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  // The member being edited, with the roles ticked in the dialog.
+  // The member being edited, with the roles and permissions ticked in the dialog.
   const [editing, setEditing] = useState<OrganizationMember | null>(null);
   const [editRoles, setEditRoles] = useState<OrganizationRole[]>([]);
+  const [editPerms, setEditPerms] = useState<OrganizationPermission[]>([]);
   const [editError, setEditError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<OrganizationMember | null>(null);
 
   const org = orgs.data?.find((o) => o.id === selected);
   const list = members.data ?? [];
-  // Only the owner may add, edit or remove people (the API refuses organizers); an organizer sees the team read-only.
-  const isOwner = list.some((m) => m.userId === user?.id && m.roles.includes('OWNER'));
+  const me = list.find((m) => m.userId === user?.id);
+  // The owner holds every permission; an organizer holds the ones the owner gave them.
+  const held = me?.roles.includes('OWNER') ? PERMISSIONS.map((p) => p.value) : (me?.permissions ?? []);
+  // The owner, or an organizer with TEAM, may add, edit and remove people; anyone else sees the team read-only.
+  const canManageTeam = held.includes('TEAM');
   const nameOf = (m: OrganizationMember) =>
     m.name ?? (m.userId === user?.id && user ? fullName(user) : null) ?? `Member ${m.userId.slice(0, 8)}`;
+  const grantable = (perms: OrganizationPermission[]) => perms.filter((p) => held.includes(p));
 
   async function add(e: FormEvent) {
     e.preventDefault();
@@ -54,9 +111,15 @@ export function TeamPage() {
     setError(null);
     setMsg(null);
     try {
-      await organizationApi.assignMember(selected, picked.id, role);
+      await organizationApi.assignMember(
+        selected,
+        picked.id,
+        role,
+        role === 'ORGANIZER' ? addPerms : role === 'CHECK_IN_STAFF' && addScanner ? ['SCANNER_APP'] : undefined,
+      );
       setMsg(`Added as ${humanize(role)}.`);
       setPicked(null);
+      setAdding(false);
       members.reload();
     } catch (err) {
       setError(errorMessage(err));
@@ -68,6 +131,8 @@ export function TeamPage() {
   function startEdit(m: OrganizationMember) {
     setEditing(m);
     setEditRoles(m.roles.filter((r) => ASSIGNABLE.includes(r)));
+    setEditPerms(m.roles.includes('ORGANIZER') ? (m.permissions ?? []) : grantable(DEFAULT_PERMISSIONS));
+    setEditScanner(Boolean(m.permissions?.includes('SCANNER_APP')));
     setEditError(null);
   }
 
@@ -78,7 +143,15 @@ export function TeamPage() {
     setEditError(null);
     setMsg(null);
     try {
-      await organizationApi.setMemberRoles(selected, editing.userId, editRoles);
+      const organizer = editRoles.includes('ORGANIZER');
+      // Staff without the organizer role keep only SCANNER_APP, which this sends explicitly (empty = take it away).
+      const staffOnly = editRoles.includes('CHECK_IN_STAFF') && !organizer;
+      await organizationApi.setMemberRoles(
+        selected,
+        editing.userId,
+        editRoles,
+        organizer ? editPerms : staffOnly ? (editScanner ? ['SCANNER_APP'] : []) : undefined,
+      );
       setMsg(`${nameOf(editing)} is now ${editRoles.map(humanize).join(' and ')}.`);
       setEditing(null);
       members.reload();
@@ -116,7 +189,18 @@ export function TeamPage() {
       <PageHeader
         title="Team"
         lede={<>The people who run {org?.name ?? 'your organization'}: the owner, organizers and check-in staff.</>}
-        actions={org && <LogsButton area="TEAM" title="Team" organizations={[{ id: org.id, name: org.name }]} />}
+        actions={
+          org && (
+            <>
+              <LogsButton area="TEAM" title="Team" organizations={[{ id: org.id, name: org.name }]} />
+              {canManageTeam && (
+                <Button variant="cta" onClick={() => setAdding(true)}>
+                  Add member
+                </Button>
+              )}
+            </>
+          )
+        }
       />
 
       {orgs.data.length > 1 && (
@@ -149,6 +233,7 @@ export function TeamPage() {
           {list.map((m) => {
             const isMe = m.userId === user?.id;
             const name = nameOf(m);
+            const perms = (m.roles.includes('ORGANIZER') || m.roles.includes('CHECK_IN_STAFF')) && !m.roles.includes('OWNER') ? (m.permissions ?? []) : [];
             return (
               <li key={m.userId} className="row-between admin-member">
                 <span className="admin-person">
@@ -160,9 +245,14 @@ export function TeamPage() {
                       {m.email ?? (isMe ? user?.email : null) ?? `ID ${m.userId.slice(0, 8)}…`}
                       {m.phoneNumber && <> · {m.phoneNumber}</>} · since {formatDateTime(m.assignedAt)}
                     </span>
+                    {perms.length > 0 && (
+                      <span className="muted small admin-block">
+                        Can manage: {PERMISSIONS.filter((p) => perms.includes(p.value)).map((p) => p.label).join(', ')}
+                      </span>
+                    )}
                   </span>
-                  {/* The owner's own membership can't be changed or removed (the API answers 409). */}
-                  {isOwner && !m.roles.includes('OWNER') && (
+                  {/* The owner's membership and your own can't be changed or removed here (the API answers 409). */}
+                  {canManageTeam && !isMe && !m.roles.includes('OWNER') && (
                     <button
                       type="button"
                       className="btn btn-sm btn-icon tt-edit team-edit"
@@ -188,30 +278,70 @@ export function TeamPage() {
         </ul>
       )}
 
-      <h2 className="admin-section">Add a member</h2>
-      {isOwner ? (
-        <>
-          <form className="admin-add-member" onSubmit={add}>
-            <UserPicker users={[]} value={picked} onChange={setPicked} excludeIds={list.map((m) => m.userId)} onError={setError} />
-            <select value={role} onChange={(e) => setRole(e.target.value as OrganizationRole)} aria-label="Role">
+      {!canManageTeam && (
+        <p className="muted small">
+          Only the owner of {org?.name ?? 'the organization'}, or an organizer they allow to manage the team, can add or
+          change members.
+        </p>
+      )}
+
+      <FormDialog
+        open={adding}
+        title="Add a member"
+        onClose={() => {
+          setAdding(false);
+          setPicked(null);
+        }}
+      >
+        <form className="form team-form" onSubmit={add}>
+          <UserPicker users={[]} value={picked} onChange={setPicked} excludeIds={list.map((m) => m.userId)} onError={setError} />
+          <label>
+            Role
+            <select
+              value={role}
+              onChange={(e) => {
+                setRole(e.target.value as OrganizationRole);
+                setAddPerms(grantable(DEFAULT_PERMISSIONS));
+              }}
+            >
               {ASSIGNABLE.map((r) => (
                 <option key={r} value={r}>
                   {humanize(r)}
                 </option>
               ))}
             </select>
-            <button className="btn btn-primary btn-sm" disabled={!picked || busy}>
-              {busy ? 'Adding…' : 'Add'}
-            </button>
-          </form>
-          <small className="muted">
+          </label>
+          {role === 'ORGANIZER' && (
+            <fieldset className="team-perms-box">
+              <legend className="small">What this organizer can manage</legend>
+              <PermissionChecks value={grantable(addPerms)} onChange={setAddPerms} held={held} />
+            </fieldset>
+          )}
+          {role === 'CHECK_IN_STAFF' && (
+            <label className="check-row" title={held.includes('SCANNER_APP') ? undefined : "You don't have this permission yourself"}>
+              <input type="checkbox" checked={addScanner} disabled={!held.includes('SCANNER_APP')} onChange={(e) => setAddScanner(e.target.checked)} />
+              <span>
+                Can upload the scanner app <span className="muted small">· shared by every organization</span>
+              </span>
+            </label>
+          )}
+          <p className="small muted">
             Ask the person to open their profile and show you their My QR code (or send you the picture), then scan it
             here. The owner role can&apos;t be assigned.
-          </small>
-        </>
-      ) : (
-        <p className="muted small">Only the owner of {org?.name ?? 'the organization'} can add or change members.</p>
-      )}
+          </p>
+          <ErrorBox message={error} />
+          <FormActions
+            onCancel={() => {
+              setAdding(false);
+              setPicked(null);
+            }}
+            busy={busy}
+            busyLabel="Adding…"
+            submitLabel="Add"
+            submitDisabled={!picked}
+          />
+        </form>
+      </FormDialog>
 
       <FormDialog open={editing !== null} title={editing ? `Edit ${nameOf(editing)}` : 'Edit member'} onClose={() => setEditing(null)}>
         <form className="form" onSubmit={saveRoles}>
@@ -221,37 +351,46 @@ export function TeamPage() {
           <fieldset>
             <legend>Roles</legend>
             {ASSIGNABLE.map((r) => (
-              <label key={r} className="check-row">
-                <input
-                  type="checkbox"
-                  checked={editRoles.includes(r)}
-                  onChange={() => setEditRoles((rs) => (rs.includes(r) ? rs.filter((x) => x !== r) : [...rs, r]))}
-                />
-                {humanize(r)}
-              </label>
+              <div key={r}>
+                <label className="check-row">
+                  <input type="checkbox" checked={editRoles.includes(r)} onChange={() => setEditRoles((rs) => toggle(rs, r))} />
+                  {humanize(r)}
+                </label>
+                {r === 'ORGANIZER' && editRoles.includes('ORGANIZER') && (
+                  <PermissionChecks value={editPerms} onChange={setEditPerms} held={held} />
+                )}
+                {r === 'CHECK_IN_STAFF' && editRoles.includes('CHECK_IN_STAFF') && !editRoles.includes('ORGANIZER') && (
+                  <label className="check-row" title={held.includes('SCANNER_APP') ? undefined : "You don't have this permission yourself"}>
+                    <input type="checkbox" checked={editScanner} disabled={!held.includes('SCANNER_APP')} onChange={(e) => setEditScanner(e.target.checked)} />
+                    <span>
+                      Can upload the scanner app <span className="muted small">· shared by every organization</span>
+                    </span>
+                  </label>
+                )}
+              </div>
             ))}
           </fieldset>
           {editRoles.length === 0 && <p className="small muted">Pick at least one role, or remove them from the team.</p>}
           <ErrorBox message={editError} />
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn danger"
-              disabled={busy}
-              onClick={() => {
-                setRemoving(editing);
-                setEditing(null);
-              }}
-            >
-              Remove from team
-            </button>
-            <button type="button" className="btn" disabled={busy} onClick={() => setEditing(null)}>
-              Cancel
-            </button>
-            <button className="btn btn-primary" disabled={busy || editRoles.length === 0}>
-              {busy ? 'Saving…' : 'Save'}
-            </button>
-          </div>
+          <FormActions
+            onCancel={() => setEditing(null)}
+            busy={busy}
+            busyLabel="Saving…"
+            submitLabel="Save"
+            submitDisabled={editRoles.length === 0}
+            start={
+              <Button
+                className="danger"
+                disabled={busy}
+                onClick={() => {
+                  setRemoving(editing);
+                  setEditing(null);
+                }}
+              >
+                Remove from team
+              </Button>
+            }
+          />
         </form>
       </FormDialog>
 

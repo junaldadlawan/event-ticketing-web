@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
+import { SettingsLayout } from '../../components/SettingsLayout';
 import type { FormEvent, ReactNode } from 'react';
-import { Navigate, NavLink, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
-import { gatewayFeeApi, platformFeeApi } from '../../api/endpoints';
-import type { FeePayer, GatewayFeePayer, GatewayFeeRequest, GatewayFeeSetting, Money, PlatformFeeRule, PlatformFeeRuleRequest } from '../../api/types';
+import { draftEventSettingsApi, gatewayFeeApi, platformFeeApi, ticketSaleSettingsApi } from '../../api/endpoints';
+import type { FeePayer, GatewayFeePayer, GatewayFeeRequest, GatewayFeeSetting, Money, PlatformFeeRule, PlatformFeeRuleRequest, TicketSaleSettings } from '../../api/types';
 import { FormDialog } from '../../components/FormDialog';
 import { Empty, ErrorBox, SuccessBox, PageHeader } from '../../components/ui';
 import { LogsButton } from '../../components/LogsButton';
-import { formatMoney } from '../../utils/format';
+import { formatMoney, minutesText } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
 import { GATEWAY_FEE_SAVED } from '../../utils/useGatewayFeeAlert';
@@ -49,7 +50,16 @@ type FeeDialog =
 
 /** One entry per admin tab, in the tab bar's order. Only the ones with something to set have a panel so far. */
 const SECTIONS: { key: string; label: string; panel?: () => ReactNode }[] = [
-  { key: 'events', label: 'Event Management' },
+  {
+    key: 'events',
+    label: 'Event Management',
+    panel: () => (
+      <>
+        <TicketSaleSettingsPanel />
+        <DraftSettingsPanel />
+      </>
+    ),
+  },
   { key: 'posts', label: 'Posts' },
   { key: 'organizations', label: 'Organizations' },
   { key: 'users', label: 'Users' },
@@ -67,22 +77,188 @@ export function AdminSettingsPage() {
       ) : (
         <>
           <PageHeader title="Settings" actions={<LogsButton area="SETTINGS" title="Settings" />} />
-          <div className="settings-layout">
-            <nav className="settings-nav" aria-label="Settings">
-              {SECTIONS.map((x) => (
-                <NavLink key={x.key} to={`/admin/settings/${x.key}`}>
-                  {x.label}
-                </NavLink>
-              ))}
-            </nav>
-            <div className="settings-panel">
-              <h2>{current.label}</h2>
-              {current.panel ? current.panel() : <Empty>Nothing to set for {current.label} yet.</Empty>}
-            </div>
-          </div>
+          <SettingsLayout label="Settings" links={SECTIONS.map((x) => ({ to: `/admin/settings/${x.key}`, label: x.label }))}>
+            <h2>{current.label}</h2>
+            {current.panel ? current.panel() : <Empty>Nothing to set for {current.label} yet.</Empty>}
+          </SettingsLayout>
         </>
       )}
     </AdminOnly>
+  );
+}
+
+/**
+ * Event Management settings: the ticket-sale timing rules every organizer's sale window must follow. They apply to
+ * ticket types created or whose sale window is edited from now on; existing ones are not changed.
+ */
+function TicketSaleSettingsPanel() {
+  const settings = useAsync(() => ticketSaleSettingsApi.get(), []);
+  const [editing, setEditing] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const s = settings.data;
+  return (
+    <>
+      <ErrorBox message={settings.error} />
+      <SuccessBox message={msg} />
+      <dl className="setting-row">
+        <dt>Ticket sales close</dt>
+        <dd>{!s ? '…' : s.salesCloseMinutesBeforeEvent ? `${minutesText(s.salesCloseMinutesBeforeEvent)} before the event ends` : 'When the event ends'}</dd>
+        <button type="button" className="btn btn-sm" disabled={!s} onClick={() => setEditing(true)}>
+          Edit
+        </button>
+      </dl>
+      <dl className="setting-row">
+        <dt>Shortest sale</dt>
+        <dd>{!s ? '…' : `Sales run at least ${minutesText(s.minSaleDurationMinutes)}`}</dd>
+        <button type="button" className="btn btn-sm" disabled={!s} onClick={() => setEditing(true)}>
+          Edit
+        </button>
+      </dl>
+      <p className="muted small">Applies to ticket types created or whose sale window is edited from now on.</p>
+      <FormDialog open={editing} title="Ticket sale timing" onClose={() => setEditing(false)}>
+        {editing && s && (
+          <TicketSaleSettingsForm
+            initial={s}
+            onCancel={() => setEditing(false)}
+            onSaved={(saved) => {
+              settings.setData(saved);
+              setEditing(false);
+              setMsg('Ticket sale timing saved.');
+            }}
+          />
+        )}
+      </FormDialog>
+    </>
+  );
+}
+
+/** When an unpublished draft is deleted: that many hours before the event starts (0 = never). The API checks every minute. */
+function DraftSettingsPanel() {
+  const settings = useAsync(() => draftEventSettingsApi.get(), []);
+  const [editing, setEditing] = useState(false);
+  const [hours, setHours] = useState('1');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const s = settings.data;
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setErr(null);
+    try {
+      settings.setData(await draftEventSettingsApi.update(Math.round(Number(hours) * 60)));
+      setEditing(false);
+      setMsg('Draft cleanup saved.');
+    } catch (ex) {
+      setErr(errorMessage(ex));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <ErrorBox message={settings.error} />
+      <SuccessBox message={msg} />
+      <dl className="setting-row">
+        <dt>Unpublished drafts</dt>
+        <dd>
+          {!s
+            ? '…'
+            : s.autoDeleteMinutesBeforeStart === 0
+              ? 'Never deleted'
+              : `Deleted ${minutesText(s.autoDeleteMinutesBeforeStart)} before the event starts, or once it has started`}
+        </dd>
+        <button
+          type="button"
+          className="btn btn-sm"
+          disabled={!s}
+          onClick={() => {
+            setHours(String((s?.autoDeleteMinutesBeforeStart ?? 60) / 60));
+            setErr(null);
+            setEditing(true);
+          }}
+        >
+          Edit
+        </button>
+      </dl>
+      <p className="muted small">The owner and organizers are warned 24 hours before a draft is deleted.</p>
+      <FormDialog open={editing} title="Unpublished drafts" onClose={() => setEditing(false)}>
+        <form className="form" onSubmit={save}>
+          <label>
+            Delete a draft <span className="hint">(hours before the event starts; 0 = never delete)</span>
+            <input type="number" required min={0} max={168} step={0.25} value={hours} onChange={(e) => setHours(e.target.value)} />
+          </label>
+          <ErrorBox message={err} />
+          <div className="modal-actions">
+            <button type="button" className="btn" disabled={busy} onClick={() => setEditing(false)}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" disabled={busy}>
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </FormDialog>
+    </>
+  );
+}
+
+/** Both rules in hours (quarter hours allowed); the API stores minutes. */
+function TicketSaleSettingsForm({
+  initial,
+  onCancel,
+  onSaved,
+}: {
+  initial: TicketSaleSettings;
+  onCancel: () => void;
+  onSaved: (saved: TicketSaleSettings) => void;
+}) {
+  const [closeHours, setCloseHours] = useState(String(initial.salesCloseMinutesBeforeEvent / 60));
+  const [minHours, setMinHours] = useState(String(initial.minSaleDurationMinutes / 60));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setErr(null);
+    try {
+      onSaved(
+        await ticketSaleSettingsApi.update({
+          salesCloseMinutesBeforeEvent: Math.round(Number(closeHours) * 60),
+          minSaleDurationMinutes: Math.round(Number(minHours) * 60),
+        }),
+      );
+    } catch (ex) {
+      setErr(errorMessage(ex));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="form" onSubmit={submit}>
+      <label>
+        Sales close <span className="hint">(hours before the event ends; 0 = when it ends)</span>
+        <input type="number" required min={0} max={168} step={0.25} value={closeHours} onChange={(e) => setCloseHours(e.target.value)} />
+      </label>
+      <label>
+        Shortest sale <span className="hint">(hours a sale must run at least)</span>
+        <input type="number" required min={0.25} max={168} step={0.25} value={minHours} onChange={(e) => setMinHours(e.target.value)} />
+      </label>
+      <p className="hint">Existing ticket types keep their sale windows; the rules apply when one is created or its window is edited.</p>
+      <ErrorBox message={err} />
+      <div className="modal-actions">
+        <button type="button" className="btn" disabled={busy} onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="btn btn-primary" disabled={busy}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </form>
   );
 }
 

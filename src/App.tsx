@@ -18,12 +18,17 @@ import { HomePage } from './pages/HomePage';
 import { EventsPage } from './pages/EventsPage';
 import { OrderDetailPage } from './pages/OrderDetailPage';
 import { OrdersPage } from './pages/OrdersPage';
+import { MyTicketsPage } from './pages/MyTicketsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ManageEventPage } from './pages/organizer/ManageEventPage';
 import { CustomerPaymentPage } from './pages/CustomerPaymentPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { ManageFinancePage } from './pages/organizer/ManageFinancePage';
 import { ManageSettingsPage } from './pages/organizer/ManageSettingsPage';
 import { TeamPage } from './pages/organizer/TeamPage';
+import { ScannerPage } from './pages/organizer/ScannerPage';
+import { AdminScannerPage } from './pages/admin/AdminScannerPage';
+import { AdminOrgChangesPage } from './pages/admin/AdminOrgChangesPage';
 import { ManageEventsPage } from './pages/organizer/ManageEventsPage';
 import { TicketDesignerPage } from './pages/organizer/TicketDesignerPage';
 
@@ -43,10 +48,12 @@ export default function App() {
         <Route path="cart" element={<RequireAuth><CartPage /></RequireAuth>} />
         <Route path="checkout/return" element={<RequireAuth><CheckoutReturnPage /></RequireAuth>} />
         <Route path="orders" element={<RequireAuth><OrdersPage /></RequireAuth>} />
+        <Route path="tickets" element={<RequireAuth><MyTicketsPage /></RequireAuth>} />
         <Route path="orders/:orderId" element={<RequireAuth><OrderDetailPage /></RequireAuth>} />
         <Route path="profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="profile/payment" element={<RequireAuth><CustomerPaymentPage /></RequireAuth>} />
-        <Route path="settings" element={<Navigate to="/profile/payment" replace />} />
+        <Route path="profile/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
+        <Route path="settings"element={<Navigate to="/profile/payment" replace />} />
         <Route path="apply" element={<RequireAuth><ApplyOrganizerPage /></RequireAuth>} />
 
         <Route path="admin/posts" element={<RequireAuth><AdminPostsPage /></RequireAuth>} />
@@ -57,10 +64,14 @@ export default function App() {
         <Route path="admin/payouts/generate" element={<RequireAuth><AdminGeneratePayoutPage /></RequireAuth>} />
         <Route path="admin/settings" element={<RequireAuth><AdminSettingsPage /></RequireAuth>} />
         <Route path="admin/settings/:section" element={<RequireAuth><AdminSettingsPage /></RequireAuth>} />
+        <Route path="admin/organization-changes" element={<RequireAuth><AdminOrgChangesPage /></RequireAuth>} />
+        <Route path="admin/scanner" element={<RequireAuth><AdminScannerPage /></RequireAuth>} />
+        <Route path="manage/scanner" element={<RequireAuth><ScannerPage /></RequireAuth>} />
         <Route path="manage" element={<RequireAuth><ManageEventsPage /></RequireAuth>} />
         <Route path="manage/team" element={<RequireAuth><TeamPage /></RequireAuth>} />
         <Route path="manage/finance" element={<RequireAuth><ManageFinancePage /></RequireAuth>} />
         <Route path="manage/settings" element={<RequireAuth><ManageSettingsPage /></RequireAuth>} />
+        <Route path="manage/settings/:section" element={<RequireAuth><ManageSettingsPage /></RequireAuth>} />
         <Route path="manage/new" element={<RequireAuth><ManageEventsPage /></RequireAuth>} />
         <Route
           path="manage/events/:eventId"

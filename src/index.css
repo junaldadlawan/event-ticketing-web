@@ -2844,6 +2844,20 @@ button.code-warning:focus-visible {
 .tt-meta {
   margin: 2px 0 0;
 }
+/* Ticket no., ID and issue date on an owned ticket: labels in a narrow column, values beside them. */
+.ticket-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 12px;
+  margin: 6px 0 0;
+}
+.ticket-facts dt {
+  color: var(--muted);
+}
+.ticket-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 .tt-price {
   font-size: 1.05rem;
   white-space: nowrap;
@@ -3334,6 +3348,25 @@ button.code-warning:focus-visible {
   width: 20px;
   height: 20px;
 }
+/* Organizer permission checkboxes, indented under the Organizer role. */
+.team-perms {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 10px 26px;
+}
+.team-perms-box {
+  margin: 12px 0;
+}
+.team-perms .check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.team-perms .check-row input {
+  width: auto;
+  margin: 0;
+}
 
 /* More breathing room around the Ticket types header: above it, and between it and the first ticket. */
 .manage-page > #ticket-types {
@@ -3612,12 +3645,577 @@ button.code-warning:focus-visible {
   align-items: stretch;
   gap: 6px;
 }
+/*
+ * Order page: the notches are real holes, cut with a mask where the perforation meets the top and bottom edge (the
+ * stub is 190px wide), so whatever is behind shows through, as on the torn used tickets. No painted circles.
+ */
+.tickets-panel .tt-row .tt-stub::before,
+.tickets-panel .tt-row .tt-stub::after {
+  display: none;
+}
+.tickets-panel .tt-row.ticket-owned:not(.is-torn) {
+  -webkit-mask:
+    radial-gradient(circle at calc(100% - 190px) 0, #0000 11px, #000 11.5px) top / 100% 51% no-repeat,
+    radial-gradient(circle at calc(100% - 190px) 100%, #0000 11px, #000 11.5px) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle at calc(100% - 190px) 0, #0000 11px, #000 11.5px) top / 100% 51% no-repeat,
+    radial-gradient(circle at calc(100% - 190px) 100%, #0000 11px, #000 11.5px) bottom / 100% 51% no-repeat;
+}
+/* Narrow screens stack the stub under the ticket: no side notches there. */
+@media (max-width: 760px) {
+  .tickets-panel .tt-row.ticket-owned:not(.is-torn) {
+    -webkit-mask: none;
+    mask: none;
+  }
+}
+/* The price at the top right of an owned ticket's main part (the stub keeps only the actions). */
+.tt-name .tt-name-price {
+  margin-left: auto;
+  font-weight: 800;
+}
+
+/*
+ * A used ticket: its stub went to the door staff. The card ends where the perforation was (the stub is 190px), with
+ * the dashed line as its edge and the two notches left as half holes in the corners.
+ */
+.tt-row.ticket-owned.is-torn {
+  width: calc(100% - 189px);
+  border-right: 2px dashed var(--border);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  -webkit-mask:
+    radial-gradient(circle at 100% 0, #0000 11px, #000 11.5px) top / 100% 51% no-repeat,
+    radial-gradient(circle at 100% 100%, #0000 11px, #000 11.5px) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle at 100% 0, #0000 11px, #000 11.5px) top / 100% 51% no-repeat,
+    radial-gradient(circle at 100% 100%, #0000 11px, #000 11.5px) bottom / 100% 51% no-repeat;
+}
+/* Narrow screens put the stub under the ticket, so there the bottom edge is the torn one. */
+@media (max-width: 760px) {
+  .tt-row.ticket-owned.is-torn {
+    width: auto;
+    border-right: 1px solid var(--border);
+    border-bottom: 2px dashed var(--border);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    -webkit-mask: none;
+    mask: none;
+  }
+}
+
+/* My tickets as a grid of passes. */
+.my-tickets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+/*
+ * My tickets in a grid: a plain square card (the content can make it taller, never clipped). The event sits on the
+ * slab, which takes the spare height; the ticket number and issue date are below; View ticket and Transfer are icons
+ * in the top row. Theme colours (the slab inverts in dark mode, like the order hero), or the event's picture.
+ */
+.pass-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  box-shadow: 0 6px 14px rgb(0 0 0 / 0.08);
+}
+.pass-card.is-given {
+  opacity: 0.75;
+}
+/* A thick bottom edge in the status colour, or the organizer's card colour when there is one. */
+.pass-card {
+  border-bottom: 6px solid var(--border);
+}
+/* The whole My tickets card (grid or list) opens its event; text inside can still be selected and copied. */
+.pass-card.is-link,
+.tt-row.ticket-owned.is-link {
+  cursor: pointer;
+}
+/*
+ * The grid card lifts on hover like the list rows. `translate` (not `transform`) so it adds to a used card's tilt, and
+ * the same for a used list row, whose tilt replaces the row's own hover transform.
+ */
+.pass-card {
+  transition:
+    translate 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.pass-card:hover {
+  z-index: 2;
+  translate: 0 -2px;
+  box-shadow: 0 10px 22px rgb(0 0 0 / 0.14);
+}
+.tt-row.ticket-owned.is-spent.is-list {
+  transition:
+    translate 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.tt-row.ticket-owned.is-spent.is-list:hover {
+  translate: 0 -2px;
+}
+.pass-card.pass-good {
+  border-bottom-color: var(--success);
+}
+.pass-card.pass-info {
+  border-bottom-color: var(--text);
+}
+.pass-card.pass-bad {
+  border-bottom-color: var(--danger);
+}
+.pass-card.pass-warn {
+  border-bottom-color: var(--warn);
+}
+.pass-card.has-color {
+  border-bottom-color: var(--tt-color);
+}
+.pass-card-top {
+  flex: 1;
+  padding: 18px 22px 22px;
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
+  background: var(--slab);
+  color: var(--on-slab);
+}
+.pass-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.pass-card-head .status-chip {
+  margin-right: 4px;
+}
+.pass-card-head .icon-button {
+  padding: 7px;
+  color: var(--slab-muted);
+}
+.pass-card-head .icon-button svg {
+  width: 22px;
+  height: 22px;
+}
+.pass-card-head .icon-button:hover:not(:disabled) {
+  color: var(--on-slab);
+  background: color-mix(in srgb, var(--on-slab) 14%, transparent);
+}
+.pass-card-price {
+  margin-left: auto;
+  font-size: 1.2rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.pass-card-top h3 {
+  margin: 0 0 10px;
+  font-size: 2.1rem;
+  font-weight: 800;
+  font-stretch: 62%;
+  line-height: 0.95;
+  overflow-wrap: anywhere;
+}
+.pass-card-top h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+.pass-card-top h3 a:focus-visible {
+  text-decoration: underline;
+}
+.pass-card-top p:not(.countdown) {
+  margin: 2px 0 0;
+  font-size: 0.875rem;
+  color: var(--slab-muted);
+}
+.pass-card-top .countdown {
+  margin: 14px 0 0;
+}
+/*
+ * With the event's picture: the text must read on any photo, even a white one. The scrim never drops below 60%
+ * black (on a white photo that leaves even the muted text above 4.5:1), darkest at the bottom; a soft shadow gives
+ * the text and icons an edge on whatever light patch is left.
+ */
+.pass-card-top.has-cover {
+  background:
+    linear-gradient(rgb(0 0 0 / 0.6), rgb(0 0 0 / 0.64) 45%, rgb(0 0 0 / 0.86)),
+    var(--pass-cover) center / cover no-repeat,
+    #000;
+  color: #fff;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+}
+.pass-card-top.has-cover p:not(.countdown),
+.pass-card-top.has-cover .pass-card-head .icon-button {
+  color: rgb(255 255 255 / 0.9);
+}
+.pass-card-top.has-cover .pass-card-head .icon-button svg {
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.6));
+}
+/* The chips keep their own solid backgrounds, so no shadow on their text. */
+.pass-card-top.has-cover .status-chip,
+.pass-card-top.has-cover .countdown {
+  text-shadow: none;
+}
+.pass-card-top.has-cover .pass-card-head .icon-button:hover:not(:disabled) {
+  color: #fff;
+  background: rgb(255 255 255 / 0.18);
+}
+/*
+ * A used ticket keeps the black slab (the text reads as on every other card) but its photo loses its colour, like a
+ * day that has passed, and it carries an ink stamp from the door: the ticket type's card colour, or white.
+ */
+/*
+ * Smaller than the live tickets around it, card and contents alike, and knocked a little askew, as if it was handed
+ * back at the door (My tickets grid and list; the wide list row tilts less, so its ends don't lift too far).
+ */
+.pass-card.is-used {
+  transform: rotate(-2deg) scale(0.88);
+}
+.tt-row.ticket-owned.is-spent.is-list {
+  transform: rotate(-1deg) scale(0.88);
+}
+/*
+ * In the list it shrinks toward the left edge, so it lines up with the tickets above and below; the negative margins
+ * take back most of the room the full-size row left around it (about 12% of a ~200px row).
+ */
+.tt-row.ticket-owned.is-spent.is-list {
+  transform-origin: left center;
+  margin-block: -5px;
+}
+.pass-card.is-used .pass-card-top {
+  position: relative;
+  overflow: hidden;
+}
+.pass-card.is-used .pass-card-top.has-cover {
+  background:
+    linear-gradient(rgb(0 0 0 / 0.62), rgb(0 0 0 / 0.66) 45%, rgb(0 0 0 / 0.86)),
+    var(--pass-cover) center / cover no-repeat,
+    #000;
+  background-blend-mode: normal, luminosity, normal;
+}
+.pass-stamp {
+  --ink: color-mix(in srgb, var(--tt-color, #fff) 70%, #fff);
+  position: absolute;
+  right: 22px;
+  bottom: 24px;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 8px 16px 9px;
+  border: 3px double var(--ink);
+  border-radius: 10px;
+  color: var(--ink);
+  text-shadow: none;
+  transform: rotate(-9deg);
+  opacity: 0.88;
+  pointer-events: none;
+  /* A little uneven, like ink that didn't take everywhere. */
+  -webkit-mask: radial-gradient(circle at 30% 40%, #000 55%, rgb(0 0 0 / 0.75) 80%);
+  mask: radial-gradient(circle at 30% 40%, #000 55%, rgb(0 0 0 / 0.75) 80%);
+}
+.pass-stamp strong {
+  font-size: 1.7rem;
+  font-weight: 800;
+  font-stretch: 62%;
+  line-height: 0.9;
+}
+.pass-stamp span {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+/*
+ * Expired, never used: the same spent card, but voided rather than admitted: a faded red stamp tilted the other way,
+ * and the price struck through, since the ticket is worth nothing now.
+ */
+.pass-stamp.is-expired {
+  --ink: #ff8a80;
+  transform: rotate(8deg);
+}
+.pass-card.is-expired .pass-card-price {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  opacity: 0.6;
+}
+/*
+ * My tickets list: the same picture runs under the whole card. On the ticket side it is grey and faint (14%), so the
+ * dark text reads as on plain paper; the muted labels go a shade stronger so they keep 4.5:1 even over a black photo.
+ */
+.photo-wash.has-cover {
+  position: relative;
+  isolation: isolate;
+}
+/*
+ * The organizer's card colour as a light wash on the ticket side (under the faint photo), 12% in light mode and 8% in
+ * dark, so any of the swatches stays a tint and the text keeps its contrast.
+ */
+.photo-wash.is-tinted {
+  background: color-mix(in srgb, var(--tt-color) 12%, transparent);
+}
+:root[data-theme='dark'] .photo-wash.is-tinted {
+  background: color-mix(in srgb, var(--tt-color) 8%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .photo-wash.is-tinted {
+    background: color-mix(in srgb, var(--tt-color) 8%, transparent);
+  }
+}
+.photo-wash.has-cover,
+.photo-wash.is-tinted {
+  --muted: #4d4d4d;
+}
+.photo-wash.has-cover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 4px 0 0 4px;
+  background: var(--pass-cover) center / cover no-repeat;
+  filter: grayscale(1);
+  opacity: 0.14;
+  pointer-events: none;
+}
+:root[data-theme='dark'] .photo-wash.has-cover,
+:root[data-theme='dark'] .photo-wash.is-tinted {
+  --muted: #c2c2c2;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .photo-wash.has-cover,
+  :root:not([data-theme='light']) .photo-wash.is-tinted {
+    --muted: #c2c2c2;
+  }
+}
+/* The stub shows the event's picture under the same scrim as the grid cards, its buttons in solid colours on top. */
+.tt-stub.has-cover {
+  background:
+    linear-gradient(rgb(0 0 0 / 0.6), rgb(0 0 0 / 0.64) 45%, rgb(0 0 0 / 0.86)),
+    var(--pass-cover) center / cover no-repeat,
+    #000;
+  color: #fff;
+  border-radius: 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0;
+}
+.tt-stub.has-cover .btn-primary {
+  background: #fff;
+  border-color: #fff;
+  color: #000;
+}
+.tt-stub.has-cover .btn:not(.btn-primary) {
+  background: rgb(0 0 0 / 0.35);
+  border-color: rgb(255 255 255 / 0.7);
+  color: #fff;
+}
+.tt-stub.has-cover .muted {
+  color: rgb(255 255 255 / 0.9);
+}
+/* Narrow screens put the stub under the ticket. */
+@media (max-width: 760px) {
+  .tt-stub.has-cover {
+    border-radius: 0 0 calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px);
+  }
+}
+/* My tickets' filters: All / Unused / Used, and the event. */
+.ticket-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.ticket-filters select {
+  max-width: 100%;
+}
+
+.pass-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 22px 18px;
+}
+.pass-card-body .ticket-facts {
+  margin: 0;
+}
+/* The faint photo and colour wash of the list's ticket side (.photo-wash), fitted to the card's lower corners. */
+.pass-card-body.photo-wash {
+  border-radius: 0 0 4px 4px;
+}
+.pass-card-body.photo-wash::before {
+  border-radius: 0 0 4px 4px;
+}
+
+/*
+ * A ticket's QR code as a door pass: a black slab with the event, a tear line with real notches, then the code on
+ * white. Fixed colours in both themes, like a printed pass (scanners want black on white). Each half cuts its own
+ * notches with a mask; the shadow is a filter on the dialog, so it follows the cut shape.
+ */
+.modal.qr-pass {
+  width: min(360px, calc(100vw - 32px));
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  filter: drop-shadow(0 24px 36px rgb(0 0 0 / 0.4));
+}
+.qr-pass-top {
+  position: relative;
+  padding: 26px 28px 26px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: #000;
+  color: #fff;
+  -webkit-mask:
+    radial-gradient(circle at 0 100%, #0000 12px, #000 12.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 100%, #0000 12px, #000 12.5px) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle at 0 100%, #0000 12px, #000 12.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 100%, #0000 12px, #000 12.5px) right / 51% 100% no-repeat;
+}
+.qr-pass-top h2 {
+  margin: 0 44px 12px 0;
+  font-size: 2.6rem;
+  font-weight: 800;
+  font-stretch: 62%;
+  line-height: 0.92;
+  overflow-wrap: anywhere;
+}
+.qr-pass-top p {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  color: #a3a3a3;
+}
+.qr-pass-top .modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: rgb(255 255 255 / 0.14);
+  color: #fff;
+}
+.qr-pass-top .modal-close:hover,
+.qr-pass-top .modal-close:focus-visible {
+  background: rgb(255 255 255 / 0.26);
+  color: #fff;
+}
+.qr-pass-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 28px 24px;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: #fff;
+  color: #000;
+  text-align: center;
+  -webkit-mask:
+    radial-gradient(circle at 0 0, #0000 12px, #000 12.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 0, #0000 12px, #000 12.5px) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle at 0 0, #0000 12px, #000 12.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 0, #0000 12px, #000 12.5px) right / 51% 100% no-repeat;
+}
+/* The perforation between the notches. */
+.qr-pass-body::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  border-top: 2px dashed #d4d4d4;
+}
+.qr-pass-body img {
+  display: block;
+  width: min(240px, 100%);
+  aspect-ratio: 1;
+  image-rendering: pixelated;
+}
+.qr-pass-scanned {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: min(240px, 100%);
+  aspect-ratio: 1;
+  font-size: 2rem;
+  font-weight: 800;
+  font-stretch: 75%;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #15803d;
+}
+.qr-pass-check {
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  font-size: 4rem;
+  line-height: 1;
+  animation: qr-scanned-pop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.modal.qr-pass.scanned .qr-pass-top {
+  background: #15803d;
+  transition: background 0.4s;
+}
+.modal.qr-pass.scanned .qr-pass-top p {
+  color: #dcfce7;
+}
+.modal.qr-pass.scanned .qr-pass-number {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+@keyframes qr-scanned-pop {
+  from {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qr-pass-check {
+    animation: none;
+  }
+}
+.qr-pass-number {
+  font-size: 2rem;
+  font-weight: 800;
+  font-stretch: 75%;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+.qr-pass-body p {
+  margin: 0;
+  max-width: 30ch;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #555;
+}
+/* On a dark page the black slab would melt into the backdrop: a faint light edge keeps the pass's shape. */
+:root[data-theme='dark'] .modal.qr-pass {
+  filter: drop-shadow(0 0 1px rgb(255 255 255 / 0.55)) drop-shadow(0 24px 36px rgb(0 0 0 / 0.6));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .modal.qr-pass {
+    filter: drop-shadow(0 0 1px rgb(255 255 255 / 0.55)) drop-shadow(0 24px 36px rgb(0 0 0 / 0.6));
+  }
+}
 .tt-row.ticket-owned .transfer-form {
   margin-top: 10px;
 }
 
 /* The tickets of an order sit on a soft grey panel, like the Ticket types section, so the white ticket
    cards (and their notches) stand out. */
+/*
+ * The tickets' shadow. Each card cuts its notches (and a used one its torn edge) with a mask, which also clips a
+ * shadow of its own, so the shadow is a filter on the list around them: it follows every cut shape.
+ */
+.tickets-panel > .stack,
+.ticket-groups .stack {
+  filter: drop-shadow(0 4px 10px rgb(0 0 0 / 0.12));
+}
+/* My tickets under date headings ("Today", "Friday", "November"). */
+.ticket-groups > div + div {
+  margin-top: 28px;
+}
 .tickets-panel {
   background: var(--subtle);
   border: 1px solid var(--border);
@@ -3631,6 +4229,57 @@ button.code-warning:focus-visible {
 :root[data-theme='dark'] .tickets-panel {
   background: var(--subtle);
   border-color: var(--border);
+}
+
+/*
+ * Showing the tickets deals them out: they start as one pile at the top, slightly askew, and each slides out from
+ * under the one before into its place. Fast (the last card lands in about a second) and with no bounce. The z-index
+ * lives in the keyframes so it only applies while dealing and never covers a card's own menus afterwards.
+ */
+.ticket-deal-slot {
+  --tilt: -1.2deg;
+  position: relative;
+  animation: ticket-deal 0.52s cubic-bezier(0.2, 0.9, 0.1, 1) backwards;
+  animation-delay: calc(min(var(--i), 10) * 45ms);
+}
+.ticket-deal-slot:nth-child(even) {
+  --tilt: 0.9deg;
+}
+.my-tickets-grid > .ticket-deal-slot {
+  animation-name: ticket-deal-grid;
+}
+@keyframes ticket-deal {
+  from {
+    z-index: calc(40 - var(--i));
+    opacity: 0;
+    transform: translateY(calc(min(var(--i), 5) * -100% - 14px)) rotate(var(--tilt)) scale(0.97);
+  }
+  35% {
+    opacity: 1;
+  }
+  to {
+    z-index: calc(40 - var(--i));
+    transform: none;
+  }
+}
+@keyframes ticket-deal-grid {
+  from {
+    z-index: calc(40 - var(--i));
+    opacity: 0;
+    transform: translate(-18px, -30px) rotate(calc(var(--tilt) * 3)) scale(0.92);
+  }
+  35% {
+    opacity: 1;
+  }
+  to {
+    z-index: calc(40 - var(--i));
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticket-deal-slot {
+    animation: none;
+  }
 }
 
 .transfer-upload {
@@ -4111,6 +4760,25 @@ button.code-warning:focus-visible {
 }
 .profile-row dd:last-child {
   grid-column: 2 / -1;
+}
+.profile-notifications {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 32px;
+}
+.profile-notifications h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.profile-notifications .check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.profile-notifications .check-row input {
+  width: auto;
+  margin: 0;
 }
 .profile-inline {
   display: flex;
@@ -5721,6 +6389,144 @@ button.code-warning:focus-visible {
   color: var(--slab);
 }
 
+/*
+ * Hero entrance (Home and Events), played once when the page shows: the ticket arrives, the headline rises word by
+ * word from behind its line, the Home stub prints top to bottom, then the line under it and the controls settle in.
+ * `backwards` fill only holds the start state during each delay, so hover styles stay in charge afterwards.
+ */
+.stage {
+  animation: hero-ticket-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.hero-word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  /* Room for the tall letters and the tails of y and g, which the 0.88 line height would otherwise clip. */
+  padding: 0.1em 0 0.16em;
+  margin: -0.1em 0 -0.16em;
+}
+.hero-word > span {
+  display: inline-block;
+  animation: hero-word-up 0.95s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(0.2s + var(--i) * 0.07s);
+}
+.home-hero-copy p,
+.events-hero > p {
+  animation: hero-settle 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.8s backwards;
+}
+.home-hero-copy .btn,
+.events-hero .search {
+  animation: hero-settle 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.9s backwards;
+}
+.home-hero .home-next {
+  animation: hero-stub-print 1s cubic-bezier(0.65, 0, 0.35, 1) 0.45s backwards;
+}
+@keyframes hero-ticket-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+  }
+}
+@keyframes hero-word-up {
+  from {
+    transform: translateY(115%);
+  }
+}
+@keyframes hero-settle {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes hero-stub-print {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+/*
+ * The Home and Events heroes are a stage before the show, in both themes: near-black, a violet wash rising from the stage floor,
+ * three soft spotlight beams from the rig above (two warm, one cool) that switch on as the ticket arrives and then
+ * sway slowly, and a fine film grain. The beams stay faint and lean away from the headline, so the type reads.
+ */
+.stage {
+  --slab: #07060c;
+  --on-slab: #ffffff;
+  --slab-muted: #b8b3c7;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 90% 70% at 55% 125%, rgb(59 42 140 / 0.55), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 85% 110%, rgb(120 70 200 / 0.25), transparent 70%),
+    #07060c;
+}
+.stage > * {
+  position: relative;
+  z-index: 1;
+}
+/* The beams: each is a thin wedge of light from a point just above the top edge. */
+.stage::before {
+  content: '';
+  position: absolute;
+  inset: -10% -5% 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    conic-gradient(from 166deg at 30% -8%, transparent 0deg, rgb(255 233 199 / 0.26) 9deg, transparent 18deg),
+    conic-gradient(from 177deg at 62% -8%, transparent 0deg, rgb(201 215 255 / 0.2) 7deg, transparent 15deg),
+    conic-gradient(from 190deg at 88% -8%, transparent 0deg, rgb(255 233 199 / 0.24) 9deg, transparent 19deg);
+  filter: blur(8px);
+  transform-origin: 50% 0;
+  animation:
+    stage-lights-on 1.4s ease-out 0.3s backwards,
+    stage-sway 9s ease-in-out 1.7s infinite alternate;
+}
+/* Haze where the beams meet the floor, and film grain over the whole stage. */
+.stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 30% at 50% 100%, rgb(255 255 255 / 0.06), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  /* Plain blending on purpose: overlay washed the whole stage out. */
+  opacity: 0.07;
+}
+@keyframes stage-lights-on {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes stage-sway {
+  from {
+    transform: rotate(-2.5deg);
+  }
+  to {
+    transform: rotate(2.5deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage::before {
+    animation: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage,
+  .hero-word > span,
+  .home-hero-copy p,
+  .events-hero > p,
+  .home-hero-copy .btn,
+  .events-hero .search,
+  .home-hero .home-next {
+    animation: none;
+  }
+}
+
 .home-events {
   list-style: none;
   margin: 0 0 36px;
@@ -5880,10 +6686,10 @@ button.code-warning:focus-visible {
   box-shadow: 0 28px 70px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.06);
 }
 .modal[open] {
-  animation: modal-pop 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  animation: modal-pop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 .modal[open]::backdrop {
-  animation: modal-fade 0.2s ease-out;
+  animation: modal-fade 0.32s ease-out;
 }
 @keyframes modal-pop {
   from {
@@ -5900,9 +6706,29 @@ button.code-warning:focus-visible {
     opacity: 0;
   }
 }
+/* Closing: the window sinks and fades with its backdrop (see useAnimatedDialog). */
+.modal.is-closing {
+  animation: modal-out 0.25s ease-in forwards;
+}
+.modal.is-closing::backdrop {
+  animation: modal-fade-out 0.25s ease-in forwards;
+}
+@keyframes modal-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+@keyframes modal-fade-out {
+  to {
+    opacity: 0;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .modal[open],
-  .modal[open]::backdrop {
+  .modal[open]::backdrop,
+  .modal.is-closing,
+  .modal.is-closing::backdrop {
     animation: none;
   }
 }
@@ -6092,6 +6918,165 @@ button.code-warning:focus-visible {
   border-radius: var(--radius-lg);
   background: var(--bg);
   box-shadow: var(--card-shadow);
+}
+/*
+ * A finished event, in place of the tickets: its rating, thanks and a review form for the people who came, the
+ * attendees' comments for the organizers, and the organizer's recap as a chat of messages and pictures.
+ */
+.event-ended {
+  display: grid;
+  gap: 24px;
+  margin-top: 28px;
+}
+.event-ended h2,
+.event-ended h3 {
+  margin: 0;
+}
+.event-ended-head {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.stars {
+  letter-spacing: 1px;
+  color: var(--border);
+}
+.stars .is-on {
+  color: #e8a317;
+}
+.rating-summary {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 1.1rem;
+}
+.event-thanks {
+  margin: 0;
+  padding: 18px 22px;
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--success);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+/* The rating, and for an attendee the star button that opens the rating pop-up (any time). */
+.event-ended-rating {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.rate-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rate-star {
+  color: #e8a317;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.star-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.star-input button {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--border);
+  cursor: pointer;
+  transition: transform 0.12s ease, color 0.12s ease;
+}
+.star-input button.is-on {
+  color: #e8a317;
+}
+.star-input button:hover:not(:disabled) {
+  transform: scale(1.15);
+}
+.star-input button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* In the rating pop-up, Delete sits apart on the left. */
+.review-form .review-delete {
+  margin-right: auto;
+}
+.review-comments,
+.recap {
+  display: grid;
+  gap: 10px;
+}
+.review-comments p {
+  margin: 0;
+}
+.review-comment {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+/* The recap: one message after another, like a chat from the organizer, each with its date and time. */
+.recap-feed {
+  list-style: none;
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+}
+.recap-message {
+  display: grid;
+  gap: 6px;
+  max-width: 560px;
+}
+.recap-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.recap-delete {
+  margin-left: auto;
+  padding: 4px;
+}
+.recap-delete svg {
+  width: 15px;
+  height: 15px;
+}
+.recap-bubble {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 4px 18px 18px 18px;
+  background: var(--bg);
+}
+.recap-bubble img {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+}
+.recap-bubble p {
+  margin: 0;
+  padding: 12px 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.recap-composer {
+  display: grid;
+  gap: 8px;
+  max-width: 560px;
+}
+.recap-composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.recap-composer-actions .btn-primary {
+  margin-left: auto;
 }
 .event-posts-link {
   display: inline-block;
@@ -6703,6 +7688,21 @@ button.code-warning:focus-visible {
   width: 100%;
   min-width: 0;
 }
+/* The card number with the test-card shortcut inside it, on the right. */
+.card-number-field {
+  position: relative;
+  display: block;
+}
+.card-number-field input {
+  width: 100%;
+  padding-right: 44px;
+}
+.sample-card-button {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+}
 
 /* An amount and its currency on one line inside a dialog (.two-col needs a wide page). */
 .amount-pair {
@@ -7191,6 +8191,23 @@ button.code-warning:focus-visible {
   text-align-last: center;
   cursor: pointer;
 }
+/* "Same-day event" (event form): only the box is clickable, the text beside it is not. */
+.same-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.same-day input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Gates open (event form): hours and minutes pickers, each followed by its unit. */
+.gate-field {
+  align-items: center;
+  flex-wrap: wrap;
+}
 .time-steps {
   display: flex;
   flex-direction: column;
@@ -7446,4 +8463,507 @@ button.code-warning:focus-visible {
   .cart-hold {
     white-space: normal;
   }
+}
+
+/* An event that starts within a day: a pill and a short shake now and then. */
+.soon-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff1e6;
+  color: #c2410c;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.event-card.is-soon,
+.pass-card.is-soon,
+.tt-row.is-soon,
+.event-ticket.is-soon {
+  animation: soon-shake 5s ease-in-out infinite;
+}
+.event-card.is-soon:hover,
+.pass-card.is-soon:hover,
+.tt-row.is-soon:hover,
+.event-ticket.is-soon:hover {
+  animation: none;
+}
+@keyframes soon-shake {
+  0%,
+  86%,
+  100% {
+    transform: none;
+  }
+  88% {
+    transform: translateX(-3px) rotate(-0.8deg);
+  }
+  90% {
+    transform: translateX(3px) rotate(0.8deg);
+  }
+  92% {
+    transform: translateX(-2px) rotate(-0.5deg);
+  }
+  94% {
+    transform: translateX(2px) rotate(0.5deg);
+  }
+  96% {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .event-card.is-soon,
+  .pass-card.is-soon,
+  .tt-row.is-soon,
+  .event-ticket.is-soon {
+    animation: none;
+  }
+}
+
+/* A notification not opened yet stands out; an opened one fades back. */
+.bell-item.is-unread {
+  border-left: 4px solid var(--warn);
+  background: var(--bg, #fff);
+}
+.bell-item:not(.is-unread) {
+  opacity: 0.7;
+}
+.bell-new {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--warn);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+/* The bell's red dot with the number of unopened notifications in it. */
+.bell-dot.bell-count {
+  top: -2px;
+  right: -2px;
+  display: grid;
+  place-items: center;
+  width: auto;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+
+/* The search row: every control the same height. */
+.events-hero .search {
+  align-items: stretch;
+}
+
+.qr-pass-body .qr-pass-invite {
+  max-width: 28ch;
+  color: #15803d;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.events-section-gap {
+  margin-top: 32px;
+}
+
+/*
+ * The grid card as a paper ticket: the slab and the white stub are cut apart by a tear line with a notch on each side
+ * (each half cuts its own notches with a mask, as on the QR pass); the shadow is a filter so it follows the cut shape.
+ */
+.pass-card {
+  --edge: var(--border);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.14));
+}
+.pass-card:hover {
+  box-shadow: none;
+  filter: drop-shadow(0 10px 16px rgb(0 0 0 / 0.2));
+}
+.pass-card.pass-good {
+  --edge: var(--success);
+}
+.pass-card.pass-info {
+  --edge: var(--text);
+}
+.pass-card.pass-bad {
+  --edge: var(--danger);
+}
+.pass-card.pass-warn {
+  --edge: var(--warn);
+}
+.pass-card.has-color {
+  --edge: var(--tt-color);
+}
+.pass-card-top {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  -webkit-mask:
+    radial-gradient(circle at 0 100%, #0000 12px, #000 12.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 100%, #0000 12px, #000 12.5px) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle at 0 100%, #0000 12px, #000 12.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 100%, #0000 12px, #000 12.5px) right / 51% 100% no-repeat;
+}
+.pass-card-body {
+  position: relative;
+  border-bottom: 6px solid var(--edge);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: var(--bg);
+  -webkit-mask:
+    radial-gradient(circle at 0 0, #0000 12px, #000 12.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 0, #0000 12px, #000 12.5px) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle at 0 0, #0000 12px, #000 12.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 0, #0000 12px, #000 12.5px) right / 51% 100% no-repeat;
+}
+/* The perforation between the notches. */
+.pass-card-body::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 18px;
+  right: 18px;
+  border-top: 2px dashed var(--border);
+}
+
+/* The Check-ins window: wide, stats in one row, filters in one row, one line per scan. */
+.modal.modal-large {
+  width: min(1040px, calc(100vw - 32px));
+}
+.checkin-stats {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 16px 0;
+}
+@media (max-width: 760px) {
+  .checkin-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.checkin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.checkin-filters input[type='search'] {
+  flex: 1 1 200px;
+  max-width: 280px;
+}
+.checkin-filters .btn {
+  margin-left: auto;
+}
+.checkin-table {
+  overflow-x: auto;
+}
+.checkin-table td,
+.checkin-table th {
+  white-space: nowrap;
+}
+
+/* Fixed size, so the window does not jump when a filter leaves no scans; the list scrolls inside it. */
+.modal.modal-large {
+  width: min(1240px, calc(100vw - 32px));
+  height: calc(100vh - 48px);
+  max-height: 900px;
+}
+.modal.modal-large[open] {
+  display: flex;
+  flex-direction: column;
+}
+.checkin-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 12px;
+}
+.checkin-body .empty {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+}
+
+/* "Happening now" sits right under the results bar. */
+.results-bar + h2 {
+  margin-top: 0;
+}
+
+.scanner-app,
+.scanner-upload {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+  padding: 20px;
+}
+.scanner-app h2,
+.scanner-upload h2 {
+  margin: 0;
+}
+.scanner-app code {
+  overflow-wrap: anywhere;
+}
+.scanner-app-notes {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.scanner-app-placeholder {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 20px;
+  border-style: dashed;
+}
+.scanner-app-placeholder > div {
+  display: grid;
+  gap: 10px;
+}
+.scanner-app-tile {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--muted, #888);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.scanner-guide {
+  max-width: 720px;
+  margin-top: 32px;
+}
+.scanner-guide h2 {
+  margin-top: 0;
+}
+.scanner-guide h3 {
+  margin: 24px 0 8px;
+  font-size: 1rem;
+}
+.scanner-guide ol,
+.scanner-guide ul {
+  margin: 0 0 8px;
+  padding-left: 22px;
+}
+.scanner-guide li {
+  margin-bottom: 6px;
+}
+
+/* The stub of a ticket type for a read-only viewer: "Admit one" instead of the price and actions. */
+.tt-admit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.tt-admit svg {
+  width: 28px;
+  height: 28px;
+}
+.tt-admit strong {
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.tt-admit span {
+  color: var(--muted, #6b6b6b);
+  font-size: 0.8rem;
+}
+
+
+/* A draft event: reads as unfinished, like a sketch not yet published (dashed outline, washed-out cover, a note on it). */
+.event-card.is-draft {
+  position: relative;
+  border: 2px dashed var(--warn);
+  background: var(--bg);
+}
+.event-card.is-draft:hover {
+  border-color: var(--warn);
+}
+.event-card.is-draft .event-image {
+  filter: grayscale(0.85) contrast(0.9);
+  opacity: 0.7;
+  outline: 1px dashed var(--warn);
+  outline-offset: -6px;
+}
+.event-card.is-draft h3 {
+  font-style: italic;
+}
+.draft-flag {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  max-width: calc(100% - 48px);
+  padding: 3px 10px;
+  overflow: hidden;
+  border: 1px dashed var(--warn);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--warn);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* In the list view the note sits at the bottom right of the row, under the status. */
+.event-list .event-card.is-draft .draft-flag {
+  top: auto;
+  left: auto;
+  right: 22px;
+  bottom: 16px;
+  max-width: 45%;
+}
+
+/* Start, end and length of an event on one line; it is cut off with an ellipsis when the card is too narrow. */
+.when-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.results-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.refresh-button {
+  width: 28px;
+  height: 28px;
+}
+.refresh-button.is-spinning svg {
+  animation: refresh-spin 0.8s linear infinite;
+}
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .refresh-button.is-spinning svg {
+    animation: none;
+  }
+}
+
+/* A top-bar tab shown as an icon only (the gear for Settings). */
+.nav a.nav-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Organization details and its change requests. */
+.org-details {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 16px;
+}
+.org-pending {
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px dashed var(--warn);
+  border-radius: var(--radius-lg);
+}
+.org-pending h3,
+.org-decided strong {
+  margin: 0;
+}
+.org-change-lines {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 0;
+  list-style: none;
+}
+.org-change-lines li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: baseline;
+}
+.org-decided {
+  margin-bottom: 14px;
+}
+.org-changes > li {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 16px;
+}
+
+/* The details an organization gave, in the admin's list. */
+.admin-org-details {
+  display: grid;
+  gap: 2px;
+  margin: 8px 0 0;
+}
+.admin-org-details > div {
+  display: flex;
+  gap: 10px;
+}
+.admin-org-details dt {
+  min-width: 56px;
+}
+.admin-org-details dd {
+  margin: 0;
+}
+
+.org-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.org-heading h2 {
+  margin: 0;
+}
+
+/* ---- Shared form controls (components/fields, Button, FormActions) ---- */
+/* One label, control, hint and error stack: the same spacing and type in every form. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.field-label {
+  display: block;
+}
+.field-error {
+  font-size: 0.8rem;
+  color: var(--danger);
+}
+input[aria-invalid='true'],
+select[aria-invalid='true'],
+textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.field-group legend {
+  font-size: 0.85rem;
+}
+
+/* The user picker grows sideways in a toolbar (flex-basis 280px); in a form it stacks, where that basis was a 280px-tall gap. */
+.form .user-picker {
+  flex: none;
+}
+
+/* Tighter vertical rhythm: Home's sections sit closer together, and the Add a member window is less airy. */
+.home-page > h2 {
+  margin-top: 1.75rem;
+}
+.home-page > .home-hero {
+  margin-bottom: 0;
+}
+.team-form {
+  gap: 12px;
+}
+.team-form .team-perms-box {
+  margin: 0;
+}
+.team-form .team-perms {
+  margin: 4px 0 4px 0;
 }

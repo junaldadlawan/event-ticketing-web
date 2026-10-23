@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { QuantityField } from '../components/fields/QuantityField';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError, errorMessage } from '../api/client';
@@ -136,21 +137,6 @@ export function CartPage() {
   }, [quoteKey]);
   /** The ticket ids to pay for: none given when the whole cart is ticked. */
   const payIds = allPicked ? undefined : pickedIds;
-
-  /**
-   * A quantity typed into a line: 0 asks before removing it, past the per-order limit it is capped. True when a new
-   * quantity was sent (the box then follows the API's answer); otherwise the box goes back to the line's quantity.
-   */
-  function typedQuantity(item: Cart['items'][number], text: string, max: number | undefined, name: string) {
-    const n = Math.min(Math.floor(Number(text)), max ?? Infinity);
-    if (text.trim() === '' || Number.isNaN(n) || n === item.quantity) return false;
-    if (n <= 0) {
-      setRemoving({ id: item.id, name });
-      return false;
-    }
-    void run(() => setQuantity(item.id, n));
-    return true;
-  }
 
   async function removePicked() {
     await run(async () => {
@@ -344,52 +330,15 @@ export function CartPage() {
                   <p className="cart-hold small">Held for you until {formatDateTime(item.holdExpiresAt)}</p>
                 </div>
                 <div className="ticket-buy cart-buy">
-                  <div className="qty-stepper" role="group" aria-label="Quantity">
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      aria-label={item.quantity <= 1 ? 'Remove from cart' : 'One fewer'}
-                      disabled={busy}
-                      onClick={() =>
-                        item.quantity <= 1
-                          ? setRemoving({ id: item.id, name: d ? d.ticketType.name : 'this ticket' })
-                          : void run(() => setQuantity(item.id, item.quantity - 1))
-                      }
-                    >
-                      −
-                    </button>
-                    <input
-                      // Remounted with each new quantity from the API, so a rejected or capped number shows the real one.
-                      key={item.quantity}
-                      type="number"
-                      inputMode="numeric"
-                      className="qty-input"
-                      aria-label="Number of tickets"
-                      min={0}
-                      max={d?.ticketType.maxPerOrder}
-                      disabled={busy}
-                      defaultValue={item.quantity}
-                      // Enter commits; kept from also pressing the confirm window's focused button as it opens.
-                      onKeyDown={(e) => {
-                        if (e.key !== 'Enter') return;
-                        e.preventDefault();
-                        e.currentTarget.blur();
-                      }}
-                      onBlur={(e) => {
-                        if (!typedQuantity(item, e.currentTarget.value, d?.ticketType.maxPerOrder, d ? d.ticketType.name : 'this ticket'))
-                          e.currentTarget.value = String(item.quantity);
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      aria-label="One more"
-                      disabled={busy || (d ? item.quantity >= d.ticketType.maxPerOrder || d.ticketType.quantityAvailable < 1 : false)}
-                      onClick={() => void run(() => setQuantity(item.id, item.quantity + 1))}
-                    >
-                      +
-                    </button>
-                  </div>
+                  <QuantityField
+                    value={item.quantity}
+                    max={d?.ticketType.maxPerOrder}
+                    disabled={busy}
+                    moreDisabled={d ? d.ticketType.quantityAvailable < 1 : false}
+                    onBelowMin={() => setRemoving({ id: item.id, name: d ? d.ticketType.name : 'this ticket' })}
+                    removeLabel="Remove from cart"
+                    onCommit={(n) => void run(() => setQuantity(item.id, n))}
+                  />
                   <span>{d ? `${formatMoney(d.ticketType.price)} each` : '...'}</span>
                 </div>
               </div>

@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { useAnimatedDialog } from './useAnimatedDialog';
 
 /**
  * Simple yes/no confirmation in a native <dialog> (focus stays inside,
@@ -24,14 +24,7 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    const d = dialog.current;
-    if (!d) return;
-    if (open && !d.open) d.showModal();
-    else if (!open && d.open) d.close();
-  }, [open]);
+  const { ref: dialog, rendered } = useAnimatedDialog(open);
 
   return (
     <dialog
@@ -43,7 +36,7 @@ export function ConfirmDialog({
         onCancel();
       }}
     >
-      {open && (
+      {rendered && (
         <div className="form">
           <h2 id="confirm-title" className="modal-title-plain">
             {title}

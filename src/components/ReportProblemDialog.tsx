@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FormActions } from './Button';
 import type { FormEvent } from 'react';
 import { errorMessage } from '../api/client';
 import { disputeApi } from '../api/endpoints';
@@ -56,14 +57,7 @@ export function ReportProblemDialog({
           <textarea rows={5} maxLength={1000} value={reason} onChange={(e) => setReason(e.target.value)} />
         </label>
         <ErrorBox message={error} />
-        <div className="modal-actions">
-          <button type="button" className="btn" disabled={busy} onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn btn-primary" disabled={busy}>
-            {busy ? 'Sending…' : 'Send report'}
-          </button>
-        </div>
+        <FormActions onCancel={onClose} busy={busy} busyLabel="Sending…" submitLabel="Send report" />
       </form>
     </FormDialog>
   );

@@ -1,27 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button, FormActions } from '../../components/Button';
+import { CheckRow } from '../../components/fields/CheckRow';
+import { DateTimeField } from '../../components/fields/DateTimeFields';
+import { SelectField, TextField } from '../../components/fields/TextField';
 import type { CSSProperties, ReactNode } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
-import { eventApi, promoApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
+import { eventApi, promoApi, ticketSaleSettingsApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
 import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKind, TicketTypeUpdateRequest } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DeleteEventDialog } from '../../components/DeleteEventDialog';
 import { EventActivity } from '../../components/EventActivity';
+import { EventCheckIns } from '../../components/EventCheckIns';
+import { RecapFeed } from '../../components/EventRecap';
+import { useAuth } from '../../auth/AuthContext';
+import { isAdmin } from '../../auth/roles';
 import { FormDialog } from '../../components/FormDialog';
 import { EventFormDialog } from './CreateEventPage';
 import { SalesInsights } from '../../components/SalesInsights';
 import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon, TrashIcon } from '../../components/DesignerIcons';
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../components/ui';
-import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso } from '../../utils/format';
+import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso, minutesText } from '../../utils/format';
 import { sortTicketTypes } from '../../utils/ticketTypes';
-import { useIsOrgManager } from '../../auth/useCanManage';
+import { useHasPermission, useIsOrgManager, usePosition } from '../../auth/useCanManage';
+import { useNow } from '../../utils/useNow';
 import { useOrgNames } from '../../utils/useOrgNames';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { useAsync } from '../../utils/useAsync';
-import { TimeField } from '../../components/TimeField';
 import { zonedParts, zonedToIso } from '../../utils/zonedTime';
-import { isEventOver } from '../../utils/eventState';
+import { draftDeletesIn, formatDuration, isEventOver } from '../../utils/eventState';
 
 /** Tooltip on the controls an ended event greys out. */
 const ENDED_TIP = 'This event has ended and can no longer be changed';
@@ -29,6 +37,7 @@ const ENDED_TIP = 'This event has ended and can no longer be changed';
 export function ManageEventPage() {
   const { eventId = '' } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   // /manage/events/<id>/edit opens the Edit event window over this page.
   const editing = useMatch('/manage/events/:eventId/edit') !== null;
   // Coming back from the ticket designer after a save: "Customize ticket" shows "Ticket saved" for a moment.
@@ -61,8 +70,16 @@ export function ManageEventPage() {
   // The activity log (who changed what on the event) opens in a floating window.
   const [showingActivity, setShowingActivity] = useState(false);
   const [showingPromos, setShowingPromos] = useState(false);
+  const [showingCheckIns, setShowingCheckIns] = useState(false);
   // Only the event's own owner / organizer may change ticket types; an admin sees them read-only.
-  const canEditTickets = useIsOrgManager(event?.organizationId);
+  const canEvents = useHasPermission('EVENTS', event?.organizationId);
+  const canPromos = useHasPermission('PROMO_CODES', event?.organizationId);
+  const canOrders = useHasPermission('ORDERS_REFUNDS', event?.organizationId);
+  const canAnalytics = useHasPermission('ANALYTICS', event?.organizationId);
+  // Check-in staff get the event's details only: no ticket types (prices, sales) below the header.
+  const scanner = usePosition() === 'Scanner';
+  const now = useNow(30_000).getTime(); // keeps a draft's deletion countdown current
+  const canEditTickets = useIsOrgManager(event?.organizationId) && canEvents;
   const orgName = useOrgNames(event ? [event.organizationId] : []).get(event?.organizationId ?? '');
 
   if (loading && !event) return <Spinner />;
@@ -83,9 +100,9 @@ export function ManageEventPage() {
 
   // A finished event is read-only: nothing about it or its tickets can change any more.
   const over = isEventOver(event);
-  const canPublish = event.status === 'DRAFT';
+  const canPublish = canEvents && event.status === 'DRAFT';
   // An ended event keeps the button (disabled) like its other controls.
-  const canCancel = over || !['CANCELLED', 'COMPLETED'].includes(event.status);
+  const canCancel = canEvents && (over || !['CANCELLED', 'COMPLETED'].includes(event.status));
 
   return (
     <div className="manage-page">
@@ -94,20 +111,23 @@ export function ManageEventPage() {
         <div className="title-with-status">
           <h1>{event.title}</h1>
           <StatusBadge status={over ? 'COMPLETED' : event.status} />
-          <button
-            type="button"
-            className="icon-button hero-edit"
-            onClick={() => navigate(`/manage/events/${event.id}/edit`)}
-            disabled={over}
-            title={over ? ENDED_TIP : 'Edit event details'}
-            aria-label="Edit event details"
-          >
-            <EditIcon />
-          </button>
+          {canEvents && (
+            <button
+              type="button"
+              className="icon-button hero-edit"
+              onClick={() => navigate(`/manage/events/${event.id}/edit`)}
+              disabled={over}
+              title={over ? ENDED_TIP : 'Edit event details'}
+              aria-label="Edit event details"
+            >
+              <EditIcon />
+            </button>
+          )}
         </div>
         <p className="event-hero-when">
           {orgName && <>{orgName} · </>}
-          {formatDateTime(event.startAt, event.timezone)} · prefix <code>{event.ticketPrefix}</code>
+          {formatDateTime(event.startAt, event.timezone)} · {event.venue ? event.venue.name : 'Online'} · runs{' '}
+          {formatDuration(new Date(event.endAt).getTime() - new Date(event.startAt).getTime())} · prefix <code>{event.ticketPrefix}</code>
           {event.category && <span className="hero-category">{humanize(event.category)}</span>}
         </p>
         {event.description && <p className="event-hero-about">{event.description}</p>}
@@ -121,7 +141,7 @@ export function ManageEventPage() {
           <EyeIcon />
           View public page
         </Link>
-        {over ? (
+        {!canEvents ? null : over ? (
           <button type="button" className="btn" disabled title={ENDED_TIP}>
             Customize ticket
           </button>
@@ -140,18 +160,26 @@ export function ManageEventPage() {
             )}
           </Link>
         )}
-        <button
-          type="button"
-          className="btn"
-          onClick={() => setShowingPromos(true)}
-          disabled={over}
-          title={over ? ENDED_TIP : 'Discount codes buyers can use on this event\'s tickets'}
-        >
-          Promo codes{promoQuery.data && promoQuery.data.length > 0 ? ` (${promoQuery.data.length})` : ''}
+        {canPromos && (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setShowingPromos(true)}
+            disabled={over}
+            title={over ? ENDED_TIP : 'Discount codes buyers can use on this event\'s tickets'}
+          >
+            Promo codes{promoQuery.data && promoQuery.data.length > 0 ? ` (${promoQuery.data.length})` : ''}
+          </button>
+        )}
+        {/* The scan history is read-only and open to everyone who sees this page, check-in staff included. */}
+        <button type="button" className="btn" onClick={() => setShowingCheckIns(true)} title="Tickets scanned at the door">
+          Check-ins
         </button>
-        <button type="button" className="btn" onClick={() => setShowingActivity(true)} title="Who changed what on this event, and when">
-          Activity log
-        </button>
+        {canAnalytics && (
+          <button type="button" className="btn" onClick={() => setShowingActivity(true)} title="Who changed what on this event, and when">
+            Activity log
+          </button>
+        )}
         {canPublish && (
           <button
             className="btn btn-primary"
@@ -171,26 +199,38 @@ export function ManageEventPage() {
             Cancel event
           </button>
         )}
-        <button
-          className="btn btn-link danger"
-          disabled={busy || over}
-          title={over ? ENDED_TIP : undefined}
-          onClick={() => setConfirmingDelete(true)}
-        >
-          Delete
-        </button>
+        {canEvents && (
+          <button
+            className="btn btn-link danger"
+            disabled={busy || over}
+            title={over ? ENDED_TIP : undefined}
+            onClick={() => setConfirmingDelete(true)}
+          >
+            Delete
+          </button>
+        )}
         </div>
       </section>
 
-      <LaunchChecklist
-        event={event}
-        over={over}
-        typeCount={typesQuery.data?.length ?? null}
-        layoutCount={templates?.length ?? null}
-        busy={busy}
-        canEditTickets={canEditTickets}
-        onPublish={() => act(() => eventApi.publish(event.id))}
-      />
+      {draftDeletesIn(event, now) && (
+        <p className="alert alert-warning" role="status">
+          This draft is deleted in {draftDeletesIn(event, now)} unless you publish it first.
+        </p>
+      )}
+
+      {/* The launch steps and the "You're live" note are for people who can edit the event, not read-only viewers. */}
+      {canEvents && (
+        <LaunchChecklist
+          event={event}
+          over={over}
+          typeCount={typesQuery.data?.length ?? null}
+          layoutCount={templates?.length ?? null}
+          busy={busy}
+          canEditTickets={canEditTickets}
+          canEditEvent={canEvents}
+          onPublish={() => act(() => eventApi.publish(event.id))}
+        />
+      )}
 
       {/* Same safeguard as delete: type the event name and re-enter the password. */}
       <DeleteEventDialog
@@ -226,20 +266,31 @@ export function ManageEventPage() {
         }}
       />
 
-      <TicketTypes
-        eventId={event.id}
-        eventTitle={event.title}
-        eventStartAt={event.startAt}
-        eventEndAt={event.endAt}
-        timezone={event.timezone}
-        canEdit={canEditTickets}
-        eventOver={over}
-        query={typesQuery}
-        ownDesignTypeIds={new Set((templates ?? []).map((t) => t.ticketTypeId).filter((id): id is string => Boolean(id)))}
-      />
+      {/* After the event: pictures, links and messages for the people who joined (the owner or EVENTS organizers post). */}
+      {over && (
+        <section aria-label="Event recap">
+          <h2>Recap</h2>
+          <RecapFeed event={event} canPost={canEvents && !isAdmin(user?.role)} canDelete={canEvents} />
+        </section>
+      )}
+
+      {!scanner && (
+        <TicketTypes
+          eventId={event.id}
+          eventTitle={event.title}
+          eventStartAt={event.startAt}
+          eventEndAt={event.endAt}
+          timezone={event.timezone}
+          venueName={event.venue ? event.venue.name : 'Online'}
+          canEdit={canEditTickets}
+          eventOver={over}
+          query={typesQuery}
+          ownDesignTypeIds={new Set((templates ?? []).map((t) => t.ticketTypeId).filter((id): id is string => Boolean(id)))}
+        />
+      )}
       {/* A draft has sold nothing yet. */}
-      {event.status !== 'DRAFT' && typesQuery.data && <SalesInsights event={event} ticketTypes={typesQuery.data} />}
-      <EventOrders eventId={event.id} />
+      {canAnalytics && event.status !== 'DRAFT' && typesQuery.data && <SalesInsights event={event} ticketTypes={typesQuery.data} />}
+      {canOrders && <EventOrders eventId={event.id} />}
       <PromoCodesDialog
         eventId={event.id}
         open={showingPromos}
@@ -248,6 +299,9 @@ export function ManageEventPage() {
         onClose={() => setShowingPromos(false)}
         onChanged={promoQuery.reload}
       />
+      <FormDialog open={showingCheckIns} size="large" title="Check-ins" onClose={() => setShowingCheckIns(false)}>
+        <EventCheckIns eventId={event.id} timezone={event.timezone} />
+      </FormDialog>
       <FormDialog open={showingActivity} title="Activity log" onClose={() => setShowingActivity(false)}>
         <EventActivity eventId={event.id} timezone={event.timezone} ticketTypes={typesQuery.data ?? []} />
       </FormDialog>
@@ -266,6 +320,7 @@ function LaunchChecklist({
   layoutCount,
   busy,
   canEditTickets,
+  canEditEvent,
   onPublish,
 }: {
   event: Event;
@@ -276,6 +331,8 @@ function LaunchChecklist({
   layoutCount: number | null;
   busy: boolean;
   canEditTickets: boolean;
+  /** Holds EVENTS (BR-ORG-008): may design the ticket and publish. */
+  canEditEvent: boolean;
   onPublish: () => void;
 }) {
   // Collapsed = just the headline and the progress bar. The choice is remembered in this browser.
@@ -342,22 +399,22 @@ function LaunchChecklist({
       title: 'Ticket design',
       hint: layoutCount ? 'Your ticket has a look' : 'Make a ticket people will want to keep',
       done: Boolean(layoutCount),
-      action: (
+      action: canEditEvent ? (
         <Link to={`/manage/events/${event.id}/ticket-design`} className="btn btn-sm">
           Customize ticket
         </Link>
-      ),
+      ) : null,
     },
     {
       key: 'publish',
       title: 'Publish',
       hint: 'Open ticket sales to everyone',
       done: false,
-      action: (
+      action: canEditEvent ? (
         <button className="btn btn-primary btn-sm" disabled={busy} onClick={onPublish}>
           Publish
         </button>
-      ),
+      ) : null,
     },
   ];
   const doneCount = steps.filter((s) => s.done).length;
@@ -459,10 +516,8 @@ function RowMenu({ label, children }: { label: string; children: (close: () => v
 /** Currencies a ticket can be priced in (all with cents, which the price field assumes). PHP first: PayMongo charges PHP. */
 const CURRENCIES = ['PHP', 'USD', 'EUR', 'GBP', 'SGD', 'AUD', 'CAD', 'HKD'].map((code) => ({ code }));
 
-/** Ticket sales close at the latest this long before the event starts. */
-const SALES_CLOSE_BEFORE_MS = 60 * 60 * 1000;
-/** And they must run at least this long, so a sale window is never a moment. */
-const MIN_SALE_WINDOW_MS = 60 * 60 * 1000;
+/** The platform's sale timing rules until the admin's settings load (the API's defaults; it checks them anyway). */
+const DEFAULT_SALE_SETTINGS = { salesCloseMinutesBeforeEvent: 60, minSaleDurationMinutes: 60 };
 
 /** Card colours to pick from (the supplied palette); null = follow the status colour. */
 const CARD_COLOURS: { name: string; value: string | null }[] = [
@@ -727,40 +782,34 @@ function PromoCodesDialog({
       <h3 className="promo-new">{editing ? `Edit ${editing.code}` : 'New promo code'}</h3>
       <form className="form promo-form" onSubmit={onSubmit}>
         <div className="promo-row promo-row-3">
-          <label>
-            Code
-            <input
-              required
-              maxLength={50}
-              disabled={locked}
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="EARLYBIRD"
-            />
-          </label>
-          <label>
-            Discount
-            <select
-              value={type}
-              disabled={locked}
-              onChange={(e) => setType(e.target.value as PromoCodeCreateRequest['discountType'])}
-            >
-              <option value="PERCENTAGE">Percent off</option>
-              <option value="FIXED">Amount off</option>
-            </select>
-          </label>
-          <label>
-            {type === 'PERCENTAGE' ? 'Percent (0-100)' : 'Amount'}
-            <input
-              type="number"
-              required
-              min={0}
-              max={type === 'PERCENTAGE' ? 100 : undefined}
-              step={type === 'PERCENTAGE' ? 1 : 0.01}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-            />
-          </label>
+          <TextField
+            label="Code"
+            required
+            maxLength={50}
+            disabled={locked}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="EARLYBIRD"
+          />
+          <SelectField
+            label="Discount"
+            value={type}
+            disabled={locked}
+            onChange={(e) => setType(e.target.value as PromoCodeCreateRequest['discountType'])}
+          >
+            <option value="PERCENTAGE">Percent off</option>
+            <option value="FIXED">Amount off</option>
+          </SelectField>
+          <TextField
+            label={type === 'PERCENTAGE' ? 'Percent (0-100)' : 'Amount'}
+            type="number"
+            required
+            min={0}
+            max={type === 'PERCENTAGE' ? 100 : undefined}
+            step={type === 'PERCENTAGE' ? 1 : 0.01}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
         </div>
         {locked && (
           <small className="muted">
@@ -768,21 +817,12 @@ function PromoCodesDialog({
           </small>
         )}
         <div className="promo-row promo-row-3">
-          <label>
-            Applies to
-            <select value={appliesTo} onChange={(e) => setAppliesTo(e.target.value as 'ALL' | 'SOME')}>
-              <option value="ALL">All ticket types</option>
-              <option value="SOME">Specific ticket types</option>
-            </select>
-          </label>
-          <label>
-            Total uses <span className="hint">(optional)</span>
-            <input type="number" min={1} value={limitTotal} onChange={(e) => setLimitTotal(e.target.value)} />
-          </label>
-          <label>
-            Per buyer <span className="hint">(optional)</span>
-            <input type="number" min={1} value={limitPerBuyer} onChange={(e) => setLimitPerBuyer(e.target.value)} />
-          </label>
+          <SelectField label="Applies to" value={appliesTo} onChange={(e) => setAppliesTo(e.target.value as 'ALL' | 'SOME')}>
+            <option value="ALL">All ticket types</option>
+            <option value="SOME">Specific ticket types</option>
+          </SelectField>
+          <TextField label="Total uses" optional type="number" min={1} value={limitTotal} onChange={(e) => setLimitTotal(e.target.value)} />
+          <TextField label="Per buyer" optional type="number" min={1} value={limitPerBuyer} onChange={(e) => setLimitPerBuyer(e.target.value)} />
         </div>
         {appliesTo === 'SOME' && (
           <fieldset className="promo-types">
@@ -791,43 +831,36 @@ function PromoCodesDialog({
               <p className="muted small">This event has no ticket types yet.</p>
             ) : (
               ticketTypes.map((t) => (
-                <label key={t.id} className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={typeIds.includes(t.id)}
-                    onChange={(e) =>
-                      setTypeIds((ids) => (e.target.checked ? [...ids, t.id] : ids.filter((id) => id !== t.id)))
-                    }
-                  />
+                <CheckRow
+                  key={t.id}
+                  checked={typeIds.includes(t.id)}
+                  onChange={(e) =>
+                    setTypeIds((ids) => (e.target.checked ? [...ids, t.id] : ids.filter((id) => id !== t.id)))
+                  }
+                >
                   {t.name}
-                </label>
+                </CheckRow>
               ))
             )}
             {noTypePicked && <small className="warn">Pick at least one ticket type.</small>}
           </fieldset>
         )}
         <div className="promo-row">
-          <label>
-            Valid from
-            <input type="datetime-local" required value={from} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label>
-            Valid until
-            <input type="datetime-local" required value={until} onChange={(e) => setUntil(e.target.value)} />
-          </label>
+          <TextField label="Valid from" type="datetime-local" required value={from} onChange={(e) => setFrom(e.target.value)} />
+          <TextField label="Valid until" type="datetime-local" required value={until} onChange={(e) => setUntil(e.target.value)} />
         </div>
         <div className="modal-actions">
-          <button type="button" className="btn" disabled={busy} onClick={onClose}>
+          <Button disabled={busy} onClick={onClose}>
             Close
-          </button>
+          </Button>
           {editing && (
-            <button type="button" className="btn" disabled={busy} onClick={blankForm}>
+            <Button disabled={busy} onClick={blankForm}>
               Cancel edit
-            </button>
+            </Button>
           )}
-          <button className="btn btn-primary" disabled={busy || noTypePicked}>
-            {busy ? 'Saving...' : editing ? 'Save changes' : 'Add promo code'}
-          </button>
+          <Button type="submit" variant="primary" busy={busy} busyLabel="Saving..." disabled={noTypePicked}>
+            {editing ? 'Save changes' : 'Add promo code'}
+          </Button>
         </div>
       </form>
 
@@ -864,6 +897,7 @@ function TicketTypes({
   timezone,
   canEdit,
   eventOver,
+  venueName,
   query,
   ownDesignTypeIds,
 }: {
@@ -875,6 +909,8 @@ function TicketTypes({
   eventEndAt: string;
   /** The event's timezone: the sale window's dates and times are read in it. */
   timezone: string;
+  /** Where the event is, shown on each ticket for read-only viewers. */
+  venueName: string;
   /** false = read-only (an admin who is not an organizer of this event): no add, edit, pause, reorder or delete. */
   canEdit: boolean;
   /** The event has ended: every ticket type reads "Event ended" and the change controls are disabled. */
@@ -986,26 +1022,17 @@ function TicketTypes({
     saveOrder(ids);
   }
 
-  // A colour for each ticket type card, remembered in this browser (the API has no colour field yet).
-  const [colors, setColors] = useState<Record<string, string>>(() => {
+  // The card colour of each ticket type, saved on the ticket type so buyers' tickets show it too. The API returns
+  // it uppercase; the swatches are lowercase, so compare in lowercase.
+  const colourOf = (tt: TicketType) => tt.color?.toLowerCase() ?? null;
+  async function setColour(tt: TicketType, value: string | null) {
+    setRowError(null);
     try {
-      return JSON.parse(localStorage.getItem("ticketTypeColors") ?? "{}") as Record<string, string>;
-    } catch {
-      return {};
+      const updated = await ticketTypeApi.update(tt.id, { color: value });
+      query.setData((list) => list?.map((t) => (t.id === updated.id ? updated : t)) ?? list);
+    } catch (e) {
+      setRowError(errorMessage(e));
     }
-  });
-  function setColour(id: string, value: string | null) {
-    setColors((prev) => {
-      const next = { ...prev };
-      if (value) next[id] = value;
-      else delete next[id];
-      try {
-        localStorage.setItem("ticketTypeColors", JSON.stringify(next));
-      } catch {
-        /* blocked storage: the colour just is not remembered */
-      }
-      return next;
-    });
   }
 
   async function confirmDelete() {
@@ -1031,8 +1058,12 @@ function TicketTypes({
   const [saleStartTime, setSaleStartTime] = useState('');
   const [saleEndDate, setSaleEndDate] = useState('');
   const [saleEndTime, setSaleEndTime] = useState('');
-  // The latest the sale can end: an hour before the event starts.
-  const latestEndMs = new Date(eventStartAt).getTime() - SALES_CLOSE_BEFORE_MS;
+  // The admin's sale timing rules: how long before the event sales close, and how long a sale must run.
+  const saleRules = useAsync(() => ticketSaleSettingsApi.get(), []).data ?? DEFAULT_SALE_SETTINGS;
+  const closeBefore = minutesText(saleRules.salesCloseMinutesBeforeEvent);
+  const minDuration = minutesText(saleRules.minSaleDurationMinutes);
+  // The latest the sale can end.
+  const latestEndMs = new Date(eventEndAt).getTime() - saleRules.salesCloseMinutesBeforeEvent * 60_000;
   const latestEnd = zonedParts(new Date(latestEndMs).toISOString(), timezone);
   const saleStartMs = startNow
     ? null
@@ -1046,14 +1077,35 @@ function TicketTypes({
     saleEndMs === null
       ? null
       : saleEndMs > latestEndMs
-        ? `Sales must end by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}, an hour before the event starts.`
-        : windowStartMs !== null && saleEndMs - windowStartMs < MIN_SALE_WINDOW_MS
+        ? `Sales must end by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}${
+            saleRules.salesCloseMinutesBeforeEvent ? `, ${closeBefore} before the event ends` : ', when the event ends'
+          }.`
+        : windowStartMs !== null && saleEndMs - windowStartMs < saleRules.minSaleDurationMinutes * 60_000
           ? startNow
-            ? 'Sales must run for at least an hour, so the end must be at least an hour from now.'
-            : 'Sales must run for at least an hour after they start.'
+            ? `Sales must run for at least ${minDuration}, so the end must be at least ${minDuration} from now.`
+            : `Sales must run for at least ${minDuration} after they start.`
           : null;
   const saleMissing = (!startNow && saleStartMs === null) || saleEndMs === null;
   const [maxPerOrder, setMaxPerOrder] = useState('');
+  // Blank = unlimited.
+  const [maxPerUser, setMaxPerUser] = useState('');
+  const userLimit = maxPerUser === '' ? null : Number(maxPerUser);
+  // The API refuses a per-order limit above the per-buyer one (a blank per-order limit becomes the lower of 10 and it).
+  const limitWarning =
+    userLimit !== null && maxPerOrder !== '' && Number(maxPerOrder) > userLimit
+      ? "Max per order can't be more than the max per buyer."
+      : null;
+  // Why the Add / Save button is off, in the order the form is filled in; null when nothing is in the way.
+  const blocker =
+    (!name.trim() && 'Enter a name for the ticket type.') ||
+    (price === '' && 'Enter a price (0 for free).') ||
+    (quantity === '' && 'Enter how many tickets are available.') ||
+    (!startNow && saleStartMs === null && 'Pick when the sale starts, or tick "Start now".') ||
+    (saleEndMs === null &&
+      (saleEndDate ? 'Pick the sale end time: hour, minutes and AM/PM.' : 'Pick the sale end date and time.')) ||
+    limitWarning ||
+    saleWarning ||
+    null;
   const [err, setErr] = useState<string | null>(null);
   // The "add" form lives in its own window (a modal dialog), opened by the button in the section header.
   const [adding, setAdding] = useState(false);
@@ -1077,6 +1129,7 @@ function TicketTypes({
     setSaleEndDate(latestEnd.date);
     setSaleEndTime(latestEnd.time);
     setMaxPerOrder('');
+    setMaxPerUser('');
     setAdding(true);
   }
 
@@ -1104,6 +1157,7 @@ function TicketTypes({
     setSaleEndDate(end.date);
     setSaleEndTime(end.time);
     setMaxPerOrder(String(tt.maxPerOrder));
+    setMaxPerUser(tt.maxPerUser == null ? '' : String(tt.maxPerUser));
     setAdding(true);
   }
   useEffect(() => {
@@ -1120,8 +1174,8 @@ function TicketTypes({
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setErr(null);
-    if (saleMissing || saleWarning) {
-      setErr(saleWarning ?? 'Fill in when the sale starts and ends.');
+    if (saleMissing || saleWarning || limitWarning) {
+      setErr(limitWarning ?? saleWarning ?? 'Fill in when the sale starts and ends.');
       return;
     }
     // "Start now": a new ticket type leaves the start out, so the API stamps it as it saves. An edit has to send
@@ -1142,6 +1196,7 @@ function TicketTypes({
         if (editStartAt !== new Date(editing.saleStartAt).toISOString()) body.saleStartAt = editStartAt;
         if (saleEndAt !== new Date(editing.saleEndAt).toISOString()) body.saleEndAt = saleEndAt;
         if (maxPerOrder && Number(maxPerOrder) !== editing.maxPerOrder) body.maxPerOrder = Number(maxPerOrder);
+        if (userLimit !== (editing.maxPerUser ?? null)) body.maxPerUser = userLimit;
         if (Object.keys(body).length > 0) await ticketTypeApi.update(editing.id, body);
         reload();
         setAdding(false);
@@ -1155,6 +1210,7 @@ function TicketTypes({
         saleStartAt,
         saleEndAt,
         maxPerOrder: maxPerOrder ? Number(maxPerOrder) : undefined,
+        maxPerUser: userLimit,
       });
       setName('');
       setPrice('');
@@ -1176,7 +1232,7 @@ function TicketTypes({
               <span className="count-badge" aria-label={`${data.length} ticket types`}>
                 {data.length}
               </span>
-              {data.length > 0 && (
+              {canEdit && data.length > 0 && (
                 <span className="muted small">
                   {data.reduce((n, t) => n + t.quantityTotal, 0)} tickets · {data.reduce((n, t) => n + (t.quantityTotal - t.quantityAvailable), 0)} sold
                 </span>
@@ -1211,11 +1267,11 @@ function TicketTypes({
         {sortedTypes.map((tt) => (
           <li
             key={tt.id}
-            className={`tt-row tt-${ticketStatus(tt, eventOver).tone}${tt.salesPaused ? " is-paused" : ""}${colors[tt.id] ? " has-color" : ""}${dragId === tt.id ? " is-dragging" : ""}${overId === tt.id && dragId !== tt.id ? " is-drop-target" : ""}`}
+            className={`tt-row tt-${ticketStatus(tt, eventOver).tone}${tt.salesPaused ? " is-paused" : ""}${colourOf(tt) ? " has-color" : ""}${dragId === tt.id ? " is-dragging" : ""}${overId === tt.id && dragId !== tt.id ? " is-drop-target" : ""}`}
             data-tt-id={tt.id}
             style={
               {
-                ...(colors[tt.id] ? { "--tt-color": colors[tt.id] } : {}),
+                ...(colourOf(tt) ? { "--tt-color": colourOf(tt) } : {}),
                 ...(dragId === tt.id ? { transform: `translateY(${dragDy}px)`, zIndex: 40 } : {}),
               } as CSSProperties
             }
@@ -1236,43 +1292,59 @@ function TicketTypes({
                   </button>
                 )}
                 <span className={`status-chip status-${ticketStatus(tt, eventOver).tone}`}>{ticketStatus(tt, eventOver).label}</span>
-                <span
-                  className="tt-design"
-                  tabIndex={0}
-                  role="img"
-                  aria-label={ownDesignTypeIds.has(tt.id) ? 'Uses its own ticket design' : 'Uses the "All ticket types" ticket design'}
-                  data-tip={ownDesignTypeIds.has(tt.id) ? 'Own ticket design' : 'Uses the "All ticket types" design'}
-                >
-                  <TicketIcon />
-                </span>
+                {/* Which ticket design it uses: only for those who can edit, not read-only viewers. */}
+                {canEdit && (
+                  <span
+                    className="tt-design"
+                    tabIndex={0}
+                    role="img"
+                    aria-label={ownDesignTypeIds.has(tt.id) ? 'Uses its own ticket design' : 'Uses the "All ticket types" ticket design'}
+                    data-tip={ownDesignTypeIds.has(tt.id) ? 'Own ticket design' : 'Uses the "All ticket types" design'}
+                  >
+                    <TicketIcon />
+                  </span>
+                )}
               </div>
               <p className="muted small tt-meta">{humanize(tt.kind)}</p>
+              {!canEdit && <p className="muted small tt-meta">Venue: {venueName}</p>}
               <p className="muted small tt-meta tt-window">
                 <span>On sale</span>
                 <span className="nowrap">{formatDateTime(tt.saleStartAt)}</span>
                 <span aria-hidden="true">→</span>
                 <span className="nowrap">{formatDateTime(tt.saleEndAt)}</span>
               </p>
-              <div className="tt-progress">
-                <div
-                  className="tt-bar"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={tt.quantityTotal}
-                  aria-valuenow={tt.quantityTotal - tt.quantityAvailable}
-                  aria-label={`${tt.name} tickets sold`}
-                >
-                  <span style={{ width: `${Math.round(((tt.quantityTotal - tt.quantityAvailable) / Math.max(1, tt.quantityTotal)) * 100)}%` }} />
+              {/* Sales figures: not for read-only viewers (check-in staff). */}
+              {canEdit && (
+                <div className="tt-progress">
+                  <div
+                    className="tt-bar"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={tt.quantityTotal}
+                    aria-valuenow={tt.quantityTotal - tt.quantityAvailable}
+                    aria-label={`${tt.name} tickets sold`}
+                  >
+                    <span style={{ width: `${Math.round(((tt.quantityTotal - tt.quantityAvailable) / Math.max(1, tt.quantityTotal)) * 100)}%` }} />
+                  </div>
+                  <small className="muted">
+                    {tt.quantityTotal - tt.quantityAvailable === 0
+                      ? "No sales yet. Your first buyer is on the way!"
+                      : `${tt.quantityTotal - tt.quantityAvailable} of ${tt.quantityTotal} sold · ${formatMoney({ amount: (tt.quantityTotal - tt.quantityAvailable) * tt.price.amount, currency: tt.price.currency })} so far`}
+                  </small>
                 </div>
-                <small className="muted">
-                  {tt.quantityTotal - tt.quantityAvailable === 0
-                    ? "No sales yet. Your first buyer is on the way!"
-                    : `${tt.quantityTotal - tt.quantityAvailable} of ${tt.quantityTotal} sold · ${formatMoney({ amount: (tt.quantityTotal - tt.quantityAvailable) * tt.price.amount, currency: tt.price.currency })} so far`}
-                </small>
-              </div>
+              )}
             </div>
             <div className="tt-stub">
-            <strong className="tt-price">{formatMoney(tt.price)}</strong>
+            {/* Read-only viewers (check-in staff) get an admit-one stub instead of the price and actions. */}
+            {!canEdit && (
+              <div className="tt-admit" aria-hidden="true">
+                <TicketIcon />
+                <strong>Admit one</strong>
+                <span>{humanize(tt.kind)}</span>
+              </div>
+            )}
+            {canEdit && <strong className="tt-price">{formatMoney(tt.price)}</strong>}
+            {canEdit && (
             <div className="tt-actions">
               {canEdit && (
                 <button
@@ -1292,6 +1364,8 @@ function TicketTypes({
                   {tt.salesPaused ? <PlayIcon /> : <PauseIcon />}
                 </button>
               )}
+              {/* Colour, ticket design, duplicate and delete are all edits: read-only viewers (check-in staff) get no menu. */}
+              {canEdit && (
               <RowMenu label={`More actions for ${tt.name}`}>
                 {(close) => (
                   <>
@@ -1301,13 +1375,13 @@ function TicketTypes({
                         <button
                           key={c.name}
                           type="button"
-                          className={`swatch${(colors[tt.id] ?? null) === c.value ? ' is-on' : ''}${c.value ? '' : ' swatch-none'}`}
+                          className={`swatch${colourOf(tt) === c.value ? ' is-on' : ''}${c.value ? '' : ' swatch-none'}`}
                           style={c.value ? { background: c.value } : undefined}
                           title={eventOver ? ENDED_TIP : c.name}
                           aria-label={c.name}
-                          aria-pressed={(colors[tt.id] ?? null) === c.value}
+                          aria-pressed={colourOf(tt) === c.value}
                           disabled={eventOver}
-                          onClick={() => setColour(tt.id, c.value)}
+                          onClick={() => void setColour(tt, c.value)}
                         />
                       ))}
                     </div>
@@ -1355,7 +1429,9 @@ function TicketTypes({
                   </>
                 )}
               </RowMenu>
+              )}
             </div>
+            )}
             </div>
             {canEdit && (
               <button
@@ -1436,67 +1512,73 @@ function TicketTypes({
           <div className="tt-form-grid">
             <fieldset className="form-group">
               <legend>Basics</legend>
-              <label>
-                Name
-                <input required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} />
-              </label>
-              <label>
-                Kind
-                <select disabled={editing !== null} value={kind} onChange={(e) => setKind(e.target.value as TicketTypeKind)}>
-                  <option value="GENERAL_ADMISSION">General admission</option>
-                  <option value="RESERVED_SEATING">Reserved seating</option>
-                </select>
-                {editing && <span className="hint">The kind can't be changed after creation.</span>}
-              </label>
+              <TextField label="Name" required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} />
+              <SelectField
+                label="Kind"
+                hint={editing ? "The kind can't be changed after creation." : undefined}
+                disabled={editing !== null}
+                value={kind}
+                onChange={(e) => setKind(e.target.value as TicketTypeKind)}
+              >
+                <option value="GENERAL_ADMISSION">General admission</option>
+                <option value="RESERVED_SEATING">Reserved seating</option>
+              </SelectField>
             </fieldset>
 
             <fieldset className="form-group">
               <legend>Price and stock</legend>
               <div className="form-row">
-                <label>
-                  Price
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    step="0.01"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Currency
-                  <select required value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                    {/* A ticket type saved in a currency not listed here keeps it. */}
-                    {(CURRENCIES.some((c) => c.code === currency) ? CURRENCIES : [{ code: currency }, ...CURRENCIES]).map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.code}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <TextField label="Price" type="number" required min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
+                <SelectField label="Currency" required value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                  {/* A ticket type saved in a currency not listed here keeps it. */}
+                  {(CURRENCIES.some((c) => c.code === currency) ? CURRENCIES : [{ code: currency }, ...CURRENCIES]).map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code}
+                    </option>
+                  ))}
+                </SelectField>
               </div>
               <div className="form-row">
-                <label>
-                  Quantity
-                  <input
-                    type="number"
-                    required
-                    min={editing ? Math.max(1, editing.quantityTotal - editing.quantityAvailable) : 1}
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Max per order <span className="hint">(default 10)</span>
-                  <input
-                    type="number"
-                    min={1}
-                    value={maxPerOrder}
-                    onChange={(e) => setMaxPerOrder(e.target.value)}
-                  />
-                </label>
+                <TextField
+                  label="Quantity"
+                  type="number"
+                  required
+                  min={editing ? Math.max(1, editing.quantityTotal - editing.quantityAvailable) : 1}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                />
+                <TextField
+                  label={
+                    <>
+                      Max per order <span className="hint">(default 10)</span>
+                    </>
+                  }
+                  type="number"
+                  min={1}
+                  max={userLimit ?? undefined}
+                  value={maxPerOrder}
+                  onChange={(e) => setMaxPerOrder(e.target.value)}
+                />
               </div>
+              <div className="form-row">
+                <TextField
+                  label={
+                    <>
+                      Max per buyer <span className="hint">(blank = unlimited)</span>
+                    </>
+                  }
+                  type="number"
+                  min={1}
+                  placeholder="Unlimited"
+                  value={maxPerUser}
+                  onChange={(e) => setMaxPerUser(e.target.value)}
+                />
+              </div>
+              {limitWarning && (
+                <p className="hint warn" role="alert">
+                  {limitWarning}
+                </p>
+              )}
               {editing && Number(quantity) !== editing.quantityTotal && (
                 <p className="hint">
                   Tickets already sold or held ({editing.quantityTotal - editing.quantityAvailable}) are kept. The
@@ -1507,24 +1589,19 @@ function TicketTypes({
 
             <fieldset className="form-group form-group-wide">
               <legend>Sale window</legend>
-              <div className="date-time-row">
-                <label>
-                  Sale start date
-                  <input
-                    type="date"
-                    required={!startNow}
-                    disabled={startNow}
-                    max={latestEnd.date}
-                    value={saleStartDate}
-                    onChange={(e) => setSaleStartDate(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Sale start time
-                  {/* Remounted when "Start now" changes, so a half-picked time is cleared too. */}
-                  <TimeField key={startNow ? 'now' : 'set'} value={saleStartTime} onChange={setSaleStartTime} disabled={startNow} />
-                </label>
-              </div>
+              <DateTimeField
+                dateLabel="Sale start date"
+                timeLabel="Sale start time"
+                required={!startNow}
+                disabled={startNow}
+                maxDate={latestEnd.date}
+                date={saleStartDate}
+                time={saleStartTime}
+                onDate={setSaleStartDate}
+                onTime={setSaleStartTime}
+                // Remounted when "Start now" changes, so a half-picked time is cleared too.
+                timeKey={startNow ? 'now' : 'set'}
+              />
               <label className="check-row">
                 <input
                   type="checkbox"
@@ -1539,41 +1616,36 @@ function TicketTypes({
                 />
                 Start now (the sale starts the moment it is saved)
               </label>
-              <div className="date-time-row">
-                <label>
-                  Sale end date
-                  <input
-                    type="date"
-                    required
-                    min={saleStartDate || undefined}
-                    max={latestEnd.date}
-                    value={saleEndDate}
-                    onChange={(e) => setSaleEndDate(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Sale end time
-                  <TimeField value={saleEndTime} onChange={setSaleEndTime} />
-                </label>
-              </div>
+              <DateTimeField
+                dateLabel="Sale end date"
+                timeLabel="Sale end time"
+                required
+                minDate={saleStartDate || undefined}
+                maxDate={latestEnd.date}
+                date={saleEndDate}
+                time={saleEndTime}
+                onDate={setSaleEndDate}
+                onTime={setSaleEndTime}
+              />
               <p className={`date-status small ${saleWarning ? 'warn' : 'muted'}`} role={saleWarning ? 'alert' : undefined}>
                 {saleWarning ??
-                  `Times in ${timezone}. Sales run at least an hour and close by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}, an hour before the event.`}
+                  `Times in ${timezone}. Sales run at least ${minDuration} and close by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}${
+                    saleRules.salesCloseMinutesBeforeEvent ? `, ${closeBefore} before the event ends` : ', when the event ends'
+                  }.`}
               </p>
             </fieldset>
           </div>
-          <div className="modal-actions">
-            <button type="button" className="btn" onClick={() => setAdding(false)}>
-              Cancel
-            </button>
-            <button
-              className="btn btn-primary"
-              disabled={saleMissing || Boolean(saleWarning)}
-              title={saleWarning ?? (saleMissing ? 'Fill in when the sale starts and ends' : undefined)}
-            >
-              {editing ? 'Save changes' : 'Add ticket type'}
-            </button>
-          </div>
+          {blocker && (
+            <p className="hint warn" role="alert">
+              {blocker}
+            </p>
+          )}
+          <FormActions
+            onCancel={() => setAdding(false)}
+            submitLabel={editing ? 'Save changes' : 'Add ticket type'}
+            submitDisabled={Boolean(blocker)}
+            submitTitle={blocker ?? undefined}
+          />
         </form>
       </dialog>
     </section>

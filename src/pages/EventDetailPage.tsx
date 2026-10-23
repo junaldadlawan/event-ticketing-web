@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { QuantityField } from '../components/fields/QuantityField';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../api/client';
 import { cartApi, eventApi, ticketTypeApi, waitlistApi } from '../api/endpoints';
@@ -11,6 +12,7 @@ import { useCanManage } from '../auth/useCanManage';
 import { EditIcon, MoonIcon, SunIcon } from '../components/DesignerIcons';
 import { useCart } from '../cart/CartContext';
 import { EventCover } from '../components/EventSky';
+import { EventRecap } from '../components/EventRecap';
 import { Empty, ErrorBox, Spinner, StatusBadge, SuccessBox } from '../components/ui';
 import { formatDateTime, formatMoney, humanize } from '../utils/format';
 import { isDaytime } from '../utils/timeOfDay';
@@ -90,6 +92,17 @@ export function EventDetailPage() {
           <dt>Starts</dt>
           <dd>{formatDateTime(event.startAt, event.timezone)}</dd>
         </div>
+        {event.gateOpensMinutesBefore != null && (
+          <div>
+            <dt>Gates open</dt>
+            <dd>
+              {formatDateTime(
+                new Date(Date.parse(event.startAt) - event.gateOpensMinutesBefore * 60_000).toISOString(),
+                event.timezone,
+              )}
+            </dd>
+          </div>
+        )}
         <div>
           <dt>Ends</dt>
           <dd>{formatDateTime(event.endAt, event.timezone)}</dd>
@@ -107,8 +120,13 @@ export function EventDetailPage() {
         </Link>
       </p>
 
-      <h2>Tickets</h2>
-      {ticketTypes.length === 0 ? (
+      {over ? (
+        // A finished event has nothing left to buy: its rating, reviews and the organizer's recap instead.
+        <EventRecap event={event} />
+      ) : (
+        <h2>Tickets</h2>
+      )}
+      {over ? null : ticketTypes.length === 0 ? (
         <Empty>No tickets available yet.</Empty>
       ) : (
         <div className="stack">
@@ -215,6 +233,7 @@ function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketT
         <p className="muted small">
           {humanize(tt.kind)} · {tt.quantityAvailable} of {tt.quantityTotal} left · max{' '}
           {tt.maxPerOrder} per order
+          {tt.maxPerUser != null && <> · max {tt.maxPerUser} per buyer</>}
         </p>
         {note && <p className="small warn">{note}</p>}
         <ErrorBox message={error} />
@@ -231,39 +250,14 @@ function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketT
       <div className="ticket-buy">
         <strong className="price">{formatMoney(tt.price)}</strong>
         {!adminView && (
-        <span className="qty-stepper" role="group" aria-label="Quantity">
-          <button
-            type="button"
-            className="btn btn-sm"
-            aria-label="One ticket fewer"
-            disabled={disabled || qty <= 1}
-            onClick={() => setQtyText(String(qty - 1))}
-          >
-            −
-          </button>
-          <input
-            type="number"
-            inputMode="numeric"
-            className="qty-input"
-            aria-label="Number of tickets"
-            min={1}
-            max={limit}
-            disabled={disabled}
-            value={qtyText}
-            onChange={(e) => setQtyText(e.target.value)}
-            // Typed past the limit, or left blank: show the number that will be used.
-            onBlur={() => setQtyText(String(qty))}
-          />
-          <button
-            type="button"
-            className="btn btn-sm"
-            aria-label="One more ticket"
-            disabled={disabled || qty >= limit}
-            onClick={() => setQtyText(String(qty + 1))}
-          >
-            +
-          </button>
-        </span>
+        <QuantityField
+          value={qty}
+          max={limit}
+          disabled={disabled}
+          onCommit={(n) => setQtyText(String(n))}
+          lessLabel="One ticket fewer"
+          moreLabel="One more ticket"
+        />
         )}
         {adminView ? (
           <span className="muted small">Admins can't buy tickets. Switch to Customer view to buy.</span>
