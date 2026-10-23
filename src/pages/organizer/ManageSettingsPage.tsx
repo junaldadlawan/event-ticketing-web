@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useParams } from 'react-router-dom';
 import { organizationApi, payoutCardApi } from '../../api/endpoints';
 import type { PayoutCardRequest } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { CardManager } from '../../components/CardManager';
+import { OrganizationDetails } from '../../components/OrganizationDetails';
 import type { NewCard } from '../../components/CardManager';
 import { Empty, ErrorBox, Spinner, PageHeader } from '../../components/ui';
 import { LogsButton } from '../../components/LogsButton';
@@ -15,6 +16,7 @@ export function ManageSettingsPage() {
     async () => (await organizationApi.mine()).filter((o) => o.status === 'APPROVED' || o.status === 'SUSPENDED'),
     [],
   );
+  const { section } = useParams();
   const [orgId, setOrgId] = useState('');
   const selected = orgId || orgs.data?.[0]?.id || '';
 
@@ -52,10 +54,19 @@ export function ManageSettingsPage() {
           <NavLink to="/manage/settings" end>
             Payment
           </NavLink>
+          <NavLink to="/manage/settings/organization">Organization</NavLink>
         </nav>
         <div className="settings-panel">
-          <h2>Payment</h2>
-          <PayoutCards orgId={selected} />
+          {section === 'organization' ? (
+            <>
+              <OrganizationDetails key={selected} orgId={selected} />
+            </>
+          ) : (
+            <>
+              <h2>Payment</h2>
+              <PayoutCards orgId={selected} />
+            </>
+          )}
         </div>
       </div>
     </>

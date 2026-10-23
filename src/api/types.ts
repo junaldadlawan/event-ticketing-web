@@ -224,11 +224,53 @@ export interface Organization {
   documents: OrganizationDocument[];
   ownerId: UUID | null;
   rejectionReason: string | null;
+  /** The person who applied; the owner once the application is approved. */
+  createdBy?: UUID | null;
   createdAt: string;
   /** Last change (approval, rejection, suspension, rename...). */
   updatedAt?: string | null;
   /** When an admin approved the application (absent until the API records it). */
   approvedAt?: string | null;
+  /** Optional details; changed only through an admin-approved change request. */
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  address?: string | null;
+  description?: string | null;
+  /** True while an admin has asked the applicant to revise this pending application (BR-ORG-010). */
+  revisionRequested?: boolean;
+  revisionMessage?: string | null;
+  revisionRequestedAt?: string | null;
+}
+
+/** The organization details a change request can carry (any subset; an empty string clears a detail). */
+export interface OrganizationUpdate {
+  name?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  address?: string;
+  description?: string;
+  /** Only when the applicant edits their own pending application. */
+  documents?: OrganizationDocument[];
+}
+
+/** A changed value: text (null = cleared), or the document list ({type, url} items). */
+export type ChangeValue = string | null | OrganizationDocument[];
+
+/** A request to change an organization's details, waiting for an admin (BR-ORG-009). */
+export interface OrganizationChangeRequest {
+  id: UUID;
+  organizationId: UUID;
+  organizationName: string;
+  requestedBy: UUID;
+  /** The changed fields only; null = clear it. */
+  requested: Record<string, ChangeValue>;
+  /** The organization's values for those same fields now. */
+  current: Record<string, ChangeValue>;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  createdAt: string;
+  decidedBy: UUID | null;
+  decidedAt: string | null;
+  rejectionReason: string | null;
 }
 
 export interface Category {
@@ -1045,7 +1087,10 @@ export type NotificationType =
   | 'EVENT_STARTING'
   | 'REVIEW_REQUEST'
   | 'EVENT_DRAFT_WARNING'
-  | 'EVENT_DRAFT_DELETED';
+  | 'EVENT_DRAFT_DELETED'
+  | 'ORGANIZATION_CHANGE_REQUESTED'
+  | 'ORGANIZATION_CHANGE_DECIDED'
+  | 'ORGANIZATION_REVISION_REQUESTED';
 
 /** The types a user may turn off (BR-NOTIFY-002); the rest are always sent. */
 export type OptionalNotificationType =

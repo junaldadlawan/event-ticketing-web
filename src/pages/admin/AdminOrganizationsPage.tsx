@@ -5,7 +5,7 @@ import { errorMessage, assetUrl } from '../../api/client';
 import { adminUserApi, eventApi, moderationApi, organizationApi } from '../../api/endpoints';
 import type { Organization, OrganizationRole, OrganizationStatus, User } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { EditIcon, SearchIcon, StatsIcon } from '../../components/DesignerIcons';
+import { SearchIcon, StatsIcon } from '../../components/DesignerIcons';
 import { FormDialog } from '../../components/FormDialog';
 import { UserPicker } from '../../components/UserPicker';
 import { Empty, ErrorBox, Spinner, SuccessBox, PageHeader } from '../../components/ui';
@@ -62,10 +62,11 @@ type Action =
   | { kind: 'suspend'; org: Organization }
   | { kind: 'reinstate'; org: Organization }
   | { kind: 'stats'; org: Organization }
-  | { kind: 'rename'; org: Organization }
+  | { kind: 'review'; org: Organization }
+  | { kind: 'revision'; org: Organization }
   | { kind: 'members'; org: Organization };
 
-/** Admin tab: organizer applications and organizations - approve, reject, suspend, rename, and manage members. */
+/** Admin tab: organizer applications and organizations - approve, reject, suspend, and manage members. */
 export function AdminOrganizationsPage() {
   return (
     <AdminOnly>
@@ -136,7 +137,14 @@ function OrganizationsManager() {
       <PageHeader
         title="Organizations"
         lede="Review organizer applications, and manage the organizations that host events."
-        actions={<LogsButton area="ORGANIZATIONS" title="Organizations" />}
+        actions={
+          <>
+            <Link to="/admin/organization-changes" className="btn">
+              Detail changes
+            </Link>
+            <LogsButton area="ORGANIZATIONS" title="Organizations" />
+          </>
+        }
       />
 
       <div className="admin-toolbar">
@@ -191,41 +199,30 @@ function OrganizationsManager() {
                     </div>
                   </div>
                   <div className="admin-actions">
-                    <button
-                      type="button"
-                      className="icon-button"
-                      title="Statistics"
-                      aria-label={`Statistics for ${o.name}`}
-                      onClick={() => setAction({ kind: 'stats', org: o })}
-                    >
-                      <StatsIcon />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      title="Rename"
-                      aria-label={`Rename ${o.name}`}
-                      onClick={() => setAction({ kind: 'rename', org: o })}
-                    >
-                      <EditIcon />
-                    </button>
-                    <button type="button" className="btn btn-sm" onClick={() => setAction({ kind: 'members', org: o })}>
-                      Members
-                    </button>
-                    {o.status === 'PENDING' && (
+                    {/* Only an organization that has been decided has events and a team to look at. */}
+                    {o.status !== 'PENDING' && o.status !== 'REJECTED' && (
                       <>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary"
-                          onClick={() => setAction({ kind: 'approve', org: o })}
-                        >
-                          Approve
-                        </button>
-                        <button type="button" className="btn btn-sm" onClick={() => setAction({ kind: 'reject', org: o })}>
-                          Reject
-                        </button>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        title="Statistics"
+                        aria-label={`Statistics for ${o.name}`}
+                        onClick={() => setAction({ kind: 'stats', org: o })}
+                      >
+                        <StatsIcon />
+                      </button>
+                      <button type="button" className="btn btn-sm" onClick={() => setAction({ kind: 'members', org: o })}>
+                        Members
+                      </button>
                       </>
                     )}
+                    <button
+                      type="button"
+                      className={`btn btn-sm${o.status === 'PENDING' ? ' btn-primary' : ''}`}
+                      onClick={() => setAction({ kind: 'review', org: o })}
+                    >
+                      {o.status === 'PENDING' ? 'Review' : 'Details'}
+                    </button>
                     {/* an operating organization is an approved one: it can be suspended too */}
                     {o.status === 'APPROVED' && (
                       <button type="button" className="btn btn-sm" onClick={() => setAction({ kind: 'suspend', org: o })}>
@@ -265,6 +262,71 @@ function OrganizationsManager() {
         </ul>
       )}
 
+      <FormDialog
+        open={action?.kind === 'review'}
+        title={action?.kind === 'review' ? action.org.name : 'Organization'}
+        onClose={() => setAction(null)}
+      >
+        {action?.kind === 'review' && (
+          <>
+            <dl className="admin-org-details">
+              {[
+                ['Status', action.org.status === 'PENDING' ? 'Waiting for review' : humanize(action.org.status)],
+                [
+                  action.org.ownerId ? 'Owner' : 'Applicant (becomes the owner)',
+                  (() => {
+                    const who = userById.get(action.org.ownerId ?? action.org.createdBy ?? '');
+                    const id = action.org.ownerId ?? action.org.createdBy;
+                    return who ? `${fullName(who)} (${who.email})` : id ? `ID ${id.slice(0, 8)}…` : null;
+                  })(),
+                ],
+                ['Applied', formatDateTime(action.org.createdAt)],
+                ...(action.org.revisionRequested ? [['Revision asked', action.org.revisionMessage]] : []),
+                ['Email', action.org.contactEmail],
+                ['Phone', action.org.contactPhone],
+                ['Address', action.org.address],
+                ['About', action.org.description],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <dt className="muted">{label}</dt>
+                  <dd>{value || <span className="muted">Not provided</span>}</dd>
+                </div>
+              ))}
+              <div>
+                <dt className="muted">Documents</dt>
+                <dd>
+                  {action.org.documents.length === 0 ? (
+                    <span className="muted">None</span>
+                  ) : (
+                    action.org.documents.map((d, i) => (
+                      <span key={`${d.url}-${i}`}>
+                        {i > 0 && ', '}
+                        <a href={assetUrl(d.url)} target="_blank" rel="noreferrer">
+                          {d.type}
+                        </a>
+                      </span>
+                    ))
+                  )}
+                </dd>
+              </div>
+            </dl>
+            {action.org.status === 'PENDING' && (
+              <div className="modal-actions">
+                <button type="button" className="btn" onClick={() => setAction({ kind: 'reject', org: action.org })}>
+                  Reject
+                </button>
+                <button type="button" className="btn" onClick={() => setAction({ kind: 'revision', org: action.org })}>
+                  Request revision
+                </button>
+                <button type="button" className="btn btn-primary" onClick={() => setAction({ kind: 'approve', org: action.org })}>
+                  Approve
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </FormDialog>
+
       <ConfirmDialog
         open={action?.kind === 'approve'}
         title={`Approve ${action?.org.name ?? 'this organization'}?`}
@@ -275,6 +337,20 @@ function OrganizationsManager() {
       >
         The applicant becomes the organization&apos;s owner and can create and publish events.
       </ConfirmDialog>
+
+      <FormDialog open={action?.kind === 'revision'} title="Request a revision" onClose={() => setAction(null)}>
+        {action?.kind === 'revision' && (
+          <ReasonForm
+            intro={`${action.org.name} stays pending. Say what they should change (they read it), and they can then edit the application.`}
+            confirmLabel="Send request"
+            onCancel={() => setAction(null)}
+            onSubmit={async (message) => {
+              await organizationApi.requestRevision(action.org.id, message);
+              done(`Asked ${action.org.name} to revise the application.`);
+            }}
+          />
+        )}
+      </FormDialog>
 
       <FormDialog open={action?.kind === 'reject'} title="Reject application" onClose={() => setAction(null)}>
         {action?.kind === 'reject' && (
@@ -337,12 +413,6 @@ function OrganizationsManager() {
         )}
       </FormDialog>
 
-      <FormDialog open={action?.kind === 'rename'} title="Rename organization" onClose={() => setAction(null)}>
-        {action?.kind === 'rename' && (
-          <RenameForm org={action.org} onCancel={() => setAction(null)} onSaved={() => done('Organization renamed.')} />
-        )}
-      </FormDialog>
-
       <FormDialog
         open={action?.kind === 'members'}
         title={action?.kind === 'members' ? `Members of ${action.org.name}` : 'Members'}
@@ -356,49 +426,6 @@ function OrganizationsManager() {
   );
 }
 
-function RenameForm({ org, onCancel, onSaved }: { org: Organization; onCancel: () => void; onSaved: () => void }) {
-  const [name, setName] = useState(org.name);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!name.trim() || name.trim() === org.name) {
-      onCancel();
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      await organizationApi.rename(org.id, name.trim());
-      onSaved();
-    } catch (e2) {
-      setError(errorMessage(e2));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form className="form" onSubmit={submit}>
-      <label>
-        Name
-        <input required autoFocus maxLength={255} value={name} onChange={(e) => setName(e.target.value)} />
-      </label>
-      <ErrorBox message={error} />
-      <div className="modal-actions">
-        <button type="button" className="btn" disabled={busy} onClick={onCancel}>
-          Cancel
-        </button>
-        <button className="btn btn-primary" disabled={busy}>
-          {busy ? 'Saving…' : 'Save'}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-// shortcut: the API still refuses OWNER here (403) until it allows granting it; the error shows in the dialog.
 const ASSIGNABLE: OrganizationRole[] = ['OWNER', 'ORGANIZER', 'CHECK_IN_STAFF'];
 
 function MembersPanel({ org, users, onClose }: { org: Organization; users: User[]; onClose: () => void }) {

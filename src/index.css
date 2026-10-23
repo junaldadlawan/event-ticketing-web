@@ -8854,3 +8854,69 @@ button.code-warning:focus-visible {
   display: inline-flex;
   align-items: center;
 }
+
+/* Organization details and its change requests. */
+.org-details {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 16px;
+}
+.org-pending {
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px dashed var(--warn);
+  border-radius: var(--radius-lg);
+}
+.org-pending h3,
+.org-decided strong {
+  margin: 0;
+}
+.org-change-lines {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 0;
+  list-style: none;
+}
+.org-change-lines li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: baseline;
+}
+.org-decided {
+  margin-bottom: 14px;
+}
+.org-changes > li {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 16px;
+}
+
+/* The details an organization gave, in the admin's list. */
+.admin-org-details {
+  display: grid;
+  gap: 2px;
+  margin: 8px 0 0;
+}
+.admin-org-details > div {
+  display: flex;
+  gap: 10px;
+}
+.admin-org-details dt {
+  min-width: 56px;
+}
+.admin-org-details dd {
+  margin: 0;
+}
+
+.org-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.org-heading h2 {
+  margin: 0;
+}

@@ -141,20 +141,20 @@ export function Layout() {
           {user && !hideManagement && (
             <nav className="nav" aria-label="Organizer">
               {/* Team and Settings live under /manage too, so Event Management is not highlighted there */}
-              <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/settings', '/manage/finance', '/manage/scanner'].includes(pathname) ? 'active' : '')}>
-                Event Management
+              <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/finance', '/manage/scanner'].includes(pathname) && !pathname.startsWith('/manage/settings') ? 'active' : '')}>
+                {isAdminRole(user.role) ? 'Event Management' : 'Events'}
               </NavLink>
-              {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/team">Team</NavLink>}
-              {!isAdminRole(user.role) && canFinance && <NavLink to="/manage/finance">Finance &amp; Payouts</NavLink>}
-              {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/scanner">Scanner</NavLink>}
+              {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/team">Team &amp; access</NavLink>}
+              {!isAdminRole(user.role) && canFinance && <NavLink to="/manage/finance">Finance</NavLink>}
+              {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/scanner">Check-in</NavLink>}
               {isAdminRole(user.role) && (
                 <>
                   <NavLink to="/admin/posts">Posts</NavLink>
                   <NavLink to="/admin/organizations">Organizations</NavLink>
                   <NavLink to="/admin/users">Users</NavLink>
-                  <NavLink to="/admin/payouts">Finance &amp; Payouts</NavLink>
+                  <NavLink to="/admin/payouts">Finance</NavLink>
                   <NavLink to="/admin/disputes">Disputes</NavLink>
-                  <NavLink to="/admin/scanner">Scanner</NavLink>
+                  <NavLink to="/admin/scanner">Check-in</NavLink>
                 </>
               )}
               {settingsTo && (

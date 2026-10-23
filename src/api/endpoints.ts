@@ -1,5 +1,7 @@
 import { ApiError, api, apiUrl } from './client';
 import type {
+  OrganizationChangeRequest,
+  OrganizationUpdate,
   DraftEventSettings,
   ScannerApp,
   CheckInHistoryItem,
@@ -290,8 +292,8 @@ export const uploadApi = {
 
 export const organizationApi = {
   /** Submit an organizer application; it starts as PENDING until an admin approves it. */
-  apply: (name: string, documents: OrganizationDocument[]) =>
-    api<Organization>('/organizations', { method: 'POST', body: { name, documents } }),
+  apply: (name: string, documents: OrganizationDocument[], details: Omit<OrganizationUpdate, 'name'> = {}) =>
+    api<Organization>('/organizations', { method: 'POST', body: { name, documents, ...details } }),
   /** Members and their roles. Only members of the organization (or admins) may call this. */
   members: (orgId: UUID) => api<OrganizationMember[]>(`/organizations/${orgId}/members`),
   /** The caller's own membership with its permissions (BR-ORG-008); 404 when they are not a member. */
@@ -302,8 +304,25 @@ export const organizationApi = {
   /** Admin: every organization, optionally only one status (PENDING / APPROVED / REJECTED / SUSPENDED). */
   list: (status?: OrganizationStatus) =>
     api<Organization[]>('/organizations', { query: { status } }),
-  rename: (orgId: UUID, name: string) =>
-    api<Organization>(`/organizations/${orgId}`, { method: 'PATCH', body: { name } }),
+  /** Owner, or an organizer with TEAM: asks for the change (only the fields that differ); an admin approves it first. */
+  requestChange: (orgId: UUID, body: OrganizationUpdate) =>
+    api<OrganizationChangeRequest>(`/organizations/${orgId}`, { method: 'PATCH', body }),
+  /** Admin: send a pending application back to its applicant with a message (409 when it is not pending). */
+  requestRevision: (orgId: UUID, message: string) =>
+    api<Organization>(`/organizations/${orgId}/request-revision`, { method: 'POST', body: { message } }),
+  /** The applicant edits their own pending application directly; it clears the revision flag and tells the admins. */
+  editApplication: (orgId: UUID, body: OrganizationUpdate) =>
+    api<Organization>(`/organizations/${orgId}`, { method: 'PATCH', body }),
+  /** The pending request and the history, newest first (members and admins). */
+  changeRequests: (orgId: UUID) => api<OrganizationChangeRequest[]>(`/organizations/${orgId}/change-requests`),
+  /** Only the person who made it, while it is pending. */
+  withdrawChange: (orgId: UUID, id: UUID) => api<void>(`/organizations/${orgId}/change-requests/${id}`, { method: 'DELETE' }),
+  /** Admin: every request, newest first, with the current values next to the requested ones. */
+  allChangeRequests: (q: PageQuery & { status?: OrganizationChangeRequest['status'] } = {}) =>
+    api<PageResponse<OrganizationChangeRequest>>('/admin/organization-change-requests', { query: { ...q } }),
+  approveChange: (id: UUID) => api<OrganizationChangeRequest>(`/admin/organization-change-requests/${id}/approve`, { method: 'POST' }),
+  rejectChange: (id: UUID, reason: string) =>
+    api<OrganizationChangeRequest>(`/admin/organization-change-requests/${id}/reject`, { method: 'POST', body: { reason } }),
   approve: (orgId: UUID) => api<Organization>(`/organizations/${orgId}/approve`, { method: 'POST' }),
   reject: (orgId: UUID, reason?: string) =>
     api<Organization>(`/organizations/${orgId}/reject`, { method: 'POST', body: reason ? { reason } : {} }),

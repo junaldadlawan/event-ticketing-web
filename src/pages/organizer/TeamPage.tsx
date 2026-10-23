@@ -79,6 +79,8 @@ export function TeamPage() {
   const [addPerms, setAddPerms] = useState<OrganizationPermission[]>(DEFAULT_PERMISSIONS);
   // Check-in staff can be allowed to publish the scanner app (the only permission they can hold).
   const [addScanner, setAddScanner] = useState(false);
+  // The Add a member window.
+  const [adding, setAdding] = useState(false);
   const [editScanner, setEditScanner] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +118,7 @@ export function TeamPage() {
       );
       setMsg(`Added as ${humanize(role)}.`);
       setPicked(null);
+      setAdding(false);
       members.reload();
     } catch (err) {
       setError(errorMessage(err));
@@ -185,7 +188,18 @@ export function TeamPage() {
       <PageHeader
         title="Team"
         lede={<>The people who run {org?.name ?? 'your organization'}: the owner, organizers and check-in staff.</>}
-        actions={org && <LogsButton area="TEAM" title="Team" organizations={[{ id: org.id, name: org.name }]} />}
+        actions={
+          org && (
+            <>
+              <LogsButton area="TEAM" title="Team" organizations={[{ id: org.id, name: org.name }]} />
+              {canManageTeam && (
+                <button type="button" className="btn btn-cta" onClick={() => setAdding(true)}>
+                  Add member
+                </button>
+              )}
+            </>
+          )
+        }
       />
 
       {orgs.data.length > 1 && (
@@ -263,18 +277,31 @@ export function TeamPage() {
         </ul>
       )}
 
-      <h2 className="admin-section">Add a member</h2>
-      {canManageTeam ? (
-        <>
-          <form className="admin-add-member" onSubmit={add}>
-            <UserPicker users={[]} value={picked} onChange={setPicked} excludeIds={list.map((m) => m.userId)} onError={setError} />
+      {!canManageTeam && (
+        <p className="muted small">
+          Only the owner of {org?.name ?? 'the organization'}, or an organizer they allow to manage the team, can add or
+          change members.
+        </p>
+      )}
+
+      <FormDialog
+        open={adding}
+        title="Add a member"
+        onClose={() => {
+          setAdding(false);
+          setPicked(null);
+        }}
+      >
+        <form className="form" onSubmit={add}>
+          <UserPicker users={[]} value={picked} onChange={setPicked} excludeIds={list.map((m) => m.userId)} onError={setError} />
+          <label>
+            Role
             <select
               value={role}
               onChange={(e) => {
                 setRole(e.target.value as OrganizationRole);
                 setAddPerms(grantable(DEFAULT_PERMISSIONS));
               }}
-              aria-label="Role"
             >
               {ASSIGNABLE.map((r) => (
                 <option key={r} value={r}>
@@ -282,10 +309,7 @@ export function TeamPage() {
                 </option>
               ))}
             </select>
-            <button className="btn btn-primary btn-sm" disabled={!picked || busy}>
-              {busy ? 'Adding…' : 'Add'}
-            </button>
-          </form>
+          </label>
           {role === 'ORGANIZER' && (
             <fieldset className="team-perms-box">
               <legend className="small">What this organizer can manage</legend>
@@ -300,17 +324,29 @@ export function TeamPage() {
               </span>
             </label>
           )}
-          <small className="muted">
+          <p className="small muted">
             Ask the person to open their profile and show you their My QR code (or send you the picture), then scan it
             here. The owner role can&apos;t be assigned.
-          </small>
-        </>
-      ) : (
-        <p className="muted small">
-          Only the owner of {org?.name ?? 'the organization'}, or an organizer they allow to manage the team, can add or
-          change members.
-        </p>
-      )}
+          </p>
+          <ErrorBox message={error} />
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() => {
+                setAdding(false);
+                setPicked(null);
+              }}
+            >
+              Cancel
+            </button>
+            <button className="btn btn-primary" disabled={!picked || busy}>
+              {busy ? 'Adding…' : 'Add'}
+            </button>
+          </div>
+        </form>
+      </FormDialog>
 
       <FormDialog open={editing !== null} title={editing ? `Edit ${nameOf(editing)}` : 'Edit member'} onClose={() => setEditing(null)}>
         <form className="form" onSubmit={saveRoles}>

@@ -43,7 +43,7 @@ export function ScannerPage() {
 
   return (
     <>
-      <PageHeader title="Scanner" lede="The app that scans tickets at the door." />
+      <PageHeader title="Check-in" lede="The app that scans tickets at the door." />
       <ErrorBox message={error ?? downloadError} />
       {loading && !app ? (
         <Spinner />
@@ -70,7 +70,7 @@ export function ScannerPage() {
             <h2>The scanner app isn't available yet</h2>
             <p className="muted small">
               {app === 404
-                ? 'No version has been uploaded yet. An admin uploads it from the Scanner tab, and it will show up here.'
+                ? 'No version has been uploaded yet. An admin uploads it from the Check-in tab, and it will show up here.'
                 : "Your account can't download the app here. Ask an admin or a member of your check-in staff for the APK."}
             </p>
             <button type="button" className="btn btn-primary" disabled>

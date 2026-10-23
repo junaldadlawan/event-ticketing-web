@@ -24,6 +24,9 @@ const TEXT: Record<NotificationType, { title: string; hint: string }> = {
   REVIEW_REQUEST: { title: 'How was it?', hint: 'Rate the event you attended.' },
   EVENT_DRAFT_WARNING: { title: 'Draft will be deleted', hint: 'Publish it before the deadline.' },
   EVENT_DRAFT_DELETED: { title: 'Draft deleted', hint: 'It was not published in time.' },
+  ORGANIZATION_CHANGE_REQUESTED: { title: 'Organization change to review', hint: 'An organization asked to change its details.' },
+  ORGANIZATION_REVISION_REQUESTED: { title: 'Changes asked on your application', hint: 'An admin asked you to revise your organization application.' },
+  ORGANIZATION_CHANGE_DECIDED: { title: 'Organization details reviewed', hint: 'An admin decided on your change request.' },
 };
 
 /** Where a notification opens: the order or event it is about, else the list that holds it. */

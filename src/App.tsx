@@ -28,6 +28,7 @@ import { ManageSettingsPage } from './pages/organizer/ManageSettingsPage';
 import { TeamPage } from './pages/organizer/TeamPage';
 import { ScannerPage } from './pages/organizer/ScannerPage';
 import { AdminScannerPage } from './pages/admin/AdminScannerPage';
+import { AdminOrgChangesPage } from './pages/admin/AdminOrgChangesPage';
 import { ManageEventsPage } from './pages/organizer/ManageEventsPage';
 import { TicketDesignerPage } from './pages/organizer/TicketDesignerPage';
 
@@ -63,12 +64,14 @@ export default function App() {
         <Route path="admin/payouts/generate" element={<RequireAuth><AdminGeneratePayoutPage /></RequireAuth>} />
         <Route path="admin/settings" element={<RequireAuth><AdminSettingsPage /></RequireAuth>} />
         <Route path="admin/settings/:section" element={<RequireAuth><AdminSettingsPage /></RequireAuth>} />
+        <Route path="admin/organization-changes" element={<RequireAuth><AdminOrgChangesPage /></RequireAuth>} />
         <Route path="admin/scanner" element={<RequireAuth><AdminScannerPage /></RequireAuth>} />
         <Route path="manage/scanner" element={<RequireAuth><ScannerPage /></RequireAuth>} />
         <Route path="manage" element={<RequireAuth><ManageEventsPage /></RequireAuth>} />
         <Route path="manage/team" element={<RequireAuth><TeamPage /></RequireAuth>} />
         <Route path="manage/finance" element={<RequireAuth><ManageFinancePage /></RequireAuth>} />
         <Route path="manage/settings" element={<RequireAuth><ManageSettingsPage /></RequireAuth>} />
+        <Route path="manage/settings/:section" element={<RequireAuth><ManageSettingsPage /></RequireAuth>} />
         <Route path="manage/new" element={<RequireAuth><ManageEventsPage /></RequireAuth>} />
         <Route
           path="manage/events/:eventId"
