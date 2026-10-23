@@ -2,7 +2,7 @@
 
 How every page in this app should look. Follow this when you add or change a screen, so the whole app stays uniform.
 
-The style in one line: **black ink on white paper, one typeface, color only when it means something.** The one loud element is the ticket slab: an inverted block shaped like a ticket.
+The style in one line: **violet actions on white cards over a light grey page, one typeface, status colors only when they mean something.** The one loud element is the ticket slab: a deep violet block shaped like a ticket.
 
 All styles live in `src/index.css`. Shared building blocks live in `src/components/ui.tsx`.
 
@@ -10,7 +10,7 @@ All styles live in `src/index.css`. Shared building blocks live in `src/componen
 
 ## 1. Principles
 
-1. **Monochrome.** Black, white and greys. Color is only for status: success, warning, danger.
+1. **One brand color.** Violet: primary `#6D28D9` for buttons and main actions, secondary `#8B5CF6` for highlights and interactive states (focus), accent `#C4B5FD` for subtle highlights. Everything else is white, greys and dark text. Green, amber and red are only for status: success, warning, danger.
 2. **One typeface.** Archivo (loaded in `index.html`). Titles use its narrowest width, heavy weight; body text uses its normal width.
 3. **One loud thing per page at most.** That is the slab. Everything else stays quiet: hairlines, plain buttons, white surfaces.
 4. **Structure means something.** A border, divider or number is there because it says something about the content, not as decoration.
@@ -24,17 +24,21 @@ Always use the CSS variables. Never hard-code a hex value in a component or a ne
 
 | Token | Light | Dark | Use for |
 |---|---|---|---|
-| `--page` | `#f3f3f3` | `#000000` | Page background |
-| `--bg` / `--surface` | `#ffffff` | `#141414` | Cards, panels, inputs |
-| `--subtle` | `#ebebeb` | `#1f1f1f` | Quiet fills (chips, hover, table stripes) |
-| `--text` | `#000000` | `#f5f5f5` | Body text, icons, strong borders |
-| `--muted` | `#6b6b6b` | `#9a9a9a` | Secondary text, hints, ledes |
-| `--border` | `#e0e0e0` | `#2b2b2b` | Hairlines and outlines |
-| `--accent` / `--cta` | `#000000` | `#f5f5f5` | The filled primary button |
-| `--on-accent` | `#ffffff` | `#000000` | Text on a filled primary button |
-| `--slab` | `#000000` | `#f5f5f5` | Ticket slab background (inverts in dark) |
-| `--on-slab` | `#ffffff` | `#000000` | Text on the slab |
-| `--slab-muted` | `#a3a3a3` | `#5c5c5c` | Secondary text on the slab |
+| `--page` | `#f9fafb` | `#0e0a1a` | Page background |
+| `--bg` / `--surface` | `#ffffff` | `#17122a` | Cards, panels, inputs |
+| `--subtle` | `#f3effe` | `#221b3d` | Quiet fills (chips, hover, table stripes), a pale tint of the accent |
+| `--text` | `#111827` | `#f3f4f6` | Headings, body text, icons |
+| `--muted` | `#4b5563` | `#a1a1b5` | Secondary text, hints, ledes |
+| `--border` | `#e5e7eb` | `#2f2750` | Hairlines and outlines |
+| `--accent` / `--cta` | `#6d28d9` (primary) | `#a78bfa` | The filled primary button |
+| `--on-accent` | `#ffffff` | `#1e1b4b` | Text on a filled primary button |
+| `--cta-hover` | `#5b21b6` | `#c4b5fd` | Primary button on hover |
+| `--cta-text` | `#6d28d9` | `#c4b5fd` | Outline button text, selected text |
+| `--secondary` | `#8b5cf6` | `#8b5cf6` | Highlights and interactive states (focus ring, hover borders) |
+| `--highlight` | `#c4b5fd` | `#c4b5fd` | Subtle highlights (accent) |
+| `--slab` | `#2e1065` | `#2e1065` | Ticket slab background |
+| `--on-slab` | `#ffffff` | `#ffffff` | Text on the slab |
+| `--slab-muted` | `#c4b5fd` | `#c4b5fd` | Secondary text on the slab |
 | `--success` / `--success-bg` | green | green | Paid, live, on sale, done |
 | `--warn` | amber | amber | Paused, needs attention |
 | `--danger` / `--error-bg` | red | red | Errors, delete, failed, refunded |
@@ -202,6 +206,10 @@ Use these instead of writing a bare `<label><input/></label>`, a Cancel / Save r
 | `<FormActions submitLabel busyLabel onCancel>` | Cancel and the main button at the bottom of a form window, with an optional extra at the start. |
 | `<Segmented options value onChange label>` (`components/Segmented`) | Filter and layout toggles, with optional counts. |
 | `<SettingsLayout label links>`, `<SettingRow>` (`components/SettingsLayout`) | The page list on the left and the chosen page on the right; one line of a settings list. |
+| `<SearchBar onSearch>` (`components/SearchBar`) | The pill search: keyword and category with a round search button. Home sends it to `/events?keyword=…&category=…`. |
+| `<CategoryChips active onPick>` (`components/CategoryChips`) | The kinds of event as pills; links into Events on Home, toggling buttons on the Events page. Sits in a `.find-bar` under the search so both stay in view. |
+| `<Section title to>` (`components/Section`) | A page section: heading, optional "See all" link, content. |
+| `<ListingCard event from left>` (`components/ListingCard`) | A photo-first event card with a "Happening now" / "Starts in…" badge, when, where and the lowest price. Put them in a `.listing-row` grid. |
 
 Not yet moved onto these: the signup and profile forms (`BirthdateField`, `PhoneField` stay as they are), the ticket designer, the admin finance and payout filters, the My tickets filter group, and the `dl.setting-row` rows on the admin Settings page.
 

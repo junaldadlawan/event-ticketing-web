@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { QuantityField } from '../components/fields/QuantityField';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { errorMessage } from '../api/client';
+import { assetUrl, errorMessage } from '../api/client';
 import { cartApi, eventApi, ticketTypeApi, waitlistApi } from '../api/endpoints';
 import type { TicketType } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
@@ -9,13 +10,12 @@ import { useAuthDialog } from '../auth/AuthDialog';
 import { isAdmin } from '../auth/roles';
 import { useManagementHidden } from '../auth/ViewMode';
 import { useCanManage } from '../auth/useCanManage';
-import { EditIcon, MoonIcon, SunIcon } from '../components/DesignerIcons';
+import { EditIcon } from '../components/DesignerIcons';
 import { useCart } from '../cart/CartContext';
-import { EventCover } from '../components/EventSky';
 import { EventRecap } from '../components/EventRecap';
+import { ShareEvent } from '../components/ShareEvent';
 import { Empty, ErrorBox, Spinner, StatusBadge, SuccessBox } from '../components/ui';
 import { formatDateTime, formatMoney, humanize } from '../utils/format';
-import { isDaytime } from '../utils/timeOfDay';
 import { sortTicketTypes } from '../utils/ticketTypes';
 import { useAsync } from '../utils/useAsync';
 import { isEventOver } from '../utils/eventState';
@@ -57,89 +57,136 @@ export function EventDetailPage() {
   if (loading) return <Spinner />;
   if (error || !data) return <ErrorBox message={error ?? 'Event not found'} />;
   const [event, ticketTypes] = data;
-  const day = isDaytime(event);
   const over = isEventOver(event);
-  // Category and status, then the big title (with the Manage shortcut): over the sky, or under a picture.
-  const titleBlock = (
-    <>
-      <div className="row-between">
-        <span className="eyebrow">{event.category}</span>
-        <StatusBadge status={over ? 'COMPLETED' : event.status} />
-      </div>
-      <div className="row-between event-title-row">
-        <h1>{event.title}</h1>
-        {canManage && (
-          <Link
-            to={`/manage/events/${event.id}`}
-            className="btn"
-            title="Edit details, tickets and ticket design"
-          >
-            <EditIcon />
-            Manage
-          </Link>
-        )}
-      </div>
-    </>
-  );
+  const cover = assetUrl(event.images?.find((u) => u && u.trim()));
+  const sorted = sortTicketTypes(ticketTypes);
+  const lowest = ticketTypes.length ? ticketTypes.reduce((m, t) => (t.price.amount < m.price.amount ? t : m)).price : null;
+  const gates =
+    event.gateOpensMinutesBefore != null
+      ? formatDateTime(new Date(Date.parse(event.startAt) - event.gateOpensMinutesBefore * 60_000).toISOString(), event.timezone)
+      : null;
 
   return (
-    <article className="event-detail">
-      <EventCover event={event}>
-        {titleBlock}
-      </EventCover>
-      <dl className="meta">
-        <div>
-          <dt>Starts</dt>
-          <dd>{formatDateTime(event.startAt, event.timezone)}</dd>
-        </div>
-        {event.gateOpensMinutesBefore != null && (
-          <div>
-            <dt>Gates open</dt>
-            <dd>
-              {formatDateTime(
-                new Date(Date.parse(event.startAt) - event.gateOpensMinutesBefore * 60_000).toISOString(),
-                event.timezone,
-              )}
-            </dd>
+    <article className="event-page">
+      <header className="event-head">
+        <h1>{event.title}</h1>
+        <div className="event-head-row">
+          <p className="event-sub">
+            {event.category}
+            <span aria-hidden="true"> · </span>
+            {event.venue ? event.venue.name : 'Online'}
+            <StatusBadge status={over ? 'COMPLETED' : event.status} />
+          </p>
+          <div className="event-head-actions">
+            {!over && ['PUBLISHED', 'ON_SALE', 'SOLD_OUT'].includes(event.status) && <ShareEvent event={event} />}
+            {canManage && (
+              <Link to={`/manage/events/${event.id}`} className="btn" title="Edit details, tickets and ticket design">
+                <EditIcon />
+                Manage
+              </Link>
+            )}
           </div>
+        </div>
+      </header>
+
+      {cover ? (
+        <img className="event-hero" src={cover} alt={`Picture for ${event.title}`} />
+      ) : (
+        <div className="event-hero event-hero-empty" aria-hidden="true">
+          {event.category}
+        </div>
+      )}
+
+      <div className="event-cols">
+        <div className="event-main">
+          <ul className="event-facts">
+            <li>
+              <FactIcon>
+                <rect x="3" y="5" width="18" height="16" rx="3" />
+                <path d="M3 10h18M8 3v4M16 3v4" />
+              </FactIcon>
+              <div>
+                <strong>{formatDateTime(event.startAt, event.timezone)}</strong>
+                <span>Ends {formatDateTime(event.endAt, event.timezone)}</span>
+              </div>
+            </li>
+            {gates && (
+              <li>
+                <FactIcon>
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" />
+                </FactIcon>
+                <div>
+                  <strong>Gates open {gates}</strong>
+                  <span>Arrive a little early to get in without a rush</span>
+                </div>
+              </li>
+            )}
+            <li>
+              <FactIcon>
+                <path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" />
+                <circle cx="12" cy="9" r="2.5" />
+              </FactIcon>
+              <div>
+                <strong>{event.venue ? event.venue.name : 'Online'}</strong>
+                <span>{event.venue ? event.venue.address : 'Join from anywhere'}</span>
+              </div>
+            </li>
+          </ul>
+
+          {event.description && (
+            <section className="event-about">
+              <h2>About this event</h2>
+              <p className="description">{event.description}</p>
+            </section>
+          )}
+
+          <Link to={`/events/${event.id}/updates`} className="event-posts-link">
+            Posts
+          </Link>
+
+          {over && <EventRecap event={event} />}
+        </div>
+
+        {!over && (
+          <aside className="booking-card" aria-label="Tickets">
+            <div className="booking-head">
+              {lowest ? (
+                <p>
+                  <span className="muted">From</span> <strong>{formatMoney(lowest)}</strong>
+                </p>
+              ) : (
+                <p>
+                  <strong>Tickets</strong>
+                </p>
+              )}
+            </div>
+            {sorted.length === 0 ? (
+              <Empty>No tickets available yet.</Empty>
+            ) : (
+              <div className="booking-options">
+                {sorted.map((tt) => (
+                  <TicketTypeRow key={tt.id} ticketType={tt} eventOver={over} />
+                ))}
+              </div>
+            )}
+          </aside>
         )}
-        <div>
-          <dt>Ends</dt>
-          <dd>{formatDateTime(event.endAt, event.timezone)}</dd>
-        </div>
-        <div>
-          <dt>Where</dt>
-          <dd>{event.venue ? `${event.venue.name}, ${event.venue.address}` : 'Online'}</dd>
-        </div>
-      </dl>
-      <p className="description">{event.description}</p>
-
-      <p>
-        <Link to={`/events/${event.id}/updates`} className="event-posts-link">
-          Posts
-        </Link>
-      </p>
-
-      {over ? (
-        // A finished event has nothing left to buy: its rating, reviews and the organizer's recap instead.
-        <EventRecap event={event} />
-      ) : (
-        <h2>Tickets</h2>
-      )}
-      {over ? null : ticketTypes.length === 0 ? (
-        <Empty>No tickets available yet.</Empty>
-      ) : (
-        <div className="stack">
-          {sortTicketTypes(ticketTypes).map((tt) => (
-            <TicketTypeRow key={tt.id} ticketType={tt} day={day} eventOver={over} />
-          ))}
-        </div>
-      )}
+      </div>
     </article>
   );
 }
 
-function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketType; day: boolean; eventOver: boolean }) {
+/** A small line icon for the key facts (the paths are drawn by the caller). */
+function FactIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg className="fact-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+function TicketTypeRow({ ticketType: tt, eventOver }: { ticketType: TicketType; eventOver: boolean }) {
   const { user } = useAuth();
   const { addItem } = useCart();
   const { openAuth } = useAuthDialog();
@@ -224,47 +271,42 @@ function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketT
   }
 
   return (
-    <div className="card ticket-row cart-ticket">
-      <span className={`cart-stub ${day ? 'is-day' : 'is-night'}`} aria-hidden="true">
-        {day ? <SunIcon /> : <MoonIcon />}
-      </span>
-      <div>
-        <h3>{tt.name}</h3>
-        <p className="muted small">
-          {humanize(tt.kind)} · {tt.quantityAvailable} of {tt.quantityTotal} left · max{' '}
-          {tt.maxPerOrder} per order
-          {tt.maxPerUser != null && <> · max {tt.maxPerUser} per buyer</>}
-        </p>
-        {note && <p className="small warn">{note}</p>}
-        <ErrorBox message={error} />
-        {added && (
-          <SuccessBox
-            message={
-              <>
-                Added to cart. <Link to="/cart">View cart →</Link>
-              </>
-            }
-          />
-        )}
-      </div>
-      <div className="ticket-buy">
+    <div className="ticket-option">
+      <div className="ticket-option-top">
+        <div>
+          <h3>{tt.name}</h3>
+          <p className="muted small">
+            {humanize(tt.kind)} · {tt.quantityAvailable} of {tt.quantityTotal} left · max {tt.maxPerOrder} per order
+            {tt.maxPerUser != null && <> · max {tt.maxPerUser} per buyer</>}
+          </p>
+        </div>
         <strong className="price">{formatMoney(tt.price)}</strong>
-        {!adminView && (
-        <QuantityField
-          value={qty}
-          max={limit}
-          disabled={disabled}
-          onCommit={(n) => setQtyText(String(n))}
-          lessLabel="One ticket fewer"
-          moreLabel="One more ticket"
+      </div>
+      {note && <p className="small warn">{note}</p>}
+      <ErrorBox message={error} />
+      {added && (
+        <SuccessBox
+          message={
+            <>
+              Added to cart. <Link to="/cart">View cart →</Link>
+            </>
+          }
         />
-        )}
-        {adminView ? (
-          <span className="muted small">Admins can't buy tickets. Switch to Customer view to buy.</span>
-        ) : (
-          <>
+      )}
+      {adminView ? (
+        <span className="muted small">Admins can't buy tickets. Switch to Customer view to buy.</span>
+      ) : (
+        <div className="ticket-option-buy">
+          <QuantityField
+            value={qty}
+            max={limit}
+            disabled={disabled}
+            onCommit={(n) => setQtyText(String(n))}
+            lessLabel="One ticket fewer"
+            moreLabel="One more ticket"
+          />
           {soldOut && !paused && !ended && !notStarted ? (
-            <button className="btn signup-submit ticket-cta" disabled={busy || waitPosition !== null} onClick={onJoinWaitlist}>
+            <button className="btn btn-cta ticket-cta" disabled={busy || waitPosition !== null} onClick={onJoinWaitlist}>
               {waitPosition !== null ? `On the waitlist (#${waitPosition})` : busy ? 'Joining...' : 'Join waitlist'}
             </button>
           ) : (
@@ -272,14 +314,13 @@ function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketT
               <button className="btn ticket-cta" disabled={disabled || busy} onClick={() => void onAdd()}>
                 {busy && !buying ? 'Adding...' : 'Add to cart'}
               </button>
-              <button className="btn signup-submit ticket-cta" disabled={disabled || busy} onClick={() => void onAdd(true)}>
+              <button className="btn btn-cta ticket-cta" disabled={disabled || busy} onClick={() => void onAdd(true)}>
                 {buying ? 'Opening...' : 'Buy now'}
               </button>
             </>
           )}
-          </>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -953,7 +953,7 @@ export function TicketDesignerPage() {
     setBusy('upload');
     setErr(null);
     try {
-      const uploaded = await uploadApi.image(file);
+      const uploaded = await uploadApi.image(file, 'tickets');
       setBgFit('COVER');
       setBgRect(null);
       changeBackground(uploaded.url);

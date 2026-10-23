@@ -79,7 +79,7 @@ export function PostComposer({
     setError(null);
     try {
       // A newly chosen picture is uploaded first; its URL then goes with the post.
-      const uploaded = imageFile ? (await uploadApi.image(imageFile)).url : null;
+      const uploaded = imageFile ? (await uploadApi.image(imageFile, 'platform')).url : null;
       const finalImage = uploaded ?? imageUrl;
       await onPost({
         kind,

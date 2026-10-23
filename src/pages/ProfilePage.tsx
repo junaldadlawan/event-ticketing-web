@@ -92,7 +92,7 @@ export function ProfilePage() {
             setErr(null);
             setPhotoBusy(true);
             try {
-              const uploaded = await uploadApi.image(await squareAvatarFile(file));
+              const uploaded = await uploadApi.image(await squareAvatarFile(file), 'users');
               setUser(await userApi.updateMe({ avatarUrl: uploaded.url }));
             } catch (e2) {
               setErr(errorMessage(e2));

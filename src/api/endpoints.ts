@@ -282,10 +282,14 @@ export const recapApi = {
 };
 
 export const uploadApi = {
-  /** PNG/JPEG/WebP/GIF, max 5 MB. Returns an absolute URL. */
-  image: (file: File) => {
+  /**
+   * PNG/JPEG/WebP/GIF, max 5 MB. Returns an absolute URL. `folder` says what the picture is for (it decides where it is
+   * stored and lets the API delete it when it is replaced or its owner is deleted); left out it is a temporary upload.
+   */
+  image: (file: File, folder?: 'events' | 'organizations' | 'platform' | 'tickets' | 'users') => {
     const form = new FormData();
     form.append('file', file);
+    if (folder) form.append('folder', folder);
     return api<UploadedImage>('/uploads', { method: 'POST', body: form });
   },
 };

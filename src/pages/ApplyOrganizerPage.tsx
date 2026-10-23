@@ -15,13 +15,13 @@ import { CONTACT_EMAIL, CONTACT_PHONE, telHref } from '../config';
 
 
 /** Apply to host events. Someone whose application is still pending sees it here to edit and resubmit instead of a blank form. */
-export function ApplyOrganizerPage() {
+export function ApplyOrganizerPage({ embedded = false }: { embedded?: boolean }) {
   const mine = useAsync(async () => (await organizationApi.mine()).find((o) => o.status === 'PENDING') ?? null, []);
   if (mine.loading && mine.data === null) return <Spinner />;
-  return <ApplicationForm key={mine.data?.id ?? 'new'} existing={mine.data ?? undefined} />;
+  return <ApplicationForm key={mine.data?.id ?? 'new'} existing={mine.data ?? undefined} embedded={embedded} />;
 }
 
-function ApplicationForm({ existing }: { existing?: Organization }) {
+function ApplicationForm({ existing, embedded }: { existing?: Organization; embedded: boolean }) {
   const [name, setName] = useState(existing?.name ?? '');
   // Optional details; they become the organization's first values, and an admin sees them when reviewing.
   const [contactEmail, setContactEmail] = useState(existing?.contactEmail ?? '');
@@ -80,7 +80,8 @@ function ApplicationForm({ existing }: { existing?: Organization }) {
   }
 
   return (
-    <div className="narrow">
+    <div className={embedded ? undefined : 'narrow'}>
+      {!embedded && (
       <PageHeader
         title={existing ? 'Your application' : 'Host your own events'}
         lede={
@@ -99,6 +100,7 @@ function ApplicationForm({ existing }: { existing?: Organization }) {
           </>
         }
       />
+      )}
       {existing?.revisionRequested && (
         <p className="alert alert-warning" role="status">
           An admin asked you to change your application: {existing.revisionMessage}

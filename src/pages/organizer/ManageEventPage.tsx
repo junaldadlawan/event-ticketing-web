@@ -6,7 +6,7 @@ import { SelectField, TextField } from '../../components/fields/TextField';
 import type { CSSProperties, ReactNode } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
-import { errorMessage } from '../../api/client';
+import { assetUrl, errorMessage } from '../../api/client';
 import { eventApi, promoApi, ticketSaleSettingsApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
 import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKind, TicketTypeUpdateRequest } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -103,14 +103,14 @@ export function ManageEventPage() {
   const canPublish = canEvents && event.status === 'DRAFT';
   // An ended event keeps the button (disabled) like its other controls.
   const canCancel = canEvents && (over || !['CANCELLED', 'COMPLETED'].includes(event.status));
+  const cover = assetUrl(event.images?.find((u) => u && u.trim()));
 
   return (
-    <div className="manage-page">
+    <div className="manage-page event-page">
       <SuspendedOrgNotice organizationIds={[event.organizationId]} />
-      <section className="event-hero">
+      <header className="event-head">
         <div className="title-with-status">
           <h1>{event.title}</h1>
-          <StatusBadge status={over ? 'COMPLETED' : event.status} />
           {canEvents && (
             <button
               type="button"
@@ -124,15 +124,32 @@ export function ManageEventPage() {
             </button>
           )}
         </div>
-        <p className="event-hero-when">
-          {orgName && <>{orgName} · </>}
-          {formatDateTime(event.startAt, event.timezone)} · {event.venue ? event.venue.name : 'Online'} · runs{' '}
-          {formatDuration(new Date(event.endAt).getTime() - new Date(event.startAt).getTime())} · prefix <code>{event.ticketPrefix}</code>
-          {event.category && <span className="hero-category">{humanize(event.category)}</span>}
+        <p className="event-sub">
+          {orgName && (
+            <>
+              {orgName}
+              <span aria-hidden="true"> · </span>
+            </>
+          )}
+          {event.category ? humanize(event.category) : 'Event'}
+          <span aria-hidden="true"> · </span>
+          {event.venue ? event.venue.name : 'Online'}
+          <StatusBadge status={over ? 'COMPLETED' : event.status} />
         </p>
-        {event.description && <p className="event-hero-about">{event.description}</p>}
+      </header>
+
+      {cover ? (
+        <img className="event-hero" src={cover} alt={`Picture for ${event.title}`} />
+      ) : (
+        <div className="event-hero event-hero-empty" aria-hidden="true">
+          {event.category ? humanize(event.category) : 'Event'}
+        </div>
+      )}
+
+      <aside className="booking-card manage-card" aria-label="Manage this event">
+        <h2>Manage this event</h2>
         <ErrorBox message={actionError} />
-        <div className="actions">
+        <div className="actions manage-actions">
         <Link
           to={`/events/${event.id}`}
           className="btn btn-outline-cta"
@@ -210,7 +227,49 @@ export function ManageEventPage() {
           </button>
         )}
         </div>
-      </section>
+      </aside>
+
+      <ul className="event-facts">
+        <li>
+          <FactIcon>
+            <rect x="3" y="5" width="18" height="16" rx="3" />
+            <path d="M3 10h18M8 3v4M16 3v4" />
+          </FactIcon>
+          <div>
+            <strong>{formatDateTime(event.startAt, event.timezone)}</strong>
+            <span>
+              Ends {formatDateTime(event.endAt, event.timezone)} · runs {formatDuration(new Date(event.endAt).getTime() - new Date(event.startAt).getTime())}
+            </span>
+          </div>
+        </li>
+        <li>
+          <FactIcon>
+            <path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" />
+            <circle cx="12" cy="9" r="2.5" />
+          </FactIcon>
+          <div>
+            <strong>{event.venue ? event.venue.name : 'Online'}</strong>
+            <span>{event.venue ? event.venue.address : 'Join from anywhere'}</span>
+          </div>
+        </li>
+        <li>
+          <FactIcon>
+            <path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.5a1.5 1.5 0 0 0 0 3V15a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1.5a1.5 1.5 0 0 0 0-3z" />
+            <path d="M14 7v10" strokeDasharray="2 2" />
+          </FactIcon>
+          <div>
+            <strong>Ticket prefix <code>{event.ticketPrefix}</code></strong>
+            <span>Every ticket number for this event starts with it</span>
+          </div>
+        </li>
+      </ul>
+
+      {event.description && (
+        <section className="event-about">
+          <h2>About this event</h2>
+          <p className="description">{event.description}</p>
+        </section>
+      )}
 
       {draftDeletesIn(event, now) && (
         <p className="alert alert-warning" role="status">
@@ -306,6 +365,15 @@ export function ManageEventPage() {
         <EventActivity eventId={event.id} timezone={event.timezone} ticketTypes={typesQuery.data ?? []} />
       </FormDialog>
     </div>
+  );
+}
+
+/** A small line icon for the key facts (the paths are drawn by the caller). */
+function FactIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg className="fact-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
   );
 }
 

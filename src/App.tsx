@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { RequireAuth } from './components/RequireAuth';
 import { ApplyOrganizerPage } from './pages/ApplyOrganizerPage';
+import { ContactPage } from './pages/ContactPage';
+import { PostsPage } from './pages/PostsPage';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
 import { CheckoutReturnPage } from './pages/CheckoutReturnPage';
 import { CartPage } from './pages/CartPage';
@@ -54,6 +56,8 @@ export default function App() {
         <Route path="profile/payment" element={<RequireAuth><CustomerPaymentPage /></RequireAuth>} />
         <Route path="profile/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
         <Route path="settings"element={<Navigate to="/profile/payment" replace />} />
+        <Route path="posts" element={<PostsPage />} />
+        <Route path="contact" element={<ContactPage />} />
         <Route path="apply" element={<RequireAuth><ApplyOrganizerPage /></RequireAuth>} />
 
         <Route path="admin/posts" element={<RequireAuth><AdminPostsPage /></RequireAuth>} />
