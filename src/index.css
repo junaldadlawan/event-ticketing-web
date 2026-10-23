@@ -10516,3 +10516,216 @@ textarea {
     display: block;
   }
 }
+
+/* Sharing figures in three groups: what happened in the Share window, then the copied link, then the QR code. */
+.share-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.share-groups h4 {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* A section's reload icon sits beside its title. */
+h2 .refresh-button,
+h3 .refresh-button {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.section-title .refresh-button {
+  flex: none;
+}
+
+/* Sharing: the two ways to share side by side, one row per step (chosen, opened, clicked Buy now). */
+.share-intro {
+  max-width: 62ch;
+  margin: 0 0 14px;
+}
+.share-table {
+  width: 100%;
+  max-width: 640px;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.share-table th,
+.share-table td {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: baseline;
+}
+.share-table tbody tr:last-child th,
+.share-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.share-table thead th {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.share-table tbody th {
+  font-weight: 500;
+}
+.share-table td strong {
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+.share-table td .small {
+  margin-left: 8px;
+}
+
+/* Buyers by age: same small table as Sharing; plain numbers, not the big figures. */
+.age-table td {
+  font-size: 1rem;
+}
+.age-table {
+  max-width: 480px;
+}
+
+/* Sales insights: the Summary / All details switch beside the time zone note. */
+.insights-view {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* ---- Sales insights: the answer first (headline numbers), what it means, then one group of figures at a time ---- */
+.insight-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr);
+  gap: 16px;
+  margin: 8px 0 24px;
+}
+.insight-sold {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px;
+  border-radius: 16px;
+  background: var(--slab);
+  color: var(--on-slab);
+}
+.insight-sold .org-stat-label,
+.insight-sold .org-stat-hint {
+  color: var(--slab-muted);
+}
+.insight-sold-value {
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.insight-sold-value span {
+  color: var(--slab-muted);
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+.insight-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.18);
+  overflow: hidden;
+}
+.insight-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--highlight);
+}
+.insight-side {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.insight-tells {
+  margin-bottom: 24px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: var(--subtle);
+}
+.insight-tells h3 {
+  margin: 0 0 8px;
+}
+.insight-tabs {
+  margin: 8px 0 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.insight-panel h3 {
+  margin-top: 8px;
+}
+.insight-about {
+  margin: 0 0 12px;
+}
+.funnel-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+.funnel-steps li {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 140px;
+  align-items: center;
+  gap: 16px;
+}
+.funnel-label,
+.funnel-number {
+  display: flex;
+  flex-direction: column;
+}
+.funnel-number {
+  text-align: right;
+}
+.funnel-number strong {
+  font-size: 1.3rem;
+}
+.funnel-track {
+  height: 22px;
+  border-radius: 8px;
+  background: var(--subtle);
+  overflow: hidden;
+}
+.funnel-track span {
+  display: block;
+  height: 100%;
+  border-radius: 8px;
+  background: var(--cta);
+}
+.funnel-table {
+  max-width: 100%;
+}
+@media (max-width: 760px) {
+  .insight-hero {
+    grid-template-columns: 1fr;
+  }
+  .insight-side {
+    grid-template-columns: 1fr;
+  }
+  .funnel-steps li {
+    grid-template-columns: 1fr auto;
+  }
+  .funnel-track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+/* The one-or-two sentence summary at the top of each tab: readable without looking at any chart or table. */
+.insight-summary {
+  margin: 0 0 20px;
+  padding-left: 14px;
+  border-left: 3px solid var(--secondary);
+  font-size: 1.05rem;
+  line-height: 1.5;
+}

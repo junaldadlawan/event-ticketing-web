@@ -14,6 +14,7 @@ import { DeleteEventDialog } from '../../components/DeleteEventDialog';
 import { EventActivity } from '../../components/EventActivity';
 import { EventCheckIns } from '../../components/EventCheckIns';
 import { RecapFeed } from '../../components/EventRecap';
+import { RefreshButton } from '../../components/RefreshButton';
 import { useAuth } from '../../auth/AuthContext';
 import { isAdmin } from '../../auth/roles';
 import { FormDialog } from '../../components/FormDialog';
@@ -1295,6 +1296,7 @@ function TicketTypes({
       <div className="section-head">
         <div className="section-title">
           <h2>Ticket types</h2>
+          <RefreshButton onClick={query.reload} busy={query.loading} label="Reload ticket types" />
           {data && (
             <>
               <span className="count-badge" aria-label={`${data.length} ticket types`}>
@@ -1722,7 +1724,7 @@ function TicketTypes({
 
 function EventOrders({ eventId }: { eventId: string }) {
   const [page, setPage] = useState(0);
-  const { data, error } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => eventApi.orders(eventId, { page, size: 10, sort: 'createdAt,desc' }),
     [eventId, page],
   );
@@ -1731,6 +1733,7 @@ function EventOrders({ eventId }: { eventId: string }) {
     <section>
       <h2>
         Orders
+        <RefreshButton onClick={reload} busy={loading} label="Reload orders" />
         {data && data.totalElements > 0 && (
           <span className="count-badge" aria-label={`${data.totalElements} orders`}>
             {data.totalElements}

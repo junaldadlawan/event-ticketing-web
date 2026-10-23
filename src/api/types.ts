@@ -696,6 +696,17 @@ export interface EventAnalytics {
   revenue: Money;
   remainingInventory: number;
   salesOverTime: { date: string; ticketsSold: number; revenue: Money }[];
+  /** Sharing, all independent: presses of the Share button, "Copy link" and "Generate QR poster" clicks. */
+  shareClicks?: number;
+  shareCopies?: number;
+  shareQrs?: number;
+  /** Opens of the short share link, by how it was reached: a pasted link or a scanned QR code. */
+  shareLinkOpens?: number;
+  shareQrScans?: number;
+  shareOpens?: number;
+  /** "Buy now" clicks by visitors who came through the shared link or the QR code. */
+  shareLinkBuys?: number;
+  shareQrBuys?: number;
 }
 
 /** Buyers by age group (age at their first order). A group of 1 to 4 buyers is hidden: buyers and tickets null. */

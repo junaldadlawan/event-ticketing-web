@@ -187,6 +187,13 @@ export const eventApi = {
   get: (id: UUID) => api<Event>(`/events/${id}`),
   /** Public; always 204. Ignored for the event's own staff and admins, and visitorId is ignored when signed in. */
   recordView: (id: UUID, visitorId: string) => api<void>(`/events/${id}/views`, { method: 'POST', body: { visitorId } }),
+  /** Public; always 204. Counts every press of the Share button (no deduplication, nothing about the caller is stored). */
+  recordShareClick: (id: UUID, action: 'SHARE_BUTTON' | 'COPY_LINK' | 'QR_GENERATE' = 'SHARE_BUTTON') =>
+    api<void>(`/events/${id}/share-clicks`, { method: 'POST', body: { action } }),
+  /** Public; always 204. A buy click by someone who came through the shared link (LINK) or its QR code (QR). */
+  recordShareBuyClick: (id: UUID, source: 'LINK' | 'QR') => api<void>(`/events/${id}/share-buy-clicks`, { method: 'POST', body: { source } }),
+  /** Public. The event's short share link ({ code, path: "/s/{code}" }); 404 unless the event is published, on sale or sold out. */
+  shareLink: (id: UUID) => api<{ code: string; path: string }>(`/events/${id}/share-link`),
   create: (body: EventCreateRequest) => api<Event>('/events', { method: 'POST', body }),
   update: (id: UUID, body: EventUpdateRequest) =>
     api<Event>(`/events/${id}`, { method: 'PATCH', body }),
@@ -382,6 +389,12 @@ export const platformFeeApi = {
 export const activityApi = {
   list: (q: PageQuery & { area: ActivityArea; organizationId?: UUID }) =>
     api<PageResponse<EventActivityEntry>>('/activity', { query: { ...q } }),
+};
+
+export const shareLinkApi = {
+  /** Public. Counts one open of a share link and returns the event it points at; an unknown code is a 404 and counts nothing. */
+  open: (code: string, source: 'LINK' | 'QR' = 'LINK') =>
+    api<{ eventId: UUID }>(`/share-links/${encodeURIComponent(code)}/open`, { method: 'POST', body: { source } }),
 };
 
 export const analyticsApi = {

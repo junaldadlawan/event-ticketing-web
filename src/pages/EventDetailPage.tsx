@@ -19,6 +19,7 @@ import { formatDateTime, formatMoney, humanize } from '../utils/format';
 import { sortTicketTypes } from '../utils/ticketTypes';
 import { useAsync } from '../utils/useAsync';
 import { isEventOver } from '../utils/eventState';
+import { shareSourceOf } from '../utils/shareSource';
 
 let memoryVisitorId: string | null = null;
 
@@ -250,6 +251,9 @@ function TicketTypeRow({ ticketType: tt, eventOver }: { ticketType: TicketType; 
       openAuth('login', `/events/${tt.eventId}`);
       return;
     }
+    // Someone who came through a shared link or QR code and now buys is counted for that source.
+    const source = buyNow ? shareSourceOf(tt.eventId) : null;
+    if (source) void eventApi.recordShareBuyClick(tt.eventId, source).catch(() => {});
     setBusy(true);
     setBuying(buyNow);
     setError(null);
