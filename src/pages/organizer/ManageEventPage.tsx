@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button, FormActions } from '../../components/Button';
+import { CheckRow } from '../../components/fields/CheckRow';
+import { DateTimeField } from '../../components/fields/DateTimeFields';
+import { SelectField, TextField } from '../../components/fields/TextField';
 import type { CSSProperties, ReactNode } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
@@ -24,7 +28,6 @@ import { useNow } from '../../utils/useNow';
 import { useOrgNames } from '../../utils/useOrgNames';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { useAsync } from '../../utils/useAsync';
-import { TimeField } from '../../components/TimeField';
 import { zonedParts, zonedToIso } from '../../utils/zonedTime';
 import { draftDeletesIn, formatDuration, isEventOver } from '../../utils/eventState';
 
@@ -779,40 +782,34 @@ function PromoCodesDialog({
       <h3 className="promo-new">{editing ? `Edit ${editing.code}` : 'New promo code'}</h3>
       <form className="form promo-form" onSubmit={onSubmit}>
         <div className="promo-row promo-row-3">
-          <label>
-            Code
-            <input
-              required
-              maxLength={50}
-              disabled={locked}
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="EARLYBIRD"
-            />
-          </label>
-          <label>
-            Discount
-            <select
-              value={type}
-              disabled={locked}
-              onChange={(e) => setType(e.target.value as PromoCodeCreateRequest['discountType'])}
-            >
-              <option value="PERCENTAGE">Percent off</option>
-              <option value="FIXED">Amount off</option>
-            </select>
-          </label>
-          <label>
-            {type === 'PERCENTAGE' ? 'Percent (0-100)' : 'Amount'}
-            <input
-              type="number"
-              required
-              min={0}
-              max={type === 'PERCENTAGE' ? 100 : undefined}
-              step={type === 'PERCENTAGE' ? 1 : 0.01}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-            />
-          </label>
+          <TextField
+            label="Code"
+            required
+            maxLength={50}
+            disabled={locked}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="EARLYBIRD"
+          />
+          <SelectField
+            label="Discount"
+            value={type}
+            disabled={locked}
+            onChange={(e) => setType(e.target.value as PromoCodeCreateRequest['discountType'])}
+          >
+            <option value="PERCENTAGE">Percent off</option>
+            <option value="FIXED">Amount off</option>
+          </SelectField>
+          <TextField
+            label={type === 'PERCENTAGE' ? 'Percent (0-100)' : 'Amount'}
+            type="number"
+            required
+            min={0}
+            max={type === 'PERCENTAGE' ? 100 : undefined}
+            step={type === 'PERCENTAGE' ? 1 : 0.01}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
         </div>
         {locked && (
           <small className="muted">
@@ -820,21 +817,12 @@ function PromoCodesDialog({
           </small>
         )}
         <div className="promo-row promo-row-3">
-          <label>
-            Applies to
-            <select value={appliesTo} onChange={(e) => setAppliesTo(e.target.value as 'ALL' | 'SOME')}>
-              <option value="ALL">All ticket types</option>
-              <option value="SOME">Specific ticket types</option>
-            </select>
-          </label>
-          <label>
-            Total uses <span className="hint">(optional)</span>
-            <input type="number" min={1} value={limitTotal} onChange={(e) => setLimitTotal(e.target.value)} />
-          </label>
-          <label>
-            Per buyer <span className="hint">(optional)</span>
-            <input type="number" min={1} value={limitPerBuyer} onChange={(e) => setLimitPerBuyer(e.target.value)} />
-          </label>
+          <SelectField label="Applies to" value={appliesTo} onChange={(e) => setAppliesTo(e.target.value as 'ALL' | 'SOME')}>
+            <option value="ALL">All ticket types</option>
+            <option value="SOME">Specific ticket types</option>
+          </SelectField>
+          <TextField label="Total uses" optional type="number" min={1} value={limitTotal} onChange={(e) => setLimitTotal(e.target.value)} />
+          <TextField label="Per buyer" optional type="number" min={1} value={limitPerBuyer} onChange={(e) => setLimitPerBuyer(e.target.value)} />
         </div>
         {appliesTo === 'SOME' && (
           <fieldset className="promo-types">
@@ -843,43 +831,36 @@ function PromoCodesDialog({
               <p className="muted small">This event has no ticket types yet.</p>
             ) : (
               ticketTypes.map((t) => (
-                <label key={t.id} className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={typeIds.includes(t.id)}
-                    onChange={(e) =>
-                      setTypeIds((ids) => (e.target.checked ? [...ids, t.id] : ids.filter((id) => id !== t.id)))
-                    }
-                  />
+                <CheckRow
+                  key={t.id}
+                  checked={typeIds.includes(t.id)}
+                  onChange={(e) =>
+                    setTypeIds((ids) => (e.target.checked ? [...ids, t.id] : ids.filter((id) => id !== t.id)))
+                  }
+                >
                   {t.name}
-                </label>
+                </CheckRow>
               ))
             )}
             {noTypePicked && <small className="warn">Pick at least one ticket type.</small>}
           </fieldset>
         )}
         <div className="promo-row">
-          <label>
-            Valid from
-            <input type="datetime-local" required value={from} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label>
-            Valid until
-            <input type="datetime-local" required value={until} onChange={(e) => setUntil(e.target.value)} />
-          </label>
+          <TextField label="Valid from" type="datetime-local" required value={from} onChange={(e) => setFrom(e.target.value)} />
+          <TextField label="Valid until" type="datetime-local" required value={until} onChange={(e) => setUntil(e.target.value)} />
         </div>
         <div className="modal-actions">
-          <button type="button" className="btn" disabled={busy} onClick={onClose}>
+          <Button disabled={busy} onClick={onClose}>
             Close
-          </button>
+          </Button>
           {editing && (
-            <button type="button" className="btn" disabled={busy} onClick={blankForm}>
+            <Button disabled={busy} onClick={blankForm}>
               Cancel edit
-            </button>
+            </Button>
           )}
-          <button className="btn btn-primary" disabled={busy || noTypePicked}>
-            {busy ? 'Saving...' : editing ? 'Save changes' : 'Add promo code'}
-          </button>
+          <Button type="submit" variant="primary" busy={busy} busyLabel="Saving..." disabled={noTypePicked}>
+            {editing ? 'Save changes' : 'Add promo code'}
+          </Button>
         </div>
       </form>
 
@@ -1531,79 +1512,67 @@ function TicketTypes({
           <div className="tt-form-grid">
             <fieldset className="form-group">
               <legend>Basics</legend>
-              <label>
-                Name
-                <input required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} />
-              </label>
-              <label>
-                Kind
-                <select disabled={editing !== null} value={kind} onChange={(e) => setKind(e.target.value as TicketTypeKind)}>
-                  <option value="GENERAL_ADMISSION">General admission</option>
-                  <option value="RESERVED_SEATING">Reserved seating</option>
-                </select>
-                {editing && <span className="hint">The kind can't be changed after creation.</span>}
-              </label>
+              <TextField label="Name" required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} />
+              <SelectField
+                label="Kind"
+                hint={editing ? "The kind can't be changed after creation." : undefined}
+                disabled={editing !== null}
+                value={kind}
+                onChange={(e) => setKind(e.target.value as TicketTypeKind)}
+              >
+                <option value="GENERAL_ADMISSION">General admission</option>
+                <option value="RESERVED_SEATING">Reserved seating</option>
+              </SelectField>
             </fieldset>
 
             <fieldset className="form-group">
               <legend>Price and stock</legend>
               <div className="form-row">
-                <label>
-                  Price
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    step="0.01"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Currency
-                  <select required value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                    {/* A ticket type saved in a currency not listed here keeps it. */}
-                    {(CURRENCIES.some((c) => c.code === currency) ? CURRENCIES : [{ code: currency }, ...CURRENCIES]).map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.code}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <TextField label="Price" type="number" required min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
+                <SelectField label="Currency" required value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                  {/* A ticket type saved in a currency not listed here keeps it. */}
+                  {(CURRENCIES.some((c) => c.code === currency) ? CURRENCIES : [{ code: currency }, ...CURRENCIES]).map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code}
+                    </option>
+                  ))}
+                </SelectField>
               </div>
               <div className="form-row">
-                <label>
-                  Quantity
-                  <input
-                    type="number"
-                    required
-                    min={editing ? Math.max(1, editing.quantityTotal - editing.quantityAvailable) : 1}
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Max per order <span className="hint">(default 10)</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={userLimit ?? undefined}
-                    value={maxPerOrder}
-                    onChange={(e) => setMaxPerOrder(e.target.value)}
-                  />
-                </label>
+                <TextField
+                  label="Quantity"
+                  type="number"
+                  required
+                  min={editing ? Math.max(1, editing.quantityTotal - editing.quantityAvailable) : 1}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                />
+                <TextField
+                  label={
+                    <>
+                      Max per order <span className="hint">(default 10)</span>
+                    </>
+                  }
+                  type="number"
+                  min={1}
+                  max={userLimit ?? undefined}
+                  value={maxPerOrder}
+                  onChange={(e) => setMaxPerOrder(e.target.value)}
+                />
               </div>
               <div className="form-row">
-                <label>
-                  Max per buyer <span className="hint">(blank = unlimited)</span>
-                  <input
-                    type="number"
-                    min={1}
-                    placeholder="Unlimited"
-                    value={maxPerUser}
-                    onChange={(e) => setMaxPerUser(e.target.value)}
-                  />
-                </label>
+                <TextField
+                  label={
+                    <>
+                      Max per buyer <span className="hint">(blank = unlimited)</span>
+                    </>
+                  }
+                  type="number"
+                  min={1}
+                  placeholder="Unlimited"
+                  value={maxPerUser}
+                  onChange={(e) => setMaxPerUser(e.target.value)}
+                />
               </div>
               {limitWarning && (
                 <p className="hint warn" role="alert">
@@ -1620,24 +1589,19 @@ function TicketTypes({
 
             <fieldset className="form-group form-group-wide">
               <legend>Sale window</legend>
-              <div className="date-time-row">
-                <label>
-                  Sale start date
-                  <input
-                    type="date"
-                    required={!startNow}
-                    disabled={startNow}
-                    max={latestEnd.date}
-                    value={saleStartDate}
-                    onChange={(e) => setSaleStartDate(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Sale start time
-                  {/* Remounted when "Start now" changes, so a half-picked time is cleared too. */}
-                  <TimeField key={startNow ? 'now' : 'set'} value={saleStartTime} onChange={setSaleStartTime} disabled={startNow} />
-                </label>
-              </div>
+              <DateTimeField
+                dateLabel="Sale start date"
+                timeLabel="Sale start time"
+                required={!startNow}
+                disabled={startNow}
+                maxDate={latestEnd.date}
+                date={saleStartDate}
+                time={saleStartTime}
+                onDate={setSaleStartDate}
+                onTime={setSaleStartTime}
+                // Remounted when "Start now" changes, so a half-picked time is cleared too.
+                timeKey={startNow ? 'now' : 'set'}
+              />
               <label className="check-row">
                 <input
                   type="checkbox"
@@ -1652,23 +1616,17 @@ function TicketTypes({
                 />
                 Start now (the sale starts the moment it is saved)
               </label>
-              <div className="date-time-row">
-                <label>
-                  Sale end date
-                  <input
-                    type="date"
-                    required
-                    min={saleStartDate || undefined}
-                    max={latestEnd.date}
-                    value={saleEndDate}
-                    onChange={(e) => setSaleEndDate(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Sale end time
-                  <TimeField value={saleEndTime} onChange={setSaleEndTime} />
-                </label>
-              </div>
+              <DateTimeField
+                dateLabel="Sale end date"
+                timeLabel="Sale end time"
+                required
+                minDate={saleStartDate || undefined}
+                maxDate={latestEnd.date}
+                date={saleEndDate}
+                time={saleEndTime}
+                onDate={setSaleEndDate}
+                onTime={setSaleEndTime}
+              />
               <p className={`date-status small ${saleWarning ? 'warn' : 'muted'}`} role={saleWarning ? 'alert' : undefined}>
                 {saleWarning ??
                   `Times in ${timezone}. Sales run at least ${minDuration} and close by ${formatDateTime(new Date(latestEndMs).toISOString(), timezone)}${
@@ -1682,14 +1640,12 @@ function TicketTypes({
               {blocker}
             </p>
           )}
-          <div className="modal-actions">
-            <button type="button" className="btn" onClick={() => setAdding(false)}>
-              Cancel
-            </button>
-            <button className="btn btn-primary" disabled={Boolean(blocker)} title={blocker ?? undefined}>
-              {editing ? 'Save changes' : 'Add ticket type'}
-            </button>
-          </div>
+          <FormActions
+            onCancel={() => setAdding(false)}
+            submitLabel={editing ? 'Save changes' : 'Add ticket type'}
+            submitDisabled={Boolean(blocker)}
+            submitTitle={blocker ?? undefined}
+          />
         </form>
       </dialog>
     </section>

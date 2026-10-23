@@ -186,6 +186,25 @@ Button labels say exactly what happens: "Save changes", "Generate payout", not "
 | `<StatusBadge status="PAID" />` | API status values (`badge badge-<status>`). |
 | `<Pagination page={…} onChange={…} />` | Paged lists. |
 
+### Shared form and layout components
+Use these instead of writing a bare `<label><input/></label>`, a Cancel / Save row or a segmented control by hand.
+
+| Component | Use |
+|---|---|
+| `<Field label hint optional required error>` (`components/fields/Field`) | One label, one control, a hint and an error. Required shows the red asterisk, optional shows "(optional)". `<FieldGroup legend hint>` is the fieldset for several controls. |
+| `<TextField>`, `<TextAreaField>`, `<SelectField>`, `<DateField>` (`fields/TextField`) | A text, number, email, tel, url, password or datetime box, a textarea, a dropdown and a date box, each inside a `Field`. They take the native props. |
+| `<DateTimeField>`, `<HourMinuteField>` (`fields/DateTimeFields`) | A date plus a 12-hour time on one line (event and sale start / end); hours and minutes that may both stay empty (gates open). `TimeField` and `StepSelect` stay the single time pickers. |
+| `<QuantityField value onCommit min max>` (`fields/QuantityField`) | A whole number set with − / + or typed (cart, event page). `onBelowMin` turns − at the lowest number into an action such as "remove". |
+| `<CheckRow>` (`fields/CheckRow`) | A checkbox with its text. |
+| `<DocumentRows docs onChange>` (`fields/DocumentRows`) | Verification document rows: type, link, Add, Change, Remove. |
+| `<Button variant size busy busyLabel>` (`components/Button`) | The one button: primary, secondary, cta, danger, link. `busy` turns it off and shows `busyLabel`. |
+| `<IconButton label>` | A round icon-only button; the label is its tooltip and accessible name. |
+| `<FormActions submitLabel busyLabel onCancel>` | Cancel and the main button at the bottom of a form window, with an optional extra at the start. |
+| `<Segmented options value onChange label>` (`components/Segmented`) | Filter and layout toggles, with optional counts. |
+| `<SettingsLayout label links>`, `<SettingRow>` (`components/SettingsLayout`) | The page list on the left and the chosen page on the right; one line of a settings list. |
+
+Not yet moved onto these: the signup and profile forms (`BirthdateField`, `PhoneField` stay as they are), the ticket designer, the admin finance and payout filters, the My tickets filter group, and the `dl.setting-row` rows on the admin Settings page.
+
 ### Status colors
 - `.badge` is a small dot plus a label. Use it for order, event and payout statuses.
 - `.status-chip status-good | status-warn | status-bad | status-info` is a filled chip. Use it for live state on management pages.

@@ -64,7 +64,7 @@ export function HomePage() {
     .filter((e) => isOngoing(e, now));
 
   return (
-    <>
+    <div className="home-page">
       <section className={`slab stage home-hero${next ? ' has-stub' : ''}`}>
         <div className="home-hero-copy">
           <h1>
@@ -166,6 +166,6 @@ export function HomePage() {
       ) : (
         <EventPostsFeed posts={posts} showEvent />
       )}
-    </>
+    </div>
   );
 }

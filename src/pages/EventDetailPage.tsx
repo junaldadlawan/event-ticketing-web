@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { QuantityField } from '../components/fields/QuantityField';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../api/client';
 import { cartApi, eventApi, ticketTypeApi, waitlistApi } from '../api/endpoints';
@@ -249,39 +250,14 @@ function TicketTypeRow({ ticketType: tt, day, eventOver }: { ticketType: TicketT
       <div className="ticket-buy">
         <strong className="price">{formatMoney(tt.price)}</strong>
         {!adminView && (
-        <span className="qty-stepper" role="group" aria-label="Quantity">
-          <button
-            type="button"
-            className="btn btn-sm"
-            aria-label="One ticket fewer"
-            disabled={disabled || qty <= 1}
-            onClick={() => setQtyText(String(qty - 1))}
-          >
-            −
-          </button>
-          <input
-            type="number"
-            inputMode="numeric"
-            className="qty-input"
-            aria-label="Number of tickets"
-            min={1}
-            max={limit}
-            disabled={disabled}
-            value={qtyText}
-            onChange={(e) => setQtyText(e.target.value)}
-            // Typed past the limit, or left blank: show the number that will be used.
-            onBlur={() => setQtyText(String(qty))}
-          />
-          <button
-            type="button"
-            className="btn btn-sm"
-            aria-label="One more ticket"
-            disabled={disabled || qty >= limit}
-            onClick={() => setQtyText(String(qty + 1))}
-          >
-            +
-          </button>
-        </span>
+        <QuantityField
+          value={qty}
+          max={limit}
+          disabled={disabled}
+          onCommit={(n) => setQtyText(String(n))}
+          lessLabel="One ticket fewer"
+          moreLabel="One more ticket"
+        />
         )}
         {adminView ? (
           <span className="muted small">Admins can't buy tickets. Switch to Customer view to buy.</span>

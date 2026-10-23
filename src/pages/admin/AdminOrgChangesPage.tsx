@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Segmented } from '../../components/Segmented';
+import { FormActions } from '../../components/Button';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
@@ -84,21 +86,16 @@ function Requests() {
           </Link>
         }
       />
-      <div className="segmented segmented-text" role="group" aria-label="Filter by status">
-        {STATUSES.map((s) => (
-          <button
-            key={s.value}
-            type="button"
-            aria-pressed={status === s.value}
-            onClick={() => {
-              setStatus(s.value);
-              setPage(0);
-            }}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        text
+        label="Filter by status"
+        value={status}
+        options={STATUSES}
+        onChange={(v) => {
+          setStatus(v);
+          setPage(0);
+        }}
+      />
       <ErrorBox message={error ?? err} />
       <SuccessBox message={msg} />
       {loading && !data ? (
@@ -141,14 +138,7 @@ function Requests() {
             Reason <span className="hint">(the organization sees it)</span>
             <textarea required rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
           </label>
-          <div className="modal-actions">
-            <button type="button" className="btn" disabled={busy} onClick={() => setRejecting(null)}>
-              Cancel
-            </button>
-            <button className="btn btn-primary" disabled={busy || !reason.trim()}>
-              {busy ? 'Rejecting…' : 'Reject change'}
-            </button>
-          </div>
+          <FormActions onCancel={() => setRejecting(null)} busy={busy} busyLabel="Rejecting…" submitLabel="Reject change" submitDisabled={!reason.trim()} />
         </form>
       </FormDialog>
     </>

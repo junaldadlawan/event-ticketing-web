@@ -5,6 +5,7 @@ import { organizationApi } from '../../api/endpoints';
 import type { OrganizationMember, OrganizationPermission, OrganizationRole, User } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { Avatar } from '../../components/Avatar';
+import { Button, FormActions } from '../../components/Button';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { EditIcon } from '../../components/DesignerIcons';
 import { FormDialog } from '../../components/FormDialog';
@@ -193,9 +194,9 @@ export function TeamPage() {
             <>
               <LogsButton area="TEAM" title="Team" organizations={[{ id: org.id, name: org.name }]} />
               {canManageTeam && (
-                <button type="button" className="btn btn-cta" onClick={() => setAdding(true)}>
+                <Button variant="cta" onClick={() => setAdding(true)}>
                   Add member
-                </button>
+                </Button>
               )}
             </>
           )
@@ -292,7 +293,7 @@ export function TeamPage() {
           setPicked(null);
         }}
       >
-        <form className="form" onSubmit={add}>
+        <form className="form team-form" onSubmit={add}>
           <UserPicker users={[]} value={picked} onChange={setPicked} excludeIds={list.map((m) => m.userId)} onError={setError} />
           <label>
             Role
@@ -329,22 +330,16 @@ export function TeamPage() {
             here. The owner role can&apos;t be assigned.
           </p>
           <ErrorBox message={error} />
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn"
-              disabled={busy}
-              onClick={() => {
-                setAdding(false);
-                setPicked(null);
-              }}
-            >
-              Cancel
-            </button>
-            <button className="btn btn-primary" disabled={!picked || busy}>
-              {busy ? 'Adding…' : 'Add'}
-            </button>
-          </div>
+          <FormActions
+            onCancel={() => {
+              setAdding(false);
+              setPicked(null);
+            }}
+            busy={busy}
+            busyLabel="Adding…"
+            submitLabel="Add"
+            submitDisabled={!picked}
+          />
         </form>
       </FormDialog>
 
@@ -377,25 +372,25 @@ export function TeamPage() {
           </fieldset>
           {editRoles.length === 0 && <p className="small muted">Pick at least one role, or remove them from the team.</p>}
           <ErrorBox message={editError} />
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn danger"
-              disabled={busy}
-              onClick={() => {
-                setRemoving(editing);
-                setEditing(null);
-              }}
-            >
-              Remove from team
-            </button>
-            <button type="button" className="btn" disabled={busy} onClick={() => setEditing(null)}>
-              Cancel
-            </button>
-            <button className="btn btn-primary" disabled={busy || editRoles.length === 0}>
-              {busy ? 'Saving…' : 'Save'}
-            </button>
-          </div>
+          <FormActions
+            onCancel={() => setEditing(null)}
+            busy={busy}
+            busyLabel="Saving…"
+            submitLabel="Save"
+            submitDisabled={editRoles.length === 0}
+            start={
+              <Button
+                className="danger"
+                disabled={busy}
+                onClick={() => {
+                  setRemoving(editing);
+                  setEditing(null);
+                }}
+              >
+                Remove from team
+              </Button>
+            }
+          />
         </form>
       </FormDialog>
 

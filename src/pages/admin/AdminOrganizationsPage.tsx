@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Segmented } from '../../components/Segmented';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { errorMessage, assetUrl } from '../../api/client';
@@ -158,19 +159,7 @@ function OrganizationsManager() {
             aria-label="Search organizations"
           />
         </label>
-        <div className="segmented segmented-text" role="group" aria-label="Filter by status">
-          {FILTERS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              aria-pressed={filter === f.value}
-              onClick={() => setFilter(f.value)}
-            >
-              {f.label}
-              {counts[f.value] ? <span className="seg-count">{counts[f.value]}</span> : null}
-            </button>
-          ))}
-        </div>
+        <Segmented text label="Filter by status" value={filter} onChange={setFilter} options={FILTERS.map((f) => ({ value: f.value, label: f.label, count: counts[f.value] }))} />
       </div>
 
       <ErrorBox message={orgs.error ?? err} />

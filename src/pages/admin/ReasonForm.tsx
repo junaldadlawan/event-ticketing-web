@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { errorMessage } from '../../api/client';
+import { FormActions } from '../../components/Button';
 import { ErrorBox } from '../../components/ui';
 
 /** A short form asking for the reason an admin action needs (kept as the audit trail). */
@@ -54,17 +55,14 @@ export function ReasonForm({
         />
       </label>
       <ErrorBox message={error} />
-      <div className="modal-actions">
-        <button type="button" className="btn" disabled={busy} onClick={onCancel}>
-          Cancel
-        </button>
-        <button
-          className={`btn ${danger ? 'btn-danger' : 'btn-primary'}`}
-          disabled={busy || (!optional && !reason.trim())}
-        >
-          {busy ? 'Working…' : confirmLabel}
-        </button>
-      </div>
+      <FormActions
+        onCancel={onCancel}
+        busy={busy}
+        busyLabel="Working…"
+        submitLabel={confirmLabel}
+        submitDisabled={!optional && !reason.trim()}
+        variant={danger ? 'danger' : 'primary'}
+      />
     </form>
   );
 }

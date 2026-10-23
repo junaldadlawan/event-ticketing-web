@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { SettingsLayout } from '../../components/SettingsLayout';
 import type { FormEvent, ReactNode } from 'react';
-import { Navigate, NavLink, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
 import { draftEventSettingsApi, gatewayFeeApi, platformFeeApi, ticketSaleSettingsApi } from '../../api/endpoints';
 import type { FeePayer, GatewayFeePayer, GatewayFeeRequest, GatewayFeeSetting, Money, PlatformFeeRule, PlatformFeeRuleRequest, TicketSaleSettings } from '../../api/types';
@@ -76,19 +77,10 @@ export function AdminSettingsPage() {
       ) : (
         <>
           <PageHeader title="Settings" actions={<LogsButton area="SETTINGS" title="Settings" />} />
-          <div className="settings-layout">
-            <nav className="settings-nav" aria-label="Settings">
-              {SECTIONS.map((x) => (
-                <NavLink key={x.key} to={`/admin/settings/${x.key}`}>
-                  {x.label}
-                </NavLink>
-              ))}
-            </nav>
-            <div className="settings-panel">
-              <h2>{current.label}</h2>
-              {current.panel ? current.panel() : <Empty>Nothing to set for {current.label} yet.</Empty>}
-            </div>
-          </div>
+          <SettingsLayout label="Settings" links={SECTIONS.map((x) => ({ to: `/admin/settings/${x.key}`, label: x.label }))}>
+            <h2>{current.label}</h2>
+            {current.panel ? current.panel() : <Empty>Nothing to set for {current.label} yet.</Empty>}
+          </SettingsLayout>
         </>
       )}
     </AdminOnly>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Segmented } from './Segmented';
 import { eventApi } from '../api/endpoints';
 import type { CheckInFilter } from '../api/endpoints';
 import type { CheckInHistoryItem } from '../api/types';
@@ -109,13 +110,16 @@ export function EventCheckIns({ eventId, timezone }: { eventId: string; timezone
           value={search}
           onChange={(e) => change(() => setSearch(e.target.value))}
         />
-        <div className="segmented" role="group" aria-label="Scan type">
-          {(['all', 'online', 'offline'] as const).map((m) => (
-            <button key={m} type="button" aria-pressed={mode === m} onClick={() => change(() => setMode(m))}>
-              {m === 'all' ? 'All' : m === 'online' ? 'Online' : 'Offline'}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          label="Scan type"
+          value={mode}
+          onChange={(m) => change(() => setMode(m))}
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'online', label: 'Online' },
+            { value: 'offline', label: 'Offline' },
+          ]}
+        />
         {devices.data && devices.data.length > 0 && (
           <select className="select-auto" aria-label="Scanner" value={scanner} onChange={(e) => change(() => setScanner(e.target.value))}>
             <option value="">All scanners</option>

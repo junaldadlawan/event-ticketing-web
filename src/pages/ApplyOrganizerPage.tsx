@@ -4,7 +4,12 @@ import { errorMessage } from '../api/client';
 import { organizationApi } from '../api/endpoints';
 import { DOCUMENT_TYPES } from '../utils/orgFields';
 import { useAsync } from '../utils/useAsync';
-import type { Organization, OrganizationDocument } from '../api/types';
+import type { Organization } from '../api/types';
+import { Button } from '../components/Button';
+import { DocumentRows } from '../components/fields/DocumentRows';
+import type { DocRow } from '../components/fields/DocumentRows';
+import { FieldGroup } from '../components/fields/Field';
+import { TextAreaField, TextField } from '../components/fields/TextField';
 import { ErrorBox, StatusBadge, PageHeader, Spinner } from '../components/ui';
 import { CONTACT_EMAIL, CONTACT_PHONE, telHref } from '../config';
 
@@ -23,16 +28,12 @@ function ApplicationForm({ existing }: { existing?: Organization }) {
   const [contactPhone, setContactPhone] = useState(existing?.contactPhone ?? '');
   const [address, setAddress] = useState(existing?.address ?? '');
   const [description, setDescription] = useState(existing?.description ?? '');
-  const [documents, setDocuments] = useState<OrganizationDocument[]>(
+  const [documents, setDocuments] = useState<DocRow[]>(
     existing?.documents.length ? existing.documents.map((d) => ({ ...d })) : [{ type: DOCUMENT_TYPES[0], url: '' }],
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState<Organization | null>(null);
-
-  function updateDoc(index: number, patch: Partial<OrganizationDocument>) {
-    setDocuments((docs) => docs.map((d, i) => (i === index ? { ...d, ...patch } : d)));
-  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -105,80 +106,30 @@ function ApplicationForm({ existing }: { existing?: Organization }) {
       )}
       <ErrorBox message={error} />
       <form className="form" onSubmit={onSubmit}>
-        <label>
-          Organization name
-          <input required maxLength={255} value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
+        <TextField label="Organization name" required maxLength={255} value={name} onChange={(e) => setName(e.target.value)} />
+        <TextAreaField label="About the organization" optional rows={3} maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} />
 
-        <label>
-          About the organization <span className="hint">(optional)</span>
-          <textarea rows={3} maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} />
-        </label>
+        <FieldGroup legend="Contact details" hint="Optional. An admin sees these when reviewing your application, and you can ask to change them later in Settings.">
+          <TextField label="Contact email" type="email" maxLength={255} value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
+          <TextField
+            label="Contact phone"
+            type="tel"
+            maxLength={30}
+            pattern="[0-9 +()\-.]*"
+            title="Digits, spaces and + ( ) - ."
+            value={contactPhone}
+            onChange={(e) => setContactPhone(e.target.value)}
+          />
+          <TextField label="Address" maxLength={500} value={address} onChange={(e) => setAddress(e.target.value)} />
+        </FieldGroup>
 
-        <fieldset className="fieldset">
-          <legend>Contact details</legend>
-          <p className="hint">Optional. An admin sees these when reviewing your application, and you can ask to change them later in Settings.</p>
-          <label>
-            Contact email
-            <input type="email" maxLength={255} value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
-          </label>
-          <label>
-            Contact phone
-            <input type="tel" maxLength={30} pattern="[0-9 +()\-.]*" title="Digits, spaces and + ( ) - ." value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
-          </label>
-          <label>
-            Address
-            <input maxLength={500} value={address} onChange={(e) => setAddress(e.target.value)} />
-          </label>
-        </fieldset>
+        <FieldGroup legend="Verification documents" hint="Link to each document (e.g. a shared file URL).">
+          <DocumentRows docs={documents} onChange={setDocuments} allowRemove />
+        </FieldGroup>
 
-        <fieldset className="fieldset">
-          <legend>Verification documents</legend>
-          <p className="hint">Link to each document (e.g. a shared file URL).</p>
-          {documents.map((doc, i) => (
-            <div key={i} className="doc-row">
-              <select
-                aria-label={`Document ${i + 1} type`}
-                value={doc.type}
-                onChange={(e) => updateDoc(i, { type: e.target.value })}
-              >
-                {DOCUMENT_TYPES.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </select>
-              <input
-                type="url"
-                required
-                maxLength={500}
-                placeholder="https://..."
-                aria-label={`Document ${i + 1} URL`}
-                value={doc.url}
-                onChange={(e) => updateDoc(i, { url: e.target.value })}
-              />
-              {documents.length > 1 && (
-                <button
-                  type="button"
-                  className="btn btn-link danger"
-                  aria-label={`Remove document ${i + 1}`}
-                  onClick={() => setDocuments((docs) => docs.filter((_, j) => j !== i))}
-                >
-                  Remove
-                </button>
-              )}
-            </div>
-          ))}
-          <button
-            type="button"
-            className="btn btn-link"
-            onClick={() => setDocuments((docs) => [...docs, { type: DOCUMENT_TYPES[0], url: '' }])}
-          >
-            + Add another document
-          </button>
-        </fieldset>
-
-        <button className="btn btn-cta" disabled={busy}>
-          {busy ? 'Submitting...' : existing ? 'Save and resubmit' : 'Submit application'}
-        </button>
+        <Button type="submit" variant="cta" busy={busy} busyLabel="Submitting...">
+          {existing ? 'Save and resubmit' : 'Submit application'}
+        </Button>
       </form>
     </div>
   );

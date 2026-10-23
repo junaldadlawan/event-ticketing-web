@@ -1,4 +1,10 @@
 import { useState } from 'react';
+import { FormActions, IconButton } from './Button';
+import { DocumentRows } from './fields/DocumentRows';
+import type { DocRow } from './fields/DocumentRows';
+import { FieldGroup } from './fields/Field';
+import { TextAreaField, TextField } from './fields/TextField';
+import { SettingRow } from './SettingsLayout';
 import type { FormEvent } from 'react';
 import { assetUrl, errorMessage } from '../api/client';
 import { organizationApi } from '../api/endpoints';
@@ -6,7 +12,7 @@ import type { OrganizationDocument, OrganizationUpdate } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { useHasPermission } from '../auth/useCanManage';
 import { formatDateTime } from '../utils/format';
-import { DOCUMENT_TYPES, ORG_FIELDS } from '../utils/orgFields';
+import { ORG_FIELDS } from '../utils/orgFields';
 import { useAsync } from '../utils/useAsync';
 import { EditIcon } from './DesignerIcons';
 import { FormDialog } from './FormDialog';
@@ -25,7 +31,7 @@ export function OrganizationDetails({ orgId }: { orgId: string }) {
   const [editing, setEditing] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   // The documents in the edit window; a row is read-only until Change is pressed (a new one starts open).
-  const [docs, setDocs] = useState<{ type: string; url: string; edit: boolean }[]>([]);
+  const [docs, setDocs] = useState<DocRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -94,27 +100,23 @@ export function OrganizationDetails({ orgId }: { orgId: string }) {
       <div className="org-heading">
         <h2>Organization</h2>
         {canEdit && (
-          <button type="button" className="icon-button" title="Edit details" aria-label="Edit details" onClick={startEdit} disabled={!o}>
+          <IconButton label="Edit details" onClick={startEdit} disabled={!o}>
             <EditIcon />
-          </button>
+          </IconButton>
         )}
       </div>
       <ErrorBox message={org.error ?? requests.error ?? (editing ? null : err)} />
       <SuccessBox message={msg} />
       <dl className="org-details">
         {ORG_FIELDS.map((f) => (
-          <div key={f.key} className="setting-row">
-            <dt>{f.label}</dt>
-            <dd>{current(f.key) || <span className="muted">Not set</span>}</dd>
-          </div>
+          <SettingRow key={f.key} label={f.label}>
+            {current(f.key) || <span className="muted">Not set</span>}
+          </SettingRow>
         ))}
         {/* The verification documents (the business permit...): shown, not editable here; the API does not take new ones for an approved organization. */}
-        <div className="setting-row">
-          <dt>Documents</dt>
-          <dd>
-            <DocumentLinks documents={o?.documents ?? []} />
-          </dd>
-        </div>
+        <SettingRow label="Documents">
+          <DocumentLinks documents={o?.documents ?? []} />
+        </SettingRow>
       </dl>
       {!canEdit && <p className="muted small">Only the owner, or an organizer allowed to manage the team, can ask to change these.</p>}
 
@@ -152,82 +154,16 @@ export function OrganizationDetails({ orgId }: { orgId: string }) {
           <p className="small muted">
             An admin has to approve a change before it shows. {pending ? 'This replaces your request that is waiting. ' : ''}Leave a field empty to clear it.
           </p>
-          <label>
-            Name
-            <input required maxLength={255} value={values.name ?? ''} onChange={(e) => setValues({ ...values, name: e.target.value })} />
-          </label>
-          <label>
-            Contact email
-            <input type="email" maxLength={255} value={values.contactEmail ?? ''} onChange={(e) => setValues({ ...values, contactEmail: e.target.value })} />
-          </label>
-          <label>
-            Contact phone
-            <input maxLength={30} value={values.contactPhone ?? ''} onChange={(e) => setValues({ ...values, contactPhone: e.target.value })} />
-          </label>
-          <label>
-            Address
-            <input maxLength={500} value={values.address ?? ''} onChange={(e) => setValues({ ...values, address: e.target.value })} />
-          </label>
-          <label>
-            Description
-            <textarea rows={4} maxLength={2000} value={values.description ?? ''} onChange={(e) => setValues({ ...values, description: e.target.value })} />
-          </label>
-          <fieldset className="fieldset">
-            <legend>Verification documents</legend>
-            <p className="hint">Link to each document (e.g. a shared file URL). Like the other details, a change waits for an admin.</p>
-            {docs.length === 0 && <p className="muted small">None yet.</p>}
-            {docs.map((d, i) => (
-              <div key={i} className="doc-row">
-                {d.edit ? (
-                  <>
-                    <select
-                      aria-label={`Document ${i + 1} type`}
-                      value={d.type}
-                      onChange={(e) => setDocs(docs.map((x, j) => (j === i ? { ...x, type: e.target.value } : x)))}
-                    >
-                      {DOCUMENT_TYPES.map((t) => (
-                        <option key={t}>{t}</option>
-                      ))}
-                    </select>
-                    <input
-                      type="url"
-                      required
-                      maxLength={500}
-                      placeholder="https://..."
-                      aria-label={`Document ${i + 1} URL`}
-                      value={d.url}
-                      onChange={(e) => setDocs(docs.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <a href={assetUrl(d.url)} target="_blank" rel="noreferrer">
-                      {d.type}
-                    </a>
-                    <button type="button" className="btn btn-sm" onClick={() => setDocs(docs.map((x, j) => (j === i ? { ...x, edit: true } : x)))}>
-                      Change document
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
-            <button
-              type="button"
-              className="btn btn-link"
-              onClick={() => setDocs([...docs, { type: DOCUMENT_TYPES[0], url: '', edit: true }])}
-            >
-              {docs.length === 0 ? '+ Add document' : '+ Add another document'}
-            </button>
-          </fieldset>
+          <TextField label="Name" required maxLength={255} value={values.name ?? ''} onChange={(e) => setValues({ ...values, name: e.target.value })} />
+          <TextField label="Contact email" type="email" maxLength={255} value={values.contactEmail ?? ''} onChange={(e) => setValues({ ...values, contactEmail: e.target.value })} />
+          <TextField label="Contact phone" type="tel" maxLength={30} value={values.contactPhone ?? ''} onChange={(e) => setValues({ ...values, contactPhone: e.target.value })} />
+          <TextField label="Address" maxLength={500} value={values.address ?? ''} onChange={(e) => setValues({ ...values, address: e.target.value })} />
+          <TextAreaField label="Description" rows={4} maxLength={2000} value={values.description ?? ''} onChange={(e) => setValues({ ...values, description: e.target.value })} />
+          <FieldGroup legend="Verification documents" hint="Link to each document (e.g. a shared file URL). Like the other details, a change waits for an admin.">
+            <DocumentRows docs={docs} onChange={setDocs} />
+          </FieldGroup>
           <ErrorBox message={editing ? err : null} />
-          <div className="modal-actions">
-            <button type="button" className="btn" disabled={busy} onClick={() => setEditing(false)}>
-              Cancel
-            </button>
-            <button className="btn btn-primary" disabled={busy}>
-              {busy ? 'Sending…' : 'Send for approval'}
-            </button>
-          </div>
+          <FormActions onCancel={() => setEditing(false)} busy={busy} busyLabel="Sending…" submitLabel="Send for approval" />
         </form>
       </FormDialog>
     </>

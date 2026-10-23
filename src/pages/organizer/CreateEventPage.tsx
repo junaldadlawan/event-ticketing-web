@@ -16,7 +16,9 @@ import { FormDialog } from '../../components/FormDialog';
 import { Empty, ErrorBox, Spinner } from '../../components/ui';
 import { useAsync } from '../../utils/useAsync';
 import { formatOffset, utcOffsetMinutes, zonedParts, zonedToIso } from '../../utils/zonedTime';
-import { MINUTES, StepSelect, TimeField } from '../../components/TimeField';
+import { DateTimeField, HourMinuteField } from '../../components/fields/DateTimeFields';
+import { Field } from '../../components/fields/Field';
+import { TextAreaField, TextField } from '../../components/fields/TextField';
 import { isEventOver } from '../../utils/eventState';
 import { useOrgNames } from '../../utils/useOrgNames';
 import { formatDateTime, minutesText } from '../../utils/format';
@@ -286,11 +288,7 @@ function EventForm({
       ) : (
       <form className="form" onSubmit={onSubmit}>
         {orgs.data && orgs.data.length > 1 && (
-          <label>
-            <span>
-              Organization
-              <span className="required-mark" aria-hidden="true">*</span>
-            </span>
+          <Field label="Organization" required>
             <select value={organizationId} onChange={(e) => setOrgChoice(e.target.value)}>
               {orgs.data.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -298,7 +296,7 @@ function EventForm({
                 </option>
               ))}
             </select>
-          </label>
+          </Field>
         )}
         {!existing && orgs.data?.length === 1 && (
           <p className="muted small">
@@ -310,35 +308,12 @@ function EventForm({
             Hosting as <strong>{ownerName ?? '…'}</strong>
           </p>
         )}
-        <label>
-          <span>
-            Title
-            <span className="required-mark" aria-hidden="true">*</span>
-          </span>
-          <input required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
-        </label>
-        <label>
-          <span>
-            Description
-            <span className="required-mark" aria-hidden="true">*</span>
-          </span>
-          <textarea
-            required
-            maxLength={2000}
-            rows={5}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </label>
-        <label>
-          <span>
-            Category
-            <span className="required-mark" aria-hidden="true">*</span>
-          </span>
+        <TextField label="Title" required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TextAreaField label="Description" required maxLength={2000} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} />
+        <Field label="Category" required>
           <CategorySelect value={category} onChange={setCategory} required />
-        </label>
-        <label>
-          Venue
+        </Field>
+        <Field label="Venue">
           <select value={venueId} onChange={(e) => setVenueId(e.target.value)} disabled={locked}>
             <option value="">Online / no venue</option>
             {existing?.venue && (
@@ -352,36 +327,25 @@ function EventForm({
               </option>
             ))}
           </select>
-        </label>
+        </Field>
         {locked && (
           <p className="hint">The organization, venue, dates and timezone can't be changed after the event is created.</p>
         )}
         {/* Date and time stay on one line at every width. */}
-        <div className="date-time-row" onBlur={leaveRow('start')}>
-          <label>
-            <span>
-              Start date
-              <span className="required-mark" aria-hidden="true">*</span>
-            </span>
-            <input
-              type="date"
-              required
-              disabled={locked}
-              value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value);
-                if (sameDay) setEndDate(e.target.value);
-              }}
-            />
-          </label>
-          <label>
-            <span>
-              Start time
-              <span className="required-mark" aria-hidden="true">*</span>
-            </span>
-            <TimeField value={startTime} onChange={setStartTime} disabled={locked} />
-          </label>
-        </div>
+        <DateTimeField
+          dateLabel="Start date"
+          timeLabel="Start time"
+          required
+          disabled={locked}
+          date={startDate}
+          time={startTime}
+          onDate={(v) => {
+            setStartDate(v);
+            if (sameDay) setEndDate(v);
+          }}
+          onTime={setStartTime}
+          onBlur={leaveRow('start')}
+        />
         {!locked && (
           // Not a <label>: only the box itself toggles it, not the whole row.
           <div className="same-day">
@@ -397,39 +361,25 @@ function EventForm({
             <span aria-hidden="true">Same-day event</span>
           </div>
         )}
-        <div className="date-time-row" onBlur={leaveRow('end')}>
-          <label>
-            <span>
-              End date
-              <span className="required-mark" aria-hidden="true">*</span>
-            </span>
-            <input
-              type="date"
-              required
-              disabled={locked || sameDay}
-              title={!locked && sameDay ? 'Same as the start date. Untick "Same-day event" to change it.' : undefined}
-              min={startDate || undefined}
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-          </label>
-          <label>
-            <span>
-              End time
-              <span className="required-mark" aria-hidden="true">*</span>
-            </span>
-            <TimeField value={endTime} onChange={setEndTime} disabled={locked} />
-          </label>
-        </div>
+        <DateTimeField
+          dateLabel="End date"
+          timeLabel="End time"
+          required
+          disabled={locked}
+          dateDisabled={sameDay}
+          dateTitle={!locked && sameDay ? 'Same as the start date. Untick "Same-day event" to change it.' : undefined}
+          minDate={startDate || undefined}
+          date={endDate}
+          time={endTime}
+          onDate={setEndDate}
+          onTime={setEndTime}
+          onBlur={leaveRow('end')}
+        />
         {/* Always one line tall, so the form never jumps: the date problem, else how long the event lasts. */}
         <p className={`date-status small ${shownWarning ? 'warn' : 'muted'}`} role={shownWarning ? 'alert' : undefined}>
           {shownWarning ?? ([duration && `Duration: ${duration}`, startsIn].filter(Boolean).join(' · ') || '\u00a0')}
         </p>
-        <label>
-          <span>
-            Timezone
-            <span className="required-mark" aria-hidden="true">*</span>
-          </span>
+        <Field label="Timezone" required>
           <select required disabled={locked} value={timezone} onChange={(e) => setTimezone(e.target.value)}>
             {timezoneOptions(timezone).map((tz) => (
               <option key={tz.id} value={tz.id}>
@@ -437,31 +387,28 @@ function EventForm({
               </option>
             ))}
           </select>
-        </label>
-        <label>
-          <span>
-            Gates open <span className="hint">(before the start, optional)</span>
-          </span>
-          {/* The start and end time pickers' dropdowns, as hours and minutes. */}
-          <span className="time-field gate-field">
-            <StepSelect label="Hours" placeholder="--" options={GATE_HOURS} value={gateH} onChange={setGateH} disabled={ended} required={false} />
-            <span className="muted small">hr</span>
-            <StepSelect label="Minutes" placeholder="--" options={MINUTES} value={gateM} onChange={setGateM} disabled={ended} required={false} />
-            <span className="muted small">min</span>
-            {gateMinutes !== null && !ended && (
-              <button
-                type="button"
-                className="btn-link"
-                onClick={() => {
+        </Field>
+        <HourMinuteField
+          label={
+            <>
+              Gates open <span className="hint">(before the start, optional)</span>
+            </>
+          }
+          hourOptions={GATE_HOURS}
+          hours={gateH}
+          minutes={gateM}
+          onHours={setGateH}
+          onMinutes={setGateM}
+          disabled={ended}
+          onClear={
+            gateMinutes !== null && !ended
+              ? () => {
                   setGateH('');
                   setGateM('');
-                }}
-              >
-                Clear
-              </button>
-            )}
-          </span>
-        </label>
+                }
+              : undefined
+          }
+        />
         {(gateWarning || (gateMinutes !== null && startMs !== null)) && (
           <p className={`hint${gateWarning ? ' warn' : ''}`} role={gateWarning ? 'alert' : undefined}>
             {gateWarning ??

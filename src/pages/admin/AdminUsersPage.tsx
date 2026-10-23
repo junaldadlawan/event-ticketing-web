@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { FormActions } from '../../components/Button';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
@@ -398,14 +399,7 @@ function EditUserForm({
         {(isMe || user.role === 'SUPER_ADMIN') && <small className="muted">{isMe ? "You can't change your own role." : 'The super admin role cannot be changed.'}</small>}
       </label>
       <ErrorBox message={error} />
-      <div className="modal-actions">
-        <button type="button" className="btn" disabled={busy} onClick={onCancel}>
-          Cancel
-        </button>
-        <button className="btn btn-primary" disabled={busy}>
-          {busy ? 'Saving…' : 'Save changes'}
-        </button>
-      </div>
+      <FormActions onCancel={onCancel} busy={busy} busyLabel="Saving…" submitLabel="Save changes" />
     </form>
   );
 }

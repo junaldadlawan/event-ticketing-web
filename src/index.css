@@ -8920,3 +8920,50 @@ button.code-warning:focus-visible {
 .org-heading h2 {
   margin: 0;
 }
+
+/* ---- Shared form controls (components/fields, Button, FormActions) ---- */
+/* One label, control, hint and error stack: the same spacing and type in every form. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.field-label {
+  display: block;
+}
+.field-error {
+  font-size: 0.8rem;
+  color: var(--danger);
+}
+input[aria-invalid='true'],
+select[aria-invalid='true'],
+textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.field-group legend {
+  font-size: 0.85rem;
+}
+
+/* The user picker grows sideways in a toolbar (flex-basis 280px); in a form it stacks, where that basis was a 280px-tall gap. */
+.form .user-picker {
+  flex: none;
+}
+
+/* Tighter vertical rhythm: Home's sections sit closer together, and the Add a member window is less airy. */
+.home-page > h2 {
+  margin-top: 1.75rem;
+}
+.home-page > .home-hero {
+  margin-bottom: 0;
+}
+.team-form {
+  gap: 12px;
+}
+.team-form .team-perms-box {
+  margin: 0;
+}
+.team-form .team-perms {
+  margin: 4px 0 4px 0;
+}
