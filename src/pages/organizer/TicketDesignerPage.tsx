@@ -120,6 +120,16 @@ const HISTORY_LIMIT = 100;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** A frame inside a frame: the margin guide. */
+function MarginIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <rect x="7" y="8" width="10" height="8" rx="1" strokeDasharray="2 2" />
+    </svg>
+  );
+}
+
 /** The placeholder box, in two rows: per-ticket values first, then fixed event details and own labels. */
 const PLACEHOLDER_GROUPS = [
   { label: 'Dynamic', hint: 'Changes per ticket: each ticket prints its own value', items: PLACEHOLDERS, custom: false },
@@ -362,6 +372,25 @@ export function TicketDesignerPage() {
   // Layout aids, remembered per browser.
   const [showGrid, setShowGrid] = useStoredFlag('et.designer.grid', false);
   const [snap, setSnap] = useStoredFlag('et.designer.snap', false);
+  // The small black name tabs on the placeholders: shown or hidden (remembered in this browser).
+  const [showNames, setShowNames] = useStoredFlag('et.designer.names', true);
+  // The margin guide, in ticket pixels (0 = off); remembered in this browser, never saved with the design.
+  const [margin, setMarginState] = useState(() => {
+    try {
+      return Math.max(0, Number(localStorage.getItem('et.designer.margin')) || 0);
+    } catch {
+      return 0;
+    }
+  });
+  const setMargin = (n: number) => {
+    const clean = Math.max(0, Math.round(Number.isFinite(n) ? n : 0));
+    setMarginState(clean);
+    try {
+      localStorage.setItem('et.designer.margin', String(clean));
+    } catch {
+      /* private window: it just won't be remembered */
+    }
+  };
   // Locked background: can't be selected or moved (an editing aid, not saved with the design).
   const [bgLocked, setBgLocked] = useStoredFlag('et.designer.bgLock', false);
   // "small" | "medium" | "large" | a custom px number.
@@ -1286,8 +1315,10 @@ export function TicketDesignerPage() {
       <h1 className="designer-title">Design your ticket</h1>
       <p className="muted small designer-subtitle">{event.title} · make a ticket people will want to keep</p>
 
+      <div className="designer-toolbar">
       {/* Row 1: which template, and save. */}
       <div className="designer-bar">
+        <span className="bar-label">Layout for</span>
         {/* One layout by default; the organizer adds another one (for a ticket type) only if wanted. */}
           <div className="segmented segmented-text" role="radiogroup" aria-label="Layout">
             {layoutScopes.map((id) => (
@@ -1348,6 +1379,7 @@ export function TicketDesignerPage() {
           </Popover>
         )}
         <span className="nav-divider" aria-hidden="true" />
+        <span className="bar-label">Format</span>
         {/* Layout toggle: the digital design and the print design are separate. */}
         <div className="segmented segmented-text format-toggle" role="radiogroup" aria-label="Format">
           {FORMATS.map((f) => (
@@ -1365,7 +1397,7 @@ export function TicketDesignerPage() {
           ))}
         </div>
         {/* One "Copy to" button replaces copy / paste / duplicate: pick where this layout goes. */}
-        <Popover label="Copy this layout to..." icon={<DuplicateIcon />}>
+        <Popover label="Copy this layout to..." text="Copy to" icon={<DuplicateIcon />}>
           {(close) => {
             const nameOf = (id: string) => (id === ALL_TYPES ? 'All ticket types' : ticketTypes.find((t) => t.id === id)?.name ?? 'Ticket type');
             const here = FORMATS.find((x) => x.value === formats[0])!;
@@ -1509,7 +1541,8 @@ export function TicketDesignerPage() {
         {/* Every layout warning in one place; the number is how many there are. Click one to select that item. */}
         {layoutWarnings.length > 0 && (
           <Popover
-            label={`${layoutWarnings.length} layout warning${layoutWarnings.length > 1 ? 's' : ''}`}
+            text={layoutWarnings.length > 1 ? 'Warnings' : 'Warning'}
+          label={`${layoutWarnings.length} layout warning${layoutWarnings.length > 1 ? 's' : ''}`}
             icon={
               <span className="warn-icon">
                 <WarningIcon />
@@ -1550,6 +1583,7 @@ export function TicketDesignerPage() {
         <input ref={fileInput} type="file" accept={ACCEPTED_TYPES.join(',')} hidden onChange={onFile} />
         {/* One "background" button: choose upload or a link from its menu. */}
         <Popover
+          text="Background"
           label={busy === 'upload' ? 'Uploading background…' : background ? 'Change background' : 'Add background'}
           icon={busy === 'upload' ? <SpinnerIcon /> : <ImageIcon />}
         >
@@ -1582,6 +1616,7 @@ export function TicketDesignerPage() {
         )}
         {/* Ticket size (without an image) and fill color. */}
         <Popover
+          text="Size & color"
           label={`Ticket: ${sizeText(ticketSize, sizeUnit)}${bgColor ? `, ${bgColor}` : ''}`}
           icon={<TicketSizeIcon />}
         >
@@ -1612,6 +1647,7 @@ export function TicketDesignerPage() {
 
         {/* Layout aids (not saved with the design). The grid icon opens size options. */}
         <Popover
+          text="Grid"
           label={showGrid ? `Grid: ${Math.round(gridPx)} px` : 'Grid'}
           icon={<GridLinesIcon />}
           pressed={showGrid}
@@ -1633,19 +1669,70 @@ export function TicketDesignerPage() {
             />
           )}
         </Popover>
+        <Popover label={margin > 0 ? `Margin guide: ${margin} px` : 'Margin guide'} text="Margin" pressed={margin > 0} icon={<MarginIcon />}>
+          {(close) => {
+            const max = Math.max(10, Math.floor(Math.min(ticketSize.width, ticketSize.height) / 2) - 4);
+            const presets = [
+              { label: 'Off', value: 0 },
+              { label: 'Narrow', value: Math.round(Math.min(ticketSize.width, ticketSize.height) * 0.04) },
+              { label: 'Medium', value: Math.round(Math.min(ticketSize.width, ticketSize.height) * 0.08) },
+              { label: 'Wide', value: Math.round(Math.min(ticketSize.width, ticketSize.height) * 0.14) },
+            ];
+            return (
+              <div className="margin-menu">
+                <p className="menu-heading">Margin guide</p>
+                <div className="margin-presets">
+                  {presets.map((p) => (
+                    <button key={p.label} type="button" className={`placeholder-chip${margin === p.value ? ' is-on' : ''}`} aria-pressed={margin === p.value} onClick={() => setMargin(p.value)}>
+                      {p.label}
+                      {p.value > 0 && <small> {p.value} px</small>}
+                    </button>
+                  ))}
+                </div>
+                <label className="margin-slider">
+                  <span>How far in from the edge</span>
+                  <input type="range" min={0} max={max} step={1} value={Math.min(margin, max)} onChange={(e) => setMargin(Number(e.target.value))} />
+                </label>
+                <label className="margin-number">
+                  <input type="number" min={0} max={max} value={margin} onChange={(e) => setMargin(Math.min(max, Number(e.target.value)))} aria-label="Margin in pixels" />
+                  <span>px of the ticket image</span>
+                </label>
+                <p className="muted small">A dashed teal frame on the ticket shows where the margin is, so you can keep text and the code inside it. It is only a guide: it is not saved with the design and does not stop you from going outside it.</p>
+                <button type="button" className="btn btn-sm" onClick={close}>
+                  Done
+                </button>
+              </div>
+            );
+          }}
+        </Popover>
         <button
           type="button"
-          className="icon-button toggle-button"
+          className="icon-button toggle-button has-text"
           aria-pressed={snap}
           aria-label="Snap to grid"
           title={snap ? 'Snapping: on (lines up with the grid and other items; hold Alt to skip)' : 'Snapping: off'}
           onClick={() => setSnap(!snap)}
         >
           <MagnetIcon />
+          <span>Snap</span>
+        </button>
+        <button
+          type="button"
+          className="icon-button toggle-button has-text"
+          aria-pressed={showNames}
+          title={showNames ? 'Hide the name tags on the placeholders' : 'Show the name tags on the placeholders'}
+          onClick={() => setShowNames(!showNames)}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z" />
+            <circle cx="8" cy="8" r="1.4" />
+          </svg>
+          <span>Names</span>
         </button>
 
         {/* Preview with sample data: see real-looking values (and no editing aids). */}
         <Popover
+          text="Preview"
           label={preview ? `Preview: ${PREVIEW_SAMPLES.find((p) => p.value === preview)!.label}` : 'Views: real size, preview with sample data'}
           icon={<EyeIcon />}
           pressed={Boolean(preview)}
@@ -1665,7 +1752,7 @@ export function TicketDesignerPage() {
             />
           )}
         </Popover>
-        <Popover label="Help" icon={<InfoIcon />}>
+        <Popover label="Help" text="Help" icon={<InfoIcon />}>
           {() => (
             <ul className="popover-help">
               <li>Undo / redo: arrows at the left of the toolbar, or Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z also redoes).</li>
@@ -1714,6 +1801,8 @@ export function TicketDesignerPage() {
             </ul>
           )}
         </Popover>
+      </div>
+
       </div>
 
       {/* Row 3: the placeholder box - add only what this ticket needs. */}
@@ -2149,6 +2238,8 @@ export function TicketDesignerPage() {
       <ErrorBox message={err} />
 
       <TicketCanvas
+        showNames={showNames}
+        marginGuide={Math.min(margin, Math.floor(Math.min(ticketSize.width, ticketSize.height) / 2) - 4)}
         backgroundUrl={background}
         backgroundColor={bgColor}
         size={ticketSize}
@@ -2763,6 +2854,18 @@ function PreviewMenu({
 }) {
   return (
     <div className="bg-menu" role="menu" aria-label="Views">
+      <button type="button" role="menuitemradio" aria-checked={value === null} className="menu-item" onClick={() => onPick(null)}>
+        <EditIcon />
+        <span>
+          Normal view
+          <small>Edit the ticket: boxes, arrows and name tabs</small>
+        </span>
+        {value === null && (
+          <span className="menu-check" aria-hidden="true">
+            ✓
+          </span>
+        )}
+      </button>
       <button type="button" role="menuitem" className="menu-item" onClick={onRealSize}>
         <RulerIcon />
         <span>
@@ -2792,12 +2895,6 @@ function PreviewMenu({
           )}
         </button>
       ))}
-      {value && (
-        <button type="button" className="menu-item menu-item-split" onClick={() => onPick(null)}>
-          <EditIcon />
-          <span>Back to editing</span>
-        </button>
-      )}
     </div>
   );
 }

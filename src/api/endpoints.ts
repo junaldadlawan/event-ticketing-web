@@ -40,6 +40,7 @@ import type {
   ActivityArea,
   EventActivityEntry,
   EventFunnel,
+  ShareTimeline,
   EventSalesPatterns,
   FeeScope,
   ModerationAction,
@@ -88,6 +89,8 @@ import type {
   User,
   UUID,
   Venue,
+  VenueLayout,
+  VenueType,
 } from './types';
 
 export interface PageQuery {
@@ -293,7 +296,7 @@ export const uploadApi = {
    * PNG/JPEG/WebP/GIF, max 5 MB. Returns an absolute URL. `folder` says what the picture is for (it decides where it is
    * stored and lets the API delete it when it is replaced or its owner is deleted); left out it is a temporary upload.
    */
-  image: (file: File, folder?: 'events' | 'organizations' | 'platform' | 'tickets' | 'users') => {
+  image: (file: File, folder?: 'events' | 'organizations' | 'platform' | 'tickets' | 'users' | 'venues') => {
     const form = new FormData();
     form.append('file', file);
     if (folder) form.append('folder', folder);
@@ -405,6 +408,9 @@ export const analyticsApi = {
   /** Owner / organizer of the event's organization, or an admin. */
   eventSalesPatterns: (eventId: UUID) => api<EventSalesPatterns>(`/events/${eventId}/analytics/sales-patterns`),
   /** Owner / organizer of the event's organization, or an admin. Days from..to (default: event creation to today) in the event's time zone. */
+  /** Owner / organizer with ANALYTICS, or an admin. Share counters per day; from / to are dates (default: when counting began to today). */
+  eventShareTimeline: (eventId: UUID, q: { from?: string; to?: string } = {}) =>
+    api<ShareTimeline>(`/events/${eventId}/analytics/share-timeline`, { query: { ...q } }),
   eventFunnel: (eventId: UUID, q: { from?: string; to?: string } = {}) =>
     api<EventFunnel>(`/events/${eventId}/analytics/funnel`, { query: { ...q } }),
   /** Admin only. Dates are UTC days (YYYY-MM-DD); the period is at most 366 days. */
@@ -524,7 +530,33 @@ export const ticketTypeApi = {
 
 export const venueApi = {
   listForOrg: (orgId: UUID) => api<Venue[]>(`/organizations/${orgId}/venues`),
+  get: (venueId: UUID) => api<Venue>(`/venues/${venueId}`),
+  /** Members of the organization, or an admin. An empty plan (version 0) when none was saved yet. */
+  layout: (venueId: UUID) => api<VenueLayout>(`/venues/${venueId}/layout`),
+  /** Owner, or an organizer holding EVENTS. Replaces the whole design; the answer has the version one higher. */
+  saveLayout: (venueId: UUID, body: VenueLayout) => api<VenueLayout>(`/venues/${venueId}/layout`, { method: 'PUT', body }),
+  /** Owner or organizer of the organization. Address and coordinates are optional. */
+  create: (orgId: UUID, body: VenueInput) => api<Venue>(`/organizations/${orgId}/venues`, { method: 'POST', body }),
+  /** Owner or organizer of the owning organization. Only the fields sent change. */
+  update: (venueId: UUID, body: Partial<VenueInput>) => api<Venue>(`/venues/${venueId}`, { method: 'PATCH', body }),
 };
+
+export interface VenueInput {
+  name: string;
+  /** The complete street address. */
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  /** On an update, null clears one of these; left out leaves it as it is. */
+  venueType?: VenueType | null;
+  country?: string | null;
+  province?: string | null;
+  city?: string | null;
+  description?: string | null;
+  maxCapacity?: number | null;
+  /** A URL from uploadApi.image(file, 'venues'). */
+  coverImageUrl?: string | null;
+}
 
 export const cartApi = {
   create: () => api<Cart>('/carts', { method: 'POST' }),

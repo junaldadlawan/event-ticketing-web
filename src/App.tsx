@@ -3,6 +3,9 @@ import { Layout } from './components/Layout';
 import { RequireAuth } from './components/RequireAuth';
 import { ApplyOrganizerPage } from './pages/ApplyOrganizerPage';
 import { ContactPage } from './pages/ContactPage';
+import { VenuesPage } from './pages/organizer/VenuesPage';
+import { VenueLayoutPage } from './pages/organizer/VenueLayoutPage';
+import { EventReportPage } from './pages/organizer/EventReportPage';
 import { ShareRedirectPage } from './pages/ShareRedirectPage';
 import { PostsPage } from './pages/PostsPage';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
@@ -74,6 +77,8 @@ export default function App() {
         <Route path="admin/scanner" element={<RequireAuth><AdminScannerPage /></RequireAuth>} />
         <Route path="manage/scanner" element={<RequireAuth><ScannerPage /></RequireAuth>} />
         <Route path="manage" element={<RequireAuth><ManageEventsPage /></RequireAuth>} />
+        <Route path="manage/venues" element={<RequireAuth><VenuesPage /></RequireAuth>} />
+        <Route path="manage/venues/:venueId/layout" element={<RequireAuth><VenueLayoutPage /></RequireAuth>} />
         <Route path="manage/team" element={<RequireAuth><TeamPage /></RequireAuth>} />
         <Route path="manage/finance" element={<RequireAuth><ManageFinancePage /></RequireAuth>} />
         <Route path="manage/settings" element={<RequireAuth><ManageSettingsPage /></RequireAuth>} />
@@ -83,6 +88,7 @@ export default function App() {
           path="manage/events/:eventId"
           element={<RequireAuth><ManageEventPage /></RequireAuth>}
         />
+        <Route path="manage/events/:eventId/report" element={<RequireAuth><EventReportPage /></RequireAuth>} />
         <Route path="manage/events/:eventId/edit" element={<RequireAuth><ManageEventPage /></RequireAuth>} />
         <Route
           path="manage/events/:eventId/ticket-design"

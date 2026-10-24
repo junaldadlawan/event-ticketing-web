@@ -99,6 +99,11 @@ export function Layout() {
     // Going to the customer view leaves any management page: ask about unsaved edits first.
     if (next === 'customer' && /^\/(manage|admin)(\/|$)/.test(pathname) && !(await confirmLeave())) return;
     setMode(next);
+    // Each view starts at its own home, so a page of the other view is not left on screen under the new menu:
+    // management starts at Events (/manage); the customer view shows the public page of the event you were managing, or Home.
+    const managed = pathname.match(/^\/manage\/events\/([^/]+)$/);
+    if (next === 'manage') navigate('/manage');
+    else navigate(managed ? `/events/${managed[1]}` : '/');
   }
 
   async function handleLogout() {
@@ -190,10 +195,11 @@ export function Layout() {
       {user && !hideManagement && (
         <aside className="sidebar">
               <nav className="sidebar-nav" aria-label="Organizer">
-                {/* Team and Settings live under /manage too, so Event Management is not highlighted there */}
-                <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/finance', '/manage/scanner'].includes(pathname) && !pathname.startsWith('/manage/settings') ? 'active' : '')}>
+                {/* Team and Settings live under /manage too, so Events is not highlighted there */}
+                <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/finance', '/manage/scanner'].includes(pathname) && !pathname.startsWith('/manage/settings') && !pathname.startsWith('/manage/venues') ? 'active' : '')}>
                   Events
                 </NavLink>
+                {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/venues">Venues</NavLink>}
                 {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/team">Team &amp; access</NavLink>}
                 {!isAdminRole(user.role) && canFinance && <NavLink to="/manage/finance">Finance</NavLink>}
                 {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/scanner">Check-in</NavLink>}
@@ -236,48 +242,51 @@ export function Layout() {
           ? "You'll see the app the way buyers do, without the Manage and Posts tabs. Switch back any time."
           : 'The Manage and Posts tabs come back, along with the Manage buttons on your events.'}
       </ConfirmDialog>
-      <main className={`container main${pathname === '/' || pathname === '/events' || /^\/(events|manage\/events)\/[^/]+$/.test(pathname) ? ' container-wide' : ''}`} ref={mainRef}>
+      <main className={`container main${pathname === '/' || pathname === '/events' || /^\/(events|manage\/events)\/[^/]+$/.test(pathname) || pathname === '/manage' ? ' container-wide' : ''}${hideManagement ? '' : ' manage-view'}`} ref={mainRef}>
         <BackButton />
         <Outlet />
       </main>
-      <footer className="footer">
-        <div className="container footer-inner">
-          <span>© {new Date().getFullYear()} eventKo</span>
-          <nav className="footer-links" aria-label="Footer">
-            {/* Same as the header: no customer links in the management view. */}
-            {!orgMemberView && <Link to="/events">Events</Link>}
-            {(!user || hideManagement) && <Link to="/apply">Host an event</Link>}
-            {user ? (
-              <>
-                {hideManagement && <Link to="/orders">Orders</Link>}
-                {!hideManagement && <Link to="/manage">Events</Link>}
-                <Link to="/profile">Profile</Link>
-              </>
-            ) : (
-              <>
-                <a
-                  href="/login"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    openAuth('login');
-                  }}
-                >
-                  Log in
-                </a>
-                <a
-                  href="/register"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    openAuth('register');
-                  }}
-                >
-                  Sign up
-                </a>
-              </>
-            )}
-          </nav>
-        </div>
-      </footer>
+      {/* The footer is the customer view's; the management view has none. */}
+      {hideManagement && (
+        <footer className="footer">
+          <div className="container footer-inner">
+            <span>© {new Date().getFullYear()} eventKo</span>
+            <nav className="footer-links" aria-label="Footer">
+              {/* Same as the header: no customer links in the management view. */}
+              {!orgMemberView && <Link to="/events">Events</Link>}
+              {(!user || hideManagement) && <Link to="/apply">Host an event</Link>}
+              {user ? (
+                <>
+                  {hideManagement && <Link to="/orders">Orders</Link>}
+                  {!hideManagement && <Link to="/manage">Events</Link>}
+                  <Link to="/profile">Profile</Link>
+                </>
+              ) : (
+                <>
+                  <a
+                    href="/login"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      openAuth('login');
+                    }}
+                  >
+                    Log in
+                  </a>
+                  <a
+                    href="/register"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      openAuth('register');
+                    }}
+                  >
+                    Sign up
+                  </a>
+                </>
+              )}
+            </nav>
+          </div>
+        </footer>
+      )}
       </div>
       </div>
     </div>

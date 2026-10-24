@@ -300,8 +300,61 @@ export interface VenueSnapshot {
   longitude?: number;
 }
 
+export type VenueType = 'THEATER' | 'ARENA' | 'STADIUM' | 'CONCERT_HALL' | 'CONFERENCE_CENTER' | 'CLUB_BAR' | 'RESTAURANT' | 'CHURCH' | 'OUTDOOR' | 'SCHOOL' | 'OTHER' | 'VIRTUAL';
+
 export interface Venue extends VenueSnapshot {
   organizationId: UUID;
+  /** All of these are null for a venue added before they existed. */
+  venueType?: VenueType | null;
+  /** ISO 3166-1 alpha-2 code, upper-case. */
+  country?: string | null;
+  province?: string | null;
+  city?: string | null;
+  description?: string | null;
+  maxCapacity?: number | null;
+  coverImageUrl?: string | null;
+}
+
+/** A venue's seat layout: sections of rows of seats, and shapes (stage, labels, walls), in the plan's own units. */
+export type SeatType = 'SEAT' | 'WHEELCHAIR' | 'BLOCKED';
+export interface LayoutSeat {
+  number: string;
+  x: number;
+  y: number;
+  type?: SeatType;
+}
+export interface LayoutRow {
+  label: string;
+  offset?: number;
+  seats: LayoutSeat[];
+}
+export interface LayoutSection {
+  id: UUID;
+  name: string;
+  kind: 'VIP' | 'STANDARD';
+  color: string;
+  x: number;
+  y: number;
+  rotation?: number;
+  rows: LayoutRow[];
+}
+export interface LayoutShape {
+  type: 'STAGE' | 'LABEL' | 'WALL';
+  text?: string | null;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+}
+export interface VenueLayout {
+  venueId?: UUID;
+  /** 0 = nothing saved yet; one more with every save. */
+  version?: number;
+  width: number;
+  height: number;
+  sections: LayoutSection[];
+  shapes?: LayoutShape[];
 }
 
 export interface Event {
@@ -707,6 +760,34 @@ export interface EventAnalytics {
   /** "Buy now" clicks by visitors who came through the shared link or the QR code. */
   shareLinkBuys?: number;
   shareQrBuys?: number;
+}
+
+/** The share counters per day (the event's own calendar days), every day of the range with zeros included. */
+export interface ShareTimeline {
+  timezone: string;
+  /** The first day with any count; null when nothing was counted yet. Earlier days are zeros. */
+  trackingSince: string | null;
+  days: {
+    day: string;
+    shareButton: number;
+    copyLink: number;
+    qrGenerate: number;
+    linkOpen: number;
+    qrScan: number;
+    linkBuy: number;
+    qrBuy: number;
+  }[];
+  /** When the API has hour-of-day history: 24 rows (hour 0 to 23, event time zone) summed over the range. */
+  byHour?: {
+    hour: number;
+    shareButton: number;
+    copyLink: number;
+    qrGenerate: number;
+    linkOpen: number;
+    qrScan: number;
+    linkBuy: number;
+    qrBuy: number;
+  }[];
 }
 
 /** Buyers by age group (age at their first order). A group of 1 to 4 buyers is hidden: buyers and tickets null. */

@@ -100,7 +100,7 @@ export function ManageEventsPage() {
       <SuspendedOrgNotice organizationIds={(data?.content ?? []).map((e) => e.organizationId)} />
       <section className="hero">
         <PageHeader
-          title="Manage events"
+          title="Events"
           lede={orgNames.size > 0 ? [...orgNames.values()].join(' · ') : undefined}
           actions={
             <>
@@ -163,7 +163,7 @@ export function ManageEventsPage() {
         data && (
           <>
             <ResultsBar count={data.totalElements} view={view} onViewChange={setView} onRefresh={reload} refreshing={loading} />
-            <div>
+            <div className="manage-list">
             {ongoing.length > 0 && (
               <>
                 <h2>Happening now</h2>

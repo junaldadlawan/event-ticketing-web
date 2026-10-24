@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 export function Popover({
   label,
   icon,
+  text,
   disabled,
   pressed,
   floating = false,
@@ -13,6 +14,8 @@ export function Popover({
 }: {
   label: string;
   icon: ReactNode;
+  /** A short visible name beside the icon, so the button says what it does without hovering. */
+  text?: string;
   /** Shrink the panel to its content (a short row of buttons) instead of the usual menu width. */
   compact?: boolean;
   disabled?: boolean;
@@ -74,7 +77,7 @@ export function Popover({
       <button
         ref={button}
         type="button"
-        className={`icon-button${pressed !== undefined ? ' toggle-button' : ''}`}
+        className={`icon-button${pressed !== undefined ? ' toggle-button' : ''}${text ? ' has-text' : ''}`}
         title={label}
         aria-label={label}
         aria-expanded={open}
@@ -83,6 +86,7 @@ export function Popover({
         onClick={toggle}
       >
         {icon}
+        {text && <span>{text}</span>}
       </button>
       {open && (
         <div
