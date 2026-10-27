@@ -5,6 +5,7 @@ import type { OptionalNotificationType } from '../api/types';
 import { ProfileTabs } from '../components/ProfileTabs';
 import { ErrorBox, PageHeader } from '../components/ui';
 import { useAsync } from '../utils/useAsync';
+import { Checkbox } from '../components/fields/Checkbox';
 
 const NOTIFICATION_OPTIONS: { type: OptionalNotificationType; label: string; hint: string }[] = [
   { type: 'EVENT_REMINDER', label: 'Event reminders', hint: 'A day before your event' },
@@ -42,8 +43,7 @@ export function NotificationsPage() {
         {prefs.data &&
           NOTIFICATION_OPTIONS.map((o) => (
             <label key={o.type} className="check-row">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={prefs.data?.preferences[o.type] ?? true}
                 disabled={busy !== null}
                 onChange={(e) => void toggle(o.type, e.target.checked)}

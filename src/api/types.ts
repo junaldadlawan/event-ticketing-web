@@ -240,6 +240,10 @@ export interface Organization {
   revisionRequested?: boolean;
   revisionMessage?: string | null;
   revisionRequestedAt?: string | null;
+  /** ISO 3166-1 alpha-2; one of the countries the admin enabled. Changed through a change request. */
+  country?: string;
+  /** The country's currency when the organization was approved (null before); it never changes afterwards and ticket prices must use it. */
+  currency?: string | null;
 }
 
 /** The organization details a change request can carry (any subset; an empty string clears a detail). */
@@ -249,6 +253,8 @@ export interface OrganizationUpdate {
   contactPhone?: string;
   address?: string;
   description?: string;
+  /** An enabled country (see usePlatformRegions); the currency stays the one fixed at approval. */
+  country?: string;
   /** Only when the applicant edits their own pending application. */
   documents?: OrganizationDocument[];
 }
@@ -312,7 +318,6 @@ export interface Venue extends VenueSnapshot {
   city?: string | null;
   description?: string | null;
   maxCapacity?: number | null;
-  coverImageUrl?: string | null;
 }
 
 /** A venue's seat layout: sections of rows of seats, and shapes (stage, labels, walls), in the plan's own units. */
@@ -390,6 +395,29 @@ export interface PresetLayoutRequest extends SeatLayoutRequest {
   description?: string | null;
   /** Null or left out: true on create, unchanged on replace. */
   active?: boolean | null;
+}
+
+/** GET /platform/regions: what the admin enabled. Every country and currency list is built from it. */
+export interface RegionCurrency {
+  code: string;
+  name: string;
+  symbol: string;
+  minorUnits: number;
+  /** Units of this currency per 1 USD; null until the exchange-rate feed has given one. */
+  usdRate: number | null;
+  rateUpdatedAt: string | null;
+  /** The last refresh failed or had no rate: usdRate is the last known one. */
+  rateStale: boolean;
+}
+export interface RegionCountry {
+  code: string;
+  name: string;
+  currencyCode: string;
+}
+export interface PlatformRegions {
+  baseCurrency: string;
+  currencies: RegionCurrency[];
+  countries: RegionCountry[];
 }
 
 export interface Event {

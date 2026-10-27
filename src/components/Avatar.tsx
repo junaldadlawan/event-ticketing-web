@@ -9,7 +9,7 @@ export function Avatar({ src, name, size = 32 }: { src?: string | null; name: st
     .map((w) => w[0]!.toUpperCase())
     .join('');
   return (
-    <span className="avatar" style={{ width: size, height: size, fontSize: size * 0.4 }} aria-hidden="true">
+    <span className="avatar" style={{ width: size, height: size, fontSize: Math.max(14, size * 0.4) }} aria-hidden="true">
       {src ? <img src={assetUrl(src)} alt="" /> : initials}
     </span>
   );

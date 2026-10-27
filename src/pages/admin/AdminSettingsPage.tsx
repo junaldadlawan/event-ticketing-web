@@ -11,15 +11,17 @@ import { LogsButton } from '../../components/LogsButton';
 import { formatMoney, minutesText } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
+import { RegionsSettings } from './RegionsSettings';
+import { usePlatformRegions } from '../../utils/usePlatformRegions';
 import { GATEWAY_FEE_SAVED } from '../../utils/useGatewayFeeAlert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 const DEFAULT_CURRENCY = 'PHP';
-const CURRENCIES = ['PHP', 'USD', 'EUR', 'GBP', 'SGD', 'JPY', 'AUD'];
 
-/** A fixed amount's currency: pick from the list (a currency already saved is kept even if it is not on the list). */
+/** A fixed amount's currency: pick from the currencies the admin enabled (a currency already saved is kept even if it was removed since). */
 function CurrencySelect({ value, onChange }: { value: string; onChange: (currency: string) => void }) {
-  const list = CURRENCIES.includes(value) ? CURRENCIES : [value, ...CURRENCIES];
+  const enabled = usePlatformRegions().regions?.currencies.map((c) => c.code) ?? [DEFAULT_CURRENCY];
+  const list = enabled.includes(value) ? enabled : [value, ...enabled];
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Currency">
       {list.map((c) => (
@@ -64,6 +66,7 @@ const SECTIONS: { key: string; label: string; panel?: () => ReactNode }[] = [
   { key: 'organizations', label: 'Organizations' },
   { key: 'users', label: 'Users' },
   { key: 'finance', label: 'Finance & Payouts', panel: () => <FinanceSettings /> },
+  { key: 'regions', label: 'Countries & currencies', panel: () => <RegionsSettings /> },
 ];
 
 /** Admin tab: settings, with a vertical list on the left (one entry per admin tab) and that tab's settings on the right. */

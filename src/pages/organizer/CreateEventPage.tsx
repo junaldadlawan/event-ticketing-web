@@ -22,6 +22,7 @@ import { TextAreaField, TextField } from '../../components/fields/TextField';
 import { isEventOver } from '../../utils/eventState';
 import { useOrgNames } from '../../utils/useOrgNames';
 import { formatDateTime, minutesText } from '../../utils/format';
+import { Checkbox } from '../../components/fields/Checkbox';
 
 /** 0 to 24: the API takes a gate time of at most 24 hours (1440 minutes) before the start. */
 const GATE_HOURS = Array.from({ length: 25 }, (_, i) => String(i));
@@ -349,8 +350,7 @@ function EventForm({
         {!locked && (
           // Not a <label>: only the box itself toggles it, not the whole row.
           <div className="same-day">
-            <input
-              type="checkbox"
+            <Checkbox
               aria-label="Same-day event"
               checked={sameDay}
               onChange={(e) => {

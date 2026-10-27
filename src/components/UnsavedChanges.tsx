@@ -138,6 +138,8 @@ function DiscardDialog({ details, onContinue, onDiscard }: { details: UnsavedIte
       aria-labelledby="discard-title"
       aria-describedby="discard-text"
       onCancel={(e) => {
+        // A file picker inside the window sends its own "cancel" up to here: only the window's own Escape counts.
+        if (e.target !== e.currentTarget) return;
         e.preventDefault(); // Escape = keep editing
         onContinue();
       }}

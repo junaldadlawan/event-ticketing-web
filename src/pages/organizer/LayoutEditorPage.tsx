@@ -1,22 +1,25 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { QuantityField } from '../../components/fields/QuantityField';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
-import { layoutApi, presetApi } from '../../api/endpoints';
+import { layoutApi, organizationApi, presetApi } from '../../api/endpoints';
 import type { LayoutSection, LayoutShape, PresetLayoutRequest, SeatLayoutSummary, SeatType, UUID, VenueLayout } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { isAdmin } from '../../auth/roles';
 import { useHasPermission } from '../../auth/useCanManage';
 import { CheckIcon, GridLinesIcon, MagnetIcon, PlusIcon, RedoIcon, SaveIcon, SpinnerIcon, UndoIcon, WarningIcon } from '../../components/DesignerIcons';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { TextField } from '../../components/fields/TextField';
+import { useUnsavedChanges } from '../../components/UnsavedChanges';
+import { CopyPresetButton } from '../../components/CopyPresetButton';
+import { SelectField, TextField } from '../../components/fields/TextField';
 import { FormDialog } from '../../components/FormDialog';
 import { Popover } from '../../components/Popover';
 import { ErrorBox, Spinner } from '../../components/ui';
 import { useAsync } from '../../utils/useAsync';
 import { buildRows, DEFAULT_PARAMS, layoutIssues, newId, paramsOf, SEAT_R, seatCount, sectionBounds, sectionBox, shapeBounds, worldPoint } from '../../utils/venueLayout';
 import type { Rect, SectionParams } from '../../utils/venueLayout';
+import { Checkbox } from '../../components/fields/Checkbox';
 
 type Sel = { t: 'section'; id: string } | { t: 'shape'; i: number } | null;
 type Brush = 'move' | 'hand' | SeatType;
@@ -31,7 +34,14 @@ export function LayoutEditorPage() {
   const { layoutId } = useParams();
   const [search] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  // "Copy to my layouts" opens the copy with the preset's name. Read it once, then drop it from the history entry, so a reload is quiet.
+  const [copiedFrom] = useState(() => (location.state as { copiedFrom?: string } | null)?.copiedFrom ?? null);
+  useEffect(() => {
+    if (copiedFrom) navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { data, error, loading } = useAsync(() => (layoutId ? layoutApi.get(layoutId) : Promise.resolve(null)), [layoutId]);
   // A new layout names its organization in the address (?org=); a saved one knows its own.
   const orgId = data?.organizationId ?? search.get('org') ?? '';
@@ -45,6 +55,7 @@ export function LayoutEditorPage() {
       name={data?.name ?? ''}
       orgId={orgId}
       layoutId={layoutId}
+      copiedFrom={copiedFrom}
       // Admins can read a layout but not change it.
       canEdit={canEvents && !isAdmin(user?.role)}
       save={(body) => (layoutId ? layoutApi.replace(layoutId, body) : layoutApi.create(orgId, body))}
@@ -53,8 +64,8 @@ export function LayoutEditorPage() {
   );
 }
 
-/** An admin preset: a ready-made layout organizers can copy into their organization. */
-export function PresetEditorPage() {
+/** An admin preset: admins edit it; organizers (`forOrganizer`) look at it and copy it into their organization. */
+export function PresetEditorPage({ forOrganizer = false }: { forOrganizer?: boolean }) {
   const { presetId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -67,7 +78,8 @@ export function PresetEditorPage() {
       initial={data ?? BLANK}
       name={data?.name ?? ''}
       preset={{ description: data?.description ?? '', active: data?.active ?? true }}
-      canEdit={isAdmin(user?.role)}
+      canEdit={isAdmin(user?.role) && !forOrganizer}
+      presetCopy={forOrganizer && presetId ? presetId : undefined}
       save={(body) => (presetId ? presetApi.replace(presetId, body) : presetApi.create(body))}
       onSaved={(saved) => !presetId && navigate(`/admin/layout-presets/${saved.id}`, { replace: true })}
     />
@@ -80,7 +92,9 @@ function Editor({
   preset,
   orgId,
   layoutId,
+  copiedFrom,
   canEdit,
+  presetCopy,
   save: send,
   onSaved,
 }: {
@@ -91,7 +105,11 @@ function Editor({
   /** Only an organization layout has these: the layouts of the same organization can be copied from. */
   orgId?: UUID;
   layoutId?: UUID;
+  /** Set when this layout was just copied from an admin preset (that preset's name). */
+  copiedFrom?: string | null;
   canEdit: boolean;
+  /** An organizer looking at a preset: the preset to offer "Copy to my layouts" for. */
+  presetCopy?: UUID;
   save: (body: PresetLayoutRequest) => Promise<VenueLayout & { id: UUID }>;
   onSaved: (saved: VenueLayout & { id: UUID }) => void;
 }) {
@@ -113,7 +131,7 @@ function Editor({
   // A box being dragged over empty plan to select what it touches.
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const marq = useRef<{ x0: number; y0: number; x1: number; y1: number; add: boolean } | null>(null);
-  const [brush, setBrush] = useState<Brush>('move');
+  const [brush, setBrush] = useState<Brush>(canEdit ? 'move' : 'hand');
   const [snap, setSnap] = useState(true);
   // A picture of the plan as it is now (without the grid, selection or turn dots), shown in a window.
   const [preview, setPreview] = useState<string | null>(null);
@@ -181,7 +199,8 @@ function Editor({
     setDirty(true);
   }
 
-  // Leaving with unsaved work asks first.
+  // Leaving this page with unsaved work asks first (Back, the sidebar, Log out); closing the tab is handled just below.
+  useUnsavedChanges(canEdit && dirty, [{ label: name.trim() || (preset ? 'This preset' : 'This layout'), severity: 'major', note: 'Plan and details not saved yet' }]);
   useEffect(() => {
     if (!dirty) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -941,6 +960,11 @@ function Editor({
   return (
     <div className="designer-page layout-editor">
       <ErrorBox message={error} />
+      {copiedFrom && (
+        <p className="alert alert-success" role="status">
+          <strong>Copied from the preset “{copiedFrom}”.</strong> This is your own copy, already in your layouts. Change the plan and the name as you like, then press Save to keep your changes. The preset itself stays as it is.
+        </p>
+      )}
       {!canEdit && <p className="alert alert-warning">You can look at this layout, but only {preset ? 'an admin' : "the organization's owner or an organizer with Events access"} can change it.</p>}
       <div className="le-meta">
         <TextField
@@ -969,9 +993,10 @@ function Editor({
                 setJustSaved(false);
               }}
             />
+            {/* An organizer only ever sees active presets, so the switch is for admins. */}
+            {!presetCopy && (
             <label className="le-active">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={active}
                 disabled={!canEdit}
                 onChange={(e) => {
@@ -982,8 +1007,10 @@ function Editor({
               />
               Active (organizers can copy it)
             </label>
+            )}
           </>
         )}
+        {presetCopy && <CopyPresetBar presetId={presetCopy} presetName={name} />}
       </div>
 
       <div className="designer-toolbar">
@@ -1151,7 +1178,10 @@ function Editor({
                         ['WHEELCHAIR', 'Wheelchair: mark wheelchair spaces'],
                         ['BLOCKED', 'Blocked: seats that are not for sale'],
                       ] as [Brush, string][]
-                    ).map(([v, label]) => (
+                    )
+                      // Looking only: just the Hand, since nothing can be changed.
+                      .filter(([v]) => canEdit || v === 'hand')
+                      .map(([v, label]) => (
                       <button key={v} type="button" role="radio" aria-checked={brush === v} aria-label={label} title={label} className={brush === v ? 'is-on' : ''} onClick={() => setBrush(v)}>
                         <BrushIcon kind={v} />
                       </button>
@@ -1259,7 +1289,7 @@ function Editor({
                         {sec.rows.map((r) => (
                           <g key={r.label}>
                             {r.seats[0] && (
-                              <text x={r.seats[0].x + (r.offset ?? 0) - SEAT_R - 8} y={r.seats[0].y} textAnchor="end" dominantBaseline="central" fontSize={11} fill="#6b7280" pointerEvents="none">
+                              <text x={r.seats[0].x + (r.offset ?? 0) - SEAT_R - 8} y={r.seats[0].y} textAnchor="end" dominantBaseline="central" fontSize={14} fill="#6b7280" pointerEvents="none">
                                 {r.label}
                               </text>
                             )}
@@ -1400,6 +1430,29 @@ function TurnDots({ box, zoom, pivot, onDown }: { box: Rect; zoom: number; pivot
         );
       })}
     </>
+  );
+}
+
+/** "Copy to my layouts" while looking at a preset: asks which organization only when you work for several. */
+function CopyPresetBar({ presetId, presetName }: { presetId: UUID; presetName: string }) {
+  const orgs = useAsync(async () => (await organizationApi.mine()).filter((o) => o.status === 'APPROVED'), []).data ?? [];
+  const [chosen, setChosen] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const orgId = chosen || orgs[0]?.id || '';
+  return (
+    <div className="le-copy-preset">
+      {orgs.length > 1 && (
+        <SelectField label="Copy into" value={orgId} onChange={(e) => setChosen(e.target.value)}>
+          {orgs.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
+            </option>
+          ))}
+        </SelectField>
+      )}
+      <CopyPresetButton presetId={presetId} presetName={presetName} orgId={orgId} size="md" variant="cta" onError={setErr} />
+      <ErrorBox message={err} />
+    </div>
   );
 }
 

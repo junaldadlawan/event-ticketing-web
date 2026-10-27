@@ -89,6 +89,7 @@ import type {
   User,
   UUID,
   Venue,
+  PlatformRegions,
   PresetLayout,
   PresetLayoutRequest,
   PresetLayoutSummary,
@@ -546,6 +547,25 @@ export const venueApi = {
   update: (venueId: UUID, body: Partial<VenueInput>) => api<Venue>(`/venues/${venueId}`, { method: 'PATCH', body }),
 };
 
+/** Public: the countries and currencies the admin enabled. */
+export const platformApi = {
+  /** `fresh` skips the browser's copy (the API lets it keep one for five minutes): used right after the admin changed something. */
+  regions: (fresh = false) => api<PlatformRegions>('/platform/regions', fresh ? { query: { t: Date.now() } } : {}),
+};
+
+/** Admin only: which currencies and countries the platform uses. USD is the reference; rates come from the API's exchange-rate feed. */
+export const regionAdminApi = {
+  /** Enables a currency and fetches its USD rate at once. 409/400 when the code is unknown or already on. */
+  enableCurrency: (code: string) => api<unknown>('/admin/currencies', { method: 'POST', body: { code } }),
+  /** 409 for USD, or while a country, an organization or an event that has not ended uses it. */
+  disableCurrency: (code: string) => api<void>(`/admin/currencies/${code}`, { method: 'DELETE' }),
+  refreshRates: () => api<unknown>('/admin/currencies/refresh', { method: 'POST' }),
+  /** Enables a country, or changes its currency (organizations already approved keep theirs). */
+  putCountry: (code: string, currencyCode: string) => api<unknown>(`/admin/countries/${code}`, { method: 'PUT', body: { currencyCode } }),
+  /** 409 while an organization is in it, or the venue of an upcoming event is. */
+  disableCountry: (code: string) => api<void>(`/admin/countries/${code}`, { method: 'DELETE' }),
+};
+
 /** Seat layouts belong to an organization. Members read; the owner or an organizer holding EVENTS writes (admins are read-only). */
 export const layoutApi = {
   listForOrg: (orgId: UUID) => api<SeatLayoutSummary[]>(`/organizations/${orgId}/layouts`),
@@ -581,8 +601,6 @@ export interface VenueInput {
   city?: string | null;
   description?: string | null;
   maxCapacity?: number | null;
-  /** A URL from uploadApi.image(file, 'venues'). */
-  coverImageUrl?: string | null;
 }
 
 export const cartApi = {

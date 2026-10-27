@@ -19,6 +19,7 @@ import { ErrorBox, PageHeader } from '../components/ui';
 import { formatDateTime, formatMoney, newIdempotencyKey } from '../utils/format';
 import { isDaytime } from '../utils/timeOfDay';
 import { useAsync } from '../utils/useAsync';
+import { Checkbox } from '../components/fields/Checkbox';
 
 interface ItemDetails {
   ticketType: TicketType;
@@ -288,8 +289,7 @@ export function CartPage() {
         <div className="stack">
           <div className="cart-bulk">
             <label className="check-row">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={allPicked}
                 onChange={() => setPicked(allPicked ? new Set() : new Set(cart.items.map((i) => i.id)))}
               />
@@ -313,8 +313,7 @@ export function CartPage() {
                 </span>
                 <div>
                   <label className="cart-pick">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={picked.has(item.id)}
                       onChange={() => togglePick(item.id)}
                       aria-label={`Select ${d ? d.ticketType.name : 'ticket'}`}
@@ -528,8 +527,7 @@ export function CartPage() {
                     )}
                     {chosen === 'new' && (
                       <label className="check-row" title={CARD_SAVING_AVAILABLE ? undefined : 'Not available yet'}>
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={CARD_SAVING_AVAILABLE && saveCard}
                           disabled={!CARD_SAVING_AVAILABLE}
                           onChange={(e) => setSaveCard(e.target.checked)}

@@ -20,6 +20,7 @@ import { LogsButton } from '../../components/LogsButton';
 import { useAuth } from '../../auth/AuthContext';
 import { isAdmin } from '../../auth/roles';
 import { useHasPermission, usePosition } from '../../auth/useCanManage';
+import { Checkbox } from '../../components/fields/Checkbox';
 
 const STATUSES: EventStatus[] = [
   'DRAFT',
@@ -118,7 +119,7 @@ export function ManageEventsPage() {
       <section className="hero">
         <PageHeader
           title="Events"
-          lede={platformLogs ? (org ? orgNames.get(org) : "Every organization's events") : orgNames.size > 0 ? [...orgNames.values()].join(' · ') : undefined}
+          lede={platformLogs ? (org ? orgNames.get(org) : "Every organization's events") : undefined}
           actions={
             <>
               {!scanner && <LogsButton area="EVENTS" title="Event Management" organizations={platformLogs ? undefined : 'mine'} />}
@@ -201,7 +202,7 @@ export function ManageEventsPage() {
         data && (
           <>
             <label className="show-tickets-toggle">
-              <input type="checkbox" checked={showTickets} onChange={(e) => update({ tickets: e.target.checked ? '1' : '' })} />
+              <Checkbox checked={showTickets} onChange={(e) => update({ tickets: e.target.checked ? '1' : '' })} />
               Show each event's tickets and their status
             </label>
             <ResultsBar count={suspension === 'no' ? shown.length : data.totalElements} view={view} onViewChange={setView} onRefresh={reload} refreshing={loading} />

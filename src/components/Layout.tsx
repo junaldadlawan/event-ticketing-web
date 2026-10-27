@@ -1,4 +1,5 @@
 import { CustomerNotificationBell } from './CustomerNotificationBell';
+import { HeaderOrgName } from './HeaderOrgName';
 import { NotificationBell } from './NotificationBell';
 import { isAdmin as isAdminRole } from '../auth/roles';
 import { useEffect, useRef, useState } from 'react';
@@ -130,6 +131,7 @@ export function Layout() {
               </span>
             )}
           </div>
+          {orgMemberView && <HeaderOrgName />}
           {/* Organization members (owner, organizer) in their management view work from Events, Team and Settings. */}
           {!orgMemberView && hideManagement && (
             <div className="topbar-tabs">
@@ -199,8 +201,7 @@ export function Layout() {
                 <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/finance', '/manage/scanner'].includes(pathname) && !pathname.startsWith('/manage/settings') && !pathname.startsWith('/manage/venues') && !pathname.startsWith('/manage/layouts') ? 'active' : '')}>
                   Events
                 </NavLink>
-                {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/venues">Venues</NavLink>}
-                {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/layouts">Seat layouts</NavLink>}
+                {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/venues" className={({ isActive }) => (isActive || pathname.startsWith('/manage/layouts') ? 'active' : '')}>Venues &amp; seat layouts</NavLink>}
                 {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/team">Team &amp; access</NavLink>}
                 {!isAdminRole(user.role) && canFinance && <NavLink to="/manage/finance">Finance</NavLink>}
                 {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/scanner">Check-in</NavLink>}

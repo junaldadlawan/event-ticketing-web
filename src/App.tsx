@@ -82,6 +82,7 @@ export default function App() {
         <Route path="manage/venues" element={<RequireAuth><VenuesPage /></RequireAuth>} />
         <Route path="manage/layouts" element={<RequireAuth><LayoutsPage /></RequireAuth>} />
         <Route path="manage/layouts/new" element={<RequireAuth><LayoutEditorPage /></RequireAuth>} />
+        <Route path="manage/layouts/presets/:presetId" element={<RequireAuth><PresetEditorPage forOrganizer /></RequireAuth>} />
         <Route path="manage/layouts/:layoutId" element={<RequireAuth><LayoutEditorPage /></RequireAuth>} />
         <Route path="admin/layout-presets" element={<RequireAuth><AdminLayoutPresetsPage /></RequireAuth>} />
         <Route path="admin/layout-presets/new" element={<RequireAuth><PresetEditorPage /></RequireAuth>} />

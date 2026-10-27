@@ -10,6 +10,7 @@ import { FormDialog } from './FormDialog';
 import { Empty, ErrorBox, Spinner, SuccessBox } from './ui';
 import { cardBrand, digitsOnly, formatCardNumber, formatExpiry, luhnOk, parseExpiry } from '../utils/card';
 import { useAsync } from '../utils/useAsync';
+import { Checkbox } from './fields/Checkbox';
 
 /** What is shown about a saved card. The full number is never kept. */
 export interface SavedCard {
@@ -292,7 +293,7 @@ function AddCardForm({
         </>
       )}
       <label className="check-row">
-        <input type="checkbox" checked={first || primary} disabled={first} onChange={(e) => setPrimary(e.target.checked)} />
+        <Checkbox checked={first || primary} disabled={first} onChange={(e) => setPrimary(e.target.checked)} />
         Use as the primary card
       </label>
       <ErrorBox message={error} />

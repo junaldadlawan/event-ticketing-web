@@ -1,27 +1,31 @@
 import { useState } from 'react';
-import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
 import { layoutApi, organizationApi, presetApi } from '../../api/endpoints';
 import type { PresetLayoutSummary, SeatLayoutSummary, UUID } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { isAdmin } from '../../auth/roles';
 import { useHasPermission } from '../../auth/useCanManage';
-import { Button, FormActions } from '../../components/Button';
+import { Button } from '../../components/Button';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { CopyPresetButton } from '../../components/CopyPresetButton';
 import { SelectField } from '../../components/fields/TextField';
-import { FormDialog } from '../../components/FormDialog';
 import { LayoutCard } from '../../components/LayoutCard';
 import { RefreshButton } from '../../components/RefreshButton';
+import { VenueTabs } from '../../components/VenueTabs';
+import { Tabs } from '../../components/Tabs';
 import { Empty, ErrorBox, PageHeader, Spinner } from '../../components/ui';
 import { useAsync } from '../../utils/useAsync';
 
 type OrgLayouts = { id: UUID; name: string; layouts: SeatLayoutSummary[] };
+type Tab = 'mine' | 'presets';
 
-/** The seat layouts of the organizations you work for: design one, or copy an admin preset and change it. Events copy their seats from these. */
+/** The seat layouts of the organizations you work for: design one, or open an admin preset and copy it. Events copy their seats from these. */
 export function LayoutsPage() {
-  const canEdit = useHasPermission('EVENTS', 'any') && !isAdmin(useAuth().user?.role);
-  const navigate = useNavigate();
+  const { user } = useAuth();
+  const canEdit = useHasPermission('EVENTS', 'any') && !isAdmin(user?.role);
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = params.get('tab') === 'presets' && canEdit ? 'presets' : 'mine';
   const { data, error, loading, reload } = useAsync(async () => {
     const orgs = (await organizationApi.mine()).filter((o) => o.status === 'APPROVED');
     const groups: OrgLayouts[] = await Promise.all(orgs.map(async (o) => ({ id: o.id, name: o.name, layouts: await layoutApi.listForOrg(o.id) })));
@@ -31,13 +35,12 @@ export function LayoutsPage() {
   }, [canEdit]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<SeatLayoutSummary | null>(null);
-  // "From a preset": which organization it is copied into, and which preset.
-  const [copyInto, setCopyInto] = useState<OrgLayouts | null>(null);
-  const [presetId, setPresetId] = useState('');
-  const [busy, setBusy] = useState(false);
+  // The organization a preset is copied into (only asked when you work for several).
+  const [copyOrg, setCopyOrg] = useState('');
 
   const groups = data?.groups ?? [];
   const presets = (data?.presets ?? []).filter((p) => p.active);
+  const intoOrg = copyOrg || groups[0]?.id || '';
 
   async function confirmDelete() {
     const l = deleting;
@@ -52,30 +55,67 @@ export function LayoutsPage() {
     }
   }
 
-  async function copyPreset(e: FormEvent) {
-    e.preventDefault();
-    if (!copyInto || !presetId) return;
-    setBusy(true);
-    setActionError(null);
-    try {
-      const copy = await layoutApi.fromPreset(copyInto.id, presetId);
-      navigate(`/manage/layouts/${copy.id}`);
-    } catch (ex) {
-      setActionError(errorMessage(ex));
-      setCopyInto(null);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <>
-      <PageHeader title="Seat layouts" lede="Design a seating plan once, then copy its sections into the events that sell reserved seats." />
+      <VenueTabs />
+      <PageHeader
+        title="Venues & seat layouts"
+        lede="Design a seating plan once, then copy its sections into the events that sell reserved seats."
+      />
+      {canEdit && (
+        <Tabs<Tab>
+          label="Seat layouts"
+          value={tab}
+          onChange={(t) => setParams(t === 'presets' ? { tab: 'presets' } : {})}
+          items={[
+            { key: 'mine', label: 'My layouts' },
+            { key: 'presets', label: 'Presets', count: presets.length },
+          ]}
+        />
+      )}
       <ErrorBox message={error ?? actionError} />
       {loading && !data ? (
         <Spinner />
       ) : groups.length === 0 ? (
         <Empty>No approved organization yet, so there are no layouts.</Empty>
+      ) : tab === 'presets' ? (
+        <section className="card">
+          <div className="section-head">
+            <div className="section-title">
+              <h2>Presets</h2>
+              <RefreshButton onClick={reload} busy={loading} label="Reload presets" />
+            </div>
+            {groups.length > 1 && (
+              <SelectField label="Copy into" value={intoOrg} onChange={(e) => setCopyOrg(e.target.value)}>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </SelectField>
+            )}
+          </div>
+          <p className="muted small">Ready-made plans from the admin. Open one to look at it, then copy it to get your own version to change.</p>
+          {presets.length === 0 ? (
+            <Empty>No presets are available yet.</Empty>
+          ) : (
+            <ul className="layout-grid">
+              {presets.map((p) => (
+                <LayoutCard
+                  key={p.id}
+                  id={p.id}
+                  name={p.name}
+                  seatCount={p.seatCount}
+                  note={p.description && <span className="layout-card-about">{p.description}</span>}
+                  to={`/manage/layouts/presets/${p.id}`}
+                  openLabel="View"
+                  load={() => presetApi.get(p.id)}
+                  actions={<CopyPresetButton presetId={p.id} presetName={p.name} orgId={intoOrg} onError={setActionError} />}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
       ) : (
         groups.map((g) => (
           <section key={g.id} className="card">
@@ -86,24 +126,24 @@ export function LayoutsPage() {
               </div>
               {canEdit && (
                 <div className="page-actions">
-                  {presets.length > 0 && (
-                    <Button
-                      onClick={() => {
-                        setPresetId(presets[0]!.id);
-                        setCopyInto(g);
-                      }}
-                    >
-                      From a preset
-                    </Button>
-                  )}
-                  <Button variant="cta" onClick={() => navigate(`/manage/layouts/new?org=${g.id}`)}>
+                  <Link to={`/manage/layouts/new?org=${g.id}`} className="btn btn-cta">
                     New layout
-                  </Button>
+                  </Link>
                 </div>
               )}
             </div>
             {g.layouts.length === 0 ? (
-              <Empty>No layouts yet.</Empty>
+              <Empty>
+                No layouts yet.
+                {canEdit && presets.length > 0 && (
+                  <>
+                    {' '}
+                    <button type="button" className="btn-link" onClick={() => setParams({ tab: 'presets' })}>
+                      Start from a preset
+                    </button>
+                  </>
+                )}
+              </Empty>
             ) : (
               <ul className="layout-grid">
                 {g.layouts.map((l) => (
@@ -129,20 +169,6 @@ export function LayoutsPage() {
           </section>
         ))
       )}
-
-      <FormDialog open={copyInto !== null} title="Start from a preset" onClose={() => setCopyInto(null)}>
-        <form className="form" onSubmit={copyPreset}>
-          <SelectField label="Preset" hint="You get your own copy to change; the preset itself stays as it is." value={presetId} onChange={(e) => setPresetId(e.target.value)}>
-            {presets.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.seatCount} seats)
-              </option>
-            ))}
-          </SelectField>
-          <p className="muted small">{presets.find((p) => p.id === presetId)?.description}</p>
-          <FormActions submitLabel={busy ? 'Copying…' : 'Copy preset'} submitDisabled={busy || !presetId} onCancel={() => setCopyInto(null)} />
-        </form>
-      </FormDialog>
 
       <ConfirmDialog
         open={deleting !== null}

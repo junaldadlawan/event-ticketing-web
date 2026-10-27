@@ -1,13 +1,24 @@
 import type { Money } from '../api/types';
 
+/** Digits after the point for a currency (2 for PHP, 0 for JPY): API amounts are in the smallest unit, so 10 ** digits of them make one. */
+export function minorDigits(currency: string): number {
+  try {
+    return new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2;
+  } catch {
+    return 2;
+  }
+}
+/** 12.5 pesos -> 1250 (what the API takes). */
+export const toMinor = (major: number, currency: string) => Math.round(major * 10 ** minorDigits(currency));
+/** 1250 -> 12.5 pesos. */
+export const toMajor = (minor: number, currency: string) => minor / 10 ** minorDigits(currency);
+
 export function formatMoney(m: Money | null | undefined): string {
   if (!m) return '-';
   try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency: m.currency }).format(
-      m.amount / 100,
-    );
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: m.currency }).format(toMajor(m.amount, m.currency));
   } catch {
-    return `${(m.amount / 100).toFixed(2)} ${m.currency}`;
+    return `${toMajor(m.amount, m.currency).toFixed(2)} ${m.currency}`;
   }
 }
 

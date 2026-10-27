@@ -8,6 +8,6 @@ export const ORG_FIELDS: { key: 'name' | 'contactEmail' | 'contactPhone' | 'addr
 ];
 
 export const orgFieldLabel = (key: string) =>
-  key === 'documents' ? 'Documents' : (ORG_FIELDS.find((f) => f.key === key)?.label ?? key);
+  key === 'documents' ? 'Documents' : key === 'country' ? 'Country' : (ORG_FIELDS.find((f) => f.key === key)?.label ?? key);
 
 export const DOCUMENT_TYPES = ['Business permit', 'Government ID', 'Tax registration', 'Other'];

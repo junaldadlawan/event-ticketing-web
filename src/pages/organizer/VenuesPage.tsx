@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { MapPinPicker } from '../../components/MapPinPicker';
 import type { FormEvent } from 'react';
-import { assetUrl, errorMessage } from '../../api/client';
-import { organizationApi, uploadApi, venueApi } from '../../api/endpoints';
+import { errorMessage } from '../../api/client';
+import { organizationApi, venueApi } from '../../api/endpoints';
 import type { Venue, VenueType } from '../../api/types';
 import { useHasPermission } from '../../auth/useCanManage';
 import { Button, FormActions } from '../../components/Button';
@@ -13,8 +13,10 @@ import { QuantityField } from '../../components/fields/QuantityField';
 import { SelectField, TextAreaField, TextField } from '../../components/fields/TextField';
 import { FormDialog } from '../../components/FormDialog';
 import { RefreshButton } from '../../components/RefreshButton';
+import { VenueTabs } from '../../components/VenueTabs';
 import { Empty, ErrorBox, PageHeader, Spinner } from '../../components/ui';
 import { COUNTRIES } from '../../utils/countries';
+import { usePlatformRegions } from '../../utils/usePlatformRegions';
 import { loadCities, loadProvinces } from '../../utils/places';
 import { useAsync } from '../../utils/useAsync';
 
@@ -30,12 +32,11 @@ type Draft = {
   address: string;
   description: string;
   maxCapacity: string;
-  coverImageUrl: string | null;
   latitude: string;
   longitude: string;
 };
 
-const EMPTY: Draft = { id: null, orgId: '', name: '', venueType: '', country: '', province: '', city: '', address: '', description: '', maxCapacity: '', coverImageUrl: null, latitude: '', longitude: '' };
+const EMPTY: Draft = { id: null, orgId: '', name: '', venueType: '', country: '', province: '', city: '', address: '', description: '', maxCapacity: '', latitude: '', longitude: '' };
 
 const VENUE_TYPES: [VenueType, string][] = [
   ['THEATER', 'Theater'],
@@ -56,6 +57,8 @@ const countryName = (iso?: string | null) => COUNTRIES.find((c) => c.iso === iso
 
 /** The organization's venues: the places its events happen in. Add one, or change a name, an address or a map position. */
 export function VenuesPage() {
+  // A venue can only be in a country the admin enabled.
+  const { regions } = usePlatformRegions();
   const canEdit = useHasPermission('EVENTS', 'any');
   const { data, error, loading, reload } = useAsync(async () => {
     const orgs: Org[] = (await organizationApi.mine()).filter((o) => o.status === 'APPROVED').map(({ id, name }) => ({ id, name }));
@@ -65,7 +68,6 @@ export function VenuesPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [coverBusy, setCoverBusy] = useState(false);
   // The provinces of the chosen country, and the cities of the chosen province (empty: the user types the name instead).
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
@@ -109,29 +111,14 @@ export function VenuesPage() {
     openDraft({ ...EMPTY, orgId: orgs[0]?.id ?? '' });
   }
   function openEdit(v: Venue) {
-    openDraft({ id: v.id, orgId: v.organizationId, name: v.name, venueType: v.venueType ?? '', country: v.country ?? '', province: v.province ?? '', city: v.city ?? '', address: v.address ?? '', description: v.description ?? '', maxCapacity: v.maxCapacity == null ? '' : String(v.maxCapacity), coverImageUrl: v.coverImageUrl ?? null, latitude: v.latitude == null ? '' : String(v.latitude), longitude: v.longitude == null ? '' : String(v.longitude) });
+    openDraft({ id: v.id, orgId: v.organizationId, name: v.name, venueType: v.venueType ?? '', country: v.country ?? '', province: v.province ?? '', city: v.city ?? '', address: v.address ?? '', description: v.description ?? '', maxCapacity: v.maxCapacity == null ? '' : String(v.maxCapacity), latitude: v.latitude == null ? '' : String(v.latitude), longitude: v.longitude == null ? '' : String(v.longitude) });
   }
 
   // The pin on the map is the venue's position; both numbers are set, or neither.
   const lat = draft?.latitude.trim() ?? '';
   const pin = draft && lat !== '' ? { lat: Number(draft.latitude), lng: Number(draft.longitude) } : null;
   const capacity = draft?.maxCapacity.trim() ?? '';
-  const invalid = !draft?.name.trim() || coverBusy;
-
-  async function uploadCover(file: File) {
-    if (!draft) return;
-    if (file.size > 5 * 1024 * 1024) return setFormError(`Over 5 MB, not uploaded: ${file.name}`);
-    setFormError(null);
-    setCoverBusy(true);
-    try {
-      const { url } = await uploadApi.image(file, 'venues');
-      setDraft((d) => (d ? { ...d, coverImageUrl: url } : d));
-    } catch (err) {
-      setFormError(errorMessage(err));
-    } finally {
-      setCoverBusy(false);
-    }
-  }
+  const invalid = !draft?.name.trim();
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -151,7 +138,6 @@ export function VenuesPage() {
         address: draft.address.trim() || (draft.id ? '' : undefined),
         description: text(draft.description),
         maxCapacity: capacity === '' ? blank : Number(capacity),
-        coverImageUrl: draft.coverImageUrl ?? blank,
         ...(pin && { latitude: pin.lat, longitude: pin.lng }),
       };
       if (draft.id) await venueApi.update(draft.id, body);
@@ -167,8 +153,9 @@ export function VenuesPage() {
 
   return (
     <>
+      <VenueTabs />
       <PageHeader
-        title="Venues"
+        title="Venues & seat layouts"
         lede="The places your events happen in. Pick one when you create an event."
         actions={
           <>
@@ -237,8 +224,10 @@ export function VenuesPage() {
               </SelectField>
               <SelectField label="Country" optional value={draft.country} onChange={(e) => setDraft({ ...draft, country: e.target.value, province: '', city: '' })}>
                 <option value="">Choose a country</option>
-                {COUNTRIES.map((c) => (
-                  <option key={c.iso} value={c.iso}>
+                {/* A venue saved in a country that was turned off since keeps it. */}
+                {draft.country && !regions?.countries.some((c) => c.code === draft.country) && <option value={draft.country}>{countryName(draft.country)}</option>}
+                {(regions?.countries ?? []).map((c) => (
+                  <option key={c.code} value={c.code}>
                     {c.name}
                   </option>
                 ))}
@@ -286,35 +275,6 @@ export function VenuesPage() {
               <div className="vf-2">
                 <TextAreaField label="Description" optional maxLength={2000} rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
               </div>
-              <div className="field">
-                <span className="field-label">
-                  Cover image <span className="field-hint">(optional)</span>
-                </span>
-                <div className="venue-cover-field">
-                  {draft.coverImageUrl ? <img className="venue-cover-preview" src={assetUrl(draft.coverImageUrl) ?? draft.coverImageUrl} alt="Venue cover" /> : <div className="venue-cover-empty">{coverBusy ? 'Uploading…' : 'No image'}</div>}
-                  <div className="venue-cover-actions">
-                    <label className="btn btn-sm">
-                      {draft.coverImageUrl ? 'Change' : 'Upload'}
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
-                        hidden
-                        disabled={coverBusy}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = '';
-                          if (file) void uploadCover(file);
-                        }}
-                      />
-                    </label>
-                    {draft.coverImageUrl && (
-                      <button type="button" className="btn btn-sm" onClick={() => setDraft({ ...draft, coverImageUrl: null })}>
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
               </div>
               <div className="field vf-map">
                 <span className="field-label">
@@ -351,7 +311,6 @@ function VenueCard({ venue: v, orgLabel, canEdit, onEdit }: { venue: Venue; orgL
   return (
     <li className="venue-card">
       <div>
-        {v.coverImageUrl && <img className="venue-card-cover" src={assetUrl(v.coverImageUrl) ?? v.coverImageUrl} alt="" />}
         <strong className="venue-name">{v.name}</strong>
         {(typeLabel(v.venueType) || v.maxCapacity != null) && (
           <p className="muted small">{[typeLabel(v.venueType), v.maxCapacity != null ? `Holds ${v.maxCapacity.toLocaleString()}` : null].filter(Boolean).join(' · ')}</p>

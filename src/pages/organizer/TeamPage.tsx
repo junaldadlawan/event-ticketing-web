@@ -14,6 +14,7 @@ import { Empty, ErrorBox, Spinner, SuccessBox, PageHeader } from '../../componen
 import { LogsButton } from '../../components/LogsButton';
 import { formatDateTime, fullName, humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
+import { Checkbox } from '../../components/fields/Checkbox';
 
 const ASSIGNABLE: OrganizationRole[] = ['ORGANIZER', 'CHECK_IN_STAFF'];
 
@@ -47,8 +48,7 @@ function PermissionChecks({
     <div className="team-perms">
       {PERMISSIONS.map((p) => (
         <label key={p.value} className="check-row" title={held.includes(p.value) ? undefined : "You don't have this permission yourself"}>
-          <input
-            type="checkbox"
+          <Checkbox
             checked={value.includes(p.value)}
             disabled={!held.includes(p.value)}
             onChange={() => onChange(toggle(value, p.value))}
@@ -319,7 +319,7 @@ export function TeamPage() {
           )}
           {role === 'CHECK_IN_STAFF' && (
             <label className="check-row" title={held.includes('SCANNER_APP') ? undefined : "You don't have this permission yourself"}>
-              <input type="checkbox" checked={addScanner} disabled={!held.includes('SCANNER_APP')} onChange={(e) => setAddScanner(e.target.checked)} />
+              <Checkbox checked={addScanner} disabled={!held.includes('SCANNER_APP')} onChange={(e) => setAddScanner(e.target.checked)} />
               <span>
                 Can upload the scanner app <span className="muted small">· shared by every organization</span>
               </span>
@@ -353,7 +353,7 @@ export function TeamPage() {
             {ASSIGNABLE.map((r) => (
               <div key={r}>
                 <label className="check-row">
-                  <input type="checkbox" checked={editRoles.includes(r)} onChange={() => setEditRoles((rs) => toggle(rs, r))} />
+                  <Checkbox checked={editRoles.includes(r)} onChange={() => setEditRoles((rs) => toggle(rs, r))} />
                   {humanize(r)}
                 </label>
                 {r === 'ORGANIZER' && editRoles.includes('ORGANIZER') && (
@@ -361,7 +361,7 @@ export function TeamPage() {
                 )}
                 {r === 'CHECK_IN_STAFF' && editRoles.includes('CHECK_IN_STAFF') && !editRoles.includes('ORGANIZER') && (
                   <label className="check-row" title={held.includes('SCANNER_APP') ? undefined : "You don't have this permission yourself"}>
-                    <input type="checkbox" checked={editScanner} disabled={!held.includes('SCANNER_APP')} onChange={(e) => setEditScanner(e.target.checked)} />
+                    <Checkbox checked={editScanner} disabled={!held.includes('SCANNER_APP')} onChange={(e) => setEditScanner(e.target.checked)} />
                     <span>
                       Can upload the scanner app <span className="muted small">· shared by every organization</span>
                     </span>

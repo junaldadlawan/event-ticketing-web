@@ -7,7 +7,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { assetUrl, errorMessage } from '../../api/client';
-import { eventApi, layoutApi, moderationApi, promoApi, ticketSaleSettingsApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
+import { eventApi, layoutApi, moderationApi, organizationApi, promoApi, ticketSaleSettingsApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
 import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKind, TicketTypeUpdateRequest } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DeleteEventDialog } from '../../components/DeleteEventDialog';
@@ -22,7 +22,7 @@ import { EventFormDialog } from './CreateEventPage';
 import { SalesInsights } from '../../components/SalesInsights';
 import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon, TrashIcon } from '../../components/DesignerIcons';
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../components/ui';
-import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso, minutesText } from '../../utils/format';
+import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso, minorDigits, minutesText, toMajor, toMinor } from '../../utils/format';
 import { sortTicketTypes, ticketStatus } from '../../utils/ticketTypes';
 import { useHasPermission, useIsOrgManager, usePosition } from '../../auth/useCanManage';
 import { useNow } from '../../utils/useNow';
@@ -34,6 +34,7 @@ import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { useAsync } from '../../utils/useAsync';
 import { zonedParts, zonedToIso } from '../../utils/zonedTime';
 import { draftDeletesIn, formatDuration, isEventOver } from '../../utils/eventState';
+import { Checkbox } from '../../components/fields/Checkbox';
 
 /** Tooltip on the controls an ended event greys out. */
 const ENDED_TIP = 'This event has ended and can no longer be changed';
@@ -621,9 +622,6 @@ function RowMenu({ label, children }: { label: string; children: (close: () => v
   );
 }
 
-/** Currencies a ticket can be priced in (all with cents, which the price field assumes). PHP first: PayMongo charges PHP. */
-const CURRENCIES = ['PHP', 'USD', 'EUR', 'GBP', 'SGD', 'AUD', 'CAD', 'HKD'].map((code) => ({ code }));
-
 /** The platform's sale timing rules until the admin's settings load (the API's defaults; it checks them anyway). */
 const DEFAULT_SALE_SETTINGS = { salesCloseMinutesBeforeEvent: 60, minSaleDurationMinutes: 60 };
 
@@ -715,7 +713,7 @@ function PromoCodesDialog({
     setEditing(promo);
     setCode(promo.code);
     setType(promo.discountType);
-    setValue(promo.discountType === 'PERCENTAGE' ? String(promo.discountValue) : String(promo.discountValue / 100));
+    setValue(promo.discountType === 'PERCENTAGE' ? String(promo.discountValue) : String(toMajor(promo.discountValue, currency)));
     setFrom(isoToLocalInput(promo.validFrom));
     setUntil(isoToLocalInput(promo.validUntil));
     setLimitTotal(promo.usageLimitTotal ? String(promo.usageLimitTotal) : '');
@@ -738,7 +736,7 @@ function PromoCodesDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const amount = () => (type === 'PERCENTAGE' ? Number(value) : Math.round(Number(value) * 100));
+  const amount = () => (type === 'PERCENTAGE' ? Number(value) : toMinor(Number(value), currency));
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -805,6 +803,8 @@ function PromoCodesDialog({
       className="modal modal-landscape promo-dialog"
       aria-labelledby="promo-title"
       onCancel={(e) => {
+        // A file picker inside the window sends its own "cancel" up to here: only the window's own Escape counts.
+        if (e.target !== e.currentTarget) return;
         e.preventDefault();
         if (!busy) onClose();
       }}
@@ -1156,6 +1156,8 @@ function TicketTypes({
   const [name, setName] = useState('');
   const [kind, setKind] = useState<TicketTypeKind>('GENERAL_ADMISSION');
   const [price, setPrice] = useState('');
+  // Tickets are priced in the currency of the organization's country (fixed when an admin approved it).
+  const orgCurrency = useAsync(() => organizationApi.get(organizationId), [organizationId]).data?.currency ?? 'PHP';
   const [currency, setCurrency] = useState('PHP');
   const [quantity, setQuantity] = useState('');
   // Reserved seating can copy its seats from an organization seat layout: the whole plan, or one section of it.
@@ -1236,7 +1238,7 @@ function TicketTypes({
     setName('');
     setKind('GENERAL_ADMISSION');
     setPrice('');
-    setCurrency('PHP');
+    setCurrency(orgCurrency);
     setQuantity('');
     setLayoutId('');
     setSectionId(WHOLE_LAYOUT);
@@ -1263,7 +1265,7 @@ function TicketTypes({
     setEditing(tt);
     setName(tt.name);
     setKind(tt.kind);
-    setPrice(String(tt.price.amount / 100));
+    setPrice(String(toMajor(tt.price.amount, tt.price.currency)));
     setCurrency(tt.price.currency);
     setQuantity(String(tt.quantityTotal));
     setLayoutId('');
@@ -1304,7 +1306,7 @@ function TicketTypes({
       if (editing) {
         // Send only what changed: a new quantityTotal keeps what is sold or held (409 if it goes below that).
         const body: TicketTypeUpdateRequest = {};
-        const amount = Math.round(Number(price) * 100);
+        const amount = toMinor(Number(price), currency);
         if (name !== editing.name) body.name = name;
         if (amount !== editing.price.amount || currency.toUpperCase() !== editing.price.currency) {
           body.price = { amount, currency: currency.toUpperCase() };
@@ -1323,7 +1325,7 @@ function TicketTypes({
       await ticketTypeApi.create(eventId, {
         name,
         kind,
-        price: { amount: Math.round(Number(price) * 100), currency: currency.toUpperCase() },
+        price: { amount: toMinor(Number(price), currency), currency: currency.toUpperCase() },
         ...(kind === 'RESERVED_SEATING' && layoutId
           ? { layoutId, ...(sectionId === WHOLE_LAYOUT ? { wholeLayout: true } : { sectionId }) }
           : { quantityTotal: Number(quantity) }),
@@ -1583,6 +1585,7 @@ function TicketTypes({
               <button
                 type="button"
                 className="tt-grip"
+                aria-label={`Reorder ${tt.name}: drag, or press the up or down arrow`}
                 disabled={eventOver}
                 title={eventOver ? ENDED_TIP : undefined}
                 // Some browsers still deliver pointer events to a disabled button, so the drag checks it too.
@@ -1677,6 +1680,8 @@ function TicketTypes({
         className="modal modal-landscape"
         aria-labelledby="add-ticket-type-title"
         onCancel={(e) => {
+          // A file picker inside the window sends its own "cancel" up to here: only the window's own Escape counts.
+          if (e.target !== e.currentTarget) return;
           e.preventDefault(); // Escape closes it
           setAdding(false);
         }}
@@ -1713,14 +1718,10 @@ function TicketTypes({
             <fieldset className="form-group">
               <legend>Price and stock</legend>
               <div className="form-row">
-                <TextField label="Price" type="number" required min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
-                <SelectField label="Currency" required value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                  {/* A ticket type saved in a currency not listed here keeps it. */}
-                  {(CURRENCIES.some((c) => c.code === currency) ? CURRENCIES : [{ code: currency }, ...CURRENCIES]).map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.code}
-                    </option>
-                  ))}
+                <TextField label="Price" type="number" required min={0} step={String(10 ** -minorDigits(currency))} value={price} onChange={(e) => setPrice(e.target.value)} />
+                <SelectField label="Currency" required disabled value={currency} onChange={() => {}}>
+                  {/* Set by the organization's country, so there is nothing to pick. */}
+                  <option value={currency}>{currency}</option>
                 </SelectField>
               </div>
               {kind === 'RESERVED_SEATING' && !editing && (
@@ -1812,8 +1813,7 @@ function TicketTypes({
                 timeKey={startNow ? 'now' : 'set'}
               />
               <label className="check-row">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={startNow}
                   onChange={(e) => {
                     setStartNow(e.target.checked);
