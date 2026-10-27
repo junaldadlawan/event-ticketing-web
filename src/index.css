@@ -12900,3 +12900,20 @@ body:has(.layout-editor) .app-content {
 .layout-card .btn {
   margin-top: 6px;
 }
+
+.le-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  margin-bottom: 12px;
+}
+.layout-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.layout-card-actions .btn {
+  margin-top: 0;
+}

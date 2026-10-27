@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react';
 import { MapPinPicker } from '../../components/MapPinPicker';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { assetUrl, errorMessage } from '../../api/client';
 import { organizationApi, uploadApi, venueApi } from '../../api/endpoints';
-import type { Venue, VenueLayout, VenueType } from '../../api/types';
-import { useAuth } from '../../auth/AuthContext';
-import { isAdmin } from '../../auth/roles';
+import type { Venue, VenueType } from '../../api/types';
 import { useHasPermission } from '../../auth/useCanManage';
 import { Button, FormActions } from '../../components/Button';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -15,13 +12,10 @@ import { Field } from '../../components/fields/Field';
 import { QuantityField } from '../../components/fields/QuantityField';
 import { SelectField, TextAreaField, TextField } from '../../components/fields/TextField';
 import { FormDialog } from '../../components/FormDialog';
-import { LayoutThumb } from '../../components/LayoutThumb';
-import { Segmented } from '../../components/Segmented';
 import { RefreshButton } from '../../components/RefreshButton';
 import { Empty, ErrorBox, PageHeader, Spinner } from '../../components/ui';
 import { COUNTRIES } from '../../utils/countries';
 import { loadCities, loadProvinces } from '../../utils/places';
-import { seatCount } from '../../utils/venueLayout';
 import { useAsync } from '../../utils/useAsync';
 
 type Org = { id: string; name: string };
@@ -63,10 +57,6 @@ const countryName = (iso?: string | null) => COUNTRIES.find((c) => c.iso === iso
 /** The organization's venues: the places its events happen in. Add one, or change a name, an address or a map position. */
 export function VenuesPage() {
   const canEdit = useHasPermission('EVENTS', 'any');
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  // Starting a layout follows the layout editor's rule: Events access, and not an admin (admins can only read layouts).
-  const canLayout = canEdit && !isAdmin(user?.role);
   const { data, error, loading, reload } = useAsync(async () => {
     const orgs: Org[] = (await organizationApi.mine()).filter((o) => o.status === 'APPROVED').map(({ id, name }) => ({ id, name }));
     const lists = await Promise.all(orgs.map((o) => venueApi.listForOrg(o.id)));
@@ -76,21 +66,6 @@ export function VenuesPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
-  // Venues, or a grid of their seat layouts (each venue's saved layout is fetched when the grid is opened).
-  const [view, setView] = useState<'venues' | 'layouts'>('venues');
-  const [layouts, setLayouts] = useState<Record<string, VenueLayout | null> | null>(null);
-  const venueKey = (data?.venues ?? []).map((v) => v.id).join();
-  useEffect(() => {
-    if (view !== 'layouts') return;
-    let current = true;
-    const list = data?.venues ?? [];
-    setLayouts(null);
-    void Promise.all(list.map((v) => venueApi.layout(v.id).then((l) => [v.id, l] as const).catch(() => [v.id, null] as const))).then((rows) => current && setLayouts(Object.fromEntries(rows)));
-    return () => {
-      current = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, venueKey]);
   // The provinces of the chosen country, and the cities of the chosen province (empty: the user types the name instead).
   const [provinces, setProvinces] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
@@ -120,35 +95,6 @@ export function VenuesPage() {
   const orgs = data?.orgs ?? [];
   const venues = data?.venues ?? [];
   const orgName = (id: string) => orgs.find((o) => o.id === id)?.name ?? '';
-
-  // "New layout": pick the venue (when there are several), ask first if it already has a saved layout, then open a blank plan.
-  const [choosing, setChoosing] = useState(false);
-  const [chosenId, setChosenId] = useState('');
-  const [replacing, setReplacing] = useState<Venue | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [layoutError, setLayoutError] = useState<string | null>(null);
-  const openBlank = (v: Venue) => navigate(`/manage/venues/${v.id}/layout`, { state: { blank: true } });
-  async function beginNewLayout(v: Venue) {
-    setChoosing(false);
-    setChecking(true);
-    setLayoutError(null);
-    try {
-      // A saved layout is replaced when the new one is saved; opening the editor saves nothing.
-      if (((await venueApi.layout(v.id)).version ?? 0) > 0) setReplacing(v);
-      else openBlank(v);
-    } catch (e) {
-      setLayoutError(errorMessage(e));
-    } finally {
-      setChecking(false);
-    }
-  }
-  function startNewLayout() {
-    if (venues.length === 1) void beginNewLayout(venues[0]!);
-    else {
-      setChosenId(venues[0]?.id ?? '');
-      setChoosing(true);
-    }
-  }
 
   // The form as it was opened: closing it with other values asks before throwing them away.
   const [initial, setInitial] = useState('');
@@ -226,11 +172,6 @@ export function VenuesPage() {
         lede="The places your events happen in. Pick one when you create an event."
         actions={
           <>
-            {canLayout && venues.length > 0 && (
-              <Button onClick={startNewLayout} disabled={checking} title="Start a blank seat plan for a venue">
-                {checking ? 'Checking…' : 'New layout'}
-              </Button>
-            )}
             {canEdit && orgs.length > 0 && (
               <Button variant="cta" onClick={openAdd}>
                 <PlusIcon />
@@ -240,7 +181,7 @@ export function VenuesPage() {
           </>
         }
       />
-      <ErrorBox message={error ?? layoutError} />
+      <ErrorBox message={error} />
       {loading && !data ? (
         <Spinner />
       ) : venues.length === 0 ? (
@@ -256,91 +197,17 @@ export function VenuesPage() {
         </Empty>
       ) : (
         <>
-          <div className="venue-bar">
-            <p className="muted small venue-count">
-              {venues.length} {venues.length === 1 ? 'venue' : 'venues'}
-              <RefreshButton onClick={reload} busy={loading} label="Reload venues" />
-            </p>
-            <Segmented
-              label="Show"
-              text
-              value={view}
-              onChange={setView}
-              options={[
-                { value: 'venues', label: 'Venues' },
-                { value: 'layouts', label: 'Seat layouts' },
-              ]}
-            />
-          </div>
-          {view === 'venues' ? (
-            <ul className="venue-grid">
+          <p className="muted small venue-count">
+            {venues.length} {venues.length === 1 ? 'venue' : 'venues'}
+            <RefreshButton onClick={reload} busy={loading} label="Reload venues" />
+          </p>
+          <ul className="venue-grid">
               {venues.map((v) => (
                 <VenueCard key={v.id} venue={v} orgLabel={orgs.length > 1 ? orgName(v.organizationId) : null} canEdit={canEdit} onEdit={() => openEdit(v)} />
               ))}
             </ul>
-          ) : layouts === null ? (
-            <Spinner />
-          ) : (
-            <ul className="layout-grid">
-              {venues.map((v) => {
-                const l = layouts[v.id];
-                const saved = l && (l.version ?? 0) > 0 && l.sections.length + (l.shapes ?? []).length > 0 ? l : null;
-                const counts = saved ? seatCount(saved) : null;
-                return (
-                  <li key={v.id} className="layout-card">
-                    <Link to={`/manage/venues/${v.id}/layout`} className="layout-card-preview" aria-label={`Open the seat layout of ${v.name}`}>
-                      {saved ? <LayoutThumb layout={saved} label={`Seat layout of ${v.name}`} /> : <span className="muted">No layout yet</span>}
-                    </Link>
-                    <strong className="layout-card-name">{v.name}</strong>
-                    <p className="muted small">
-                      {counts ? `${saved!.sections.length} ${saved!.sections.length === 1 ? 'section' : 'sections'} · ${counts.total.toLocaleString()} seats · ${counts.sellable.toLocaleString()} for sale` : 'Not designed yet'}
-                      {counts && v.maxCapacity != null && counts.total > v.maxCapacity ? ' · more seats than the venue capacity' : ''}
-                    </p>
-                    <Link to={`/manage/venues/${v.id}/layout`} className="btn btn-sm">
-                      {saved ? (canLayout ? 'Edit layout' : 'View layout') : canLayout ? 'Design layout' : 'View'}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
         </>
       )}
-
-      <FormDialog open={choosing} title="Which venue is the layout for?" onClose={() => setChoosing(false)}>
-        <form
-          className="form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const v = venues.find((x) => x.id === chosenId);
-            if (v) void beginNewLayout(v);
-          }}
-        >
-          <SelectField label="Venue" value={chosenId} onChange={(e) => setChosenId(e.target.value)}>
-            {venues.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </SelectField>
-          <FormActions submitLabel="Continue" submitDisabled={!chosenId} onCancel={() => setChoosing(false)} />
-        </form>
-      </FormDialog>
-
-      <ConfirmDialog
-        open={replacing !== null}
-        title="Start a new layout?"
-        confirmLabel="Open a blank plan"
-        cancelLabel="Keep the current one"
-        onCancel={() => setReplacing(null)}
-        onConfirm={() => {
-          const v = replacing;
-          setReplacing(null);
-          if (v) openBlank(v);
-        }}
-      >
-        {replacing?.name} already has a seat layout. A new layout replaces it once you press Save in the editor; until then nothing changes. Events that already copied seats from the old layout are not affected.
-      </ConfirmDialog>
 
       <FormDialog open={draft !== null} title={draft?.id ? 'Edit venue' : 'Add a venue'} size="large" onClose={closeForm}>
         {draft && (
@@ -500,11 +367,6 @@ function VenueCard({ venue: v, orgLabel, canEdit, onEdit }: { venue: Venue; orgL
         ) : (
           <p className="muted small">No map position</p>
         )}
-        <div className="venue-layout-actions">
-          <Link to={`/manage/venues/${v.id}/layout`} className="btn btn-sm venue-layout-link">
-            Seat layout
-          </Link>
-        </div>
       </div>
       {canEdit && (
         <button type="button" className="icon-button" onClick={onEdit} title={`Edit ${v.name}`} aria-label={`Edit ${v.name}`}>

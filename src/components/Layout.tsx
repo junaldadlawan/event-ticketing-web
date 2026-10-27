@@ -196,10 +196,11 @@ export function Layout() {
         <aside className="sidebar">
               <nav className="sidebar-nav" aria-label="Organizer">
                 {/* Team and Settings live under /manage too, so Events is not highlighted there */}
-                <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/finance', '/manage/scanner'].includes(pathname) && !pathname.startsWith('/manage/settings') && !pathname.startsWith('/manage/venues') ? 'active' : '')}>
+                <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/finance', '/manage/scanner'].includes(pathname) && !pathname.startsWith('/manage/settings') && !pathname.startsWith('/manage/venues') && !pathname.startsWith('/manage/layouts') ? 'active' : '')}>
                   Events
                 </NavLink>
                 {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/venues">Venues</NavLink>}
+                {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/layouts">Seat layouts</NavLink>}
                 {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/team">Team &amp; access</NavLink>}
                 {!isAdminRole(user.role) && canFinance && <NavLink to="/manage/finance">Finance</NavLink>}
                 {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/scanner">Check-in</NavLink>}
@@ -210,6 +211,7 @@ export function Layout() {
                     <NavLink to="/admin/users">Users</NavLink>
                     <NavLink to="/admin/payouts">Finance</NavLink>
                     <NavLink to="/admin/disputes">Disputes</NavLink>
+                    <NavLink to="/admin/layout-presets">Seat layouts</NavLink>
                     <NavLink to="/admin/scanner">Check-in</NavLink>
                   </>
                 )}

@@ -89,7 +89,12 @@ import type {
   User,
   UUID,
   Venue,
-  VenueLayout,
+  PresetLayout,
+  PresetLayoutRequest,
+  PresetLayoutSummary,
+  SeatLayout,
+  SeatLayoutRequest,
+  SeatLayoutSummary,
   VenueType,
 } from './types';
 
@@ -531,14 +536,32 @@ export const ticketTypeApi = {
 export const venueApi = {
   listForOrg: (orgId: UUID) => api<Venue[]>(`/organizations/${orgId}/venues`),
   get: (venueId: UUID) => api<Venue>(`/venues/${venueId}`),
-  /** Members of the organization, or an admin. An empty plan (version 0) when none was saved yet. */
-  layout: (venueId: UUID) => api<VenueLayout>(`/venues/${venueId}/layout`),
-  /** Owner, or an organizer holding EVENTS. Replaces the whole design; the answer has the version one higher. */
-  saveLayout: (venueId: UUID, body: VenueLayout) => api<VenueLayout>(`/venues/${venueId}/layout`, { method: 'PUT', body }),
   /** Owner or organizer of the organization. Address and coordinates are optional. */
   create: (orgId: UUID, body: VenueInput) => api<Venue>(`/organizations/${orgId}/venues`, { method: 'POST', body }),
   /** Owner or organizer of the owning organization. Only the fields sent change. */
   update: (venueId: UUID, body: Partial<VenueInput>) => api<Venue>(`/venues/${venueId}`, { method: 'PATCH', body }),
+};
+
+/** Seat layouts belong to an organization. Members read; the owner or an organizer holding EVENTS writes (admins are read-only). */
+export const layoutApi = {
+  listForOrg: (orgId: UUID) => api<SeatLayoutSummary[]>(`/organizations/${orgId}/layouts`),
+  get: (id: UUID) => api<SeatLayout>(`/layouts/${id}`),
+  create: (orgId: UUID, body: SeatLayoutRequest) => api<SeatLayout>(`/organizations/${orgId}/layouts`, { method: 'POST', body }),
+  /** Replaces the whole design, name included; the answer has the version one higher. */
+  replace: (id: UUID, body: SeatLayoutRequest) => api<SeatLayout>(`/layouts/${id}`, { method: 'PUT', body }),
+  /** 409 while an event that has not ended still uses it. */
+  remove: (id: UUID) => api<void>(`/layouts/${id}`, { method: 'DELETE' }),
+  /** Copies a preset into the organization as its own editable layout. */
+  fromPreset: (orgId: UUID, presetId: UUID) => api<SeatLayout>(`/organizations/${orgId}/layouts/from-preset/${presetId}`, { method: 'POST' }),
+};
+
+/** Admin-managed presets. Owners, organizers and admins read (organizers only the active ones); only admins write. */
+export const presetApi = {
+  list: () => api<PresetLayoutSummary[]>('/layout-presets'),
+  get: (id: UUID) => api<PresetLayout>(`/layout-presets/${id}`),
+  create: (body: PresetLayoutRequest) => api<PresetLayout>('/layout-presets', { method: 'POST', body }),
+  replace: (id: UUID, body: PresetLayoutRequest) => api<PresetLayout>(`/layout-presets/${id}`, { method: 'PUT', body }),
+  remove: (id: UUID) => api<void>(`/layout-presets/${id}`, { method: 'DELETE' }),
 };
 
 export interface VenueInput {

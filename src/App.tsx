@@ -4,7 +4,9 @@ import { RequireAuth } from './components/RequireAuth';
 import { ApplyOrganizerPage } from './pages/ApplyOrganizerPage';
 import { ContactPage } from './pages/ContactPage';
 import { VenuesPage } from './pages/organizer/VenuesPage';
-import { VenueLayoutPage } from './pages/organizer/VenueLayoutPage';
+import { LayoutEditorPage, PresetEditorPage } from './pages/organizer/LayoutEditorPage';
+import { LayoutsPage } from './pages/organizer/LayoutsPage';
+import { AdminLayoutPresetsPage } from './pages/admin/AdminLayoutPresetsPage';
 import { EventReportPage } from './pages/organizer/EventReportPage';
 import { ShareRedirectPage } from './pages/ShareRedirectPage';
 import { PostsPage } from './pages/PostsPage';
@@ -78,7 +80,12 @@ export default function App() {
         <Route path="manage/scanner" element={<RequireAuth><ScannerPage /></RequireAuth>} />
         <Route path="manage" element={<RequireAuth><ManageEventsPage /></RequireAuth>} />
         <Route path="manage/venues" element={<RequireAuth><VenuesPage /></RequireAuth>} />
-        <Route path="manage/venues/:venueId/layout" element={<RequireAuth><VenueLayoutPage /></RequireAuth>} />
+        <Route path="manage/layouts" element={<RequireAuth><LayoutsPage /></RequireAuth>} />
+        <Route path="manage/layouts/new" element={<RequireAuth><LayoutEditorPage /></RequireAuth>} />
+        <Route path="manage/layouts/:layoutId" element={<RequireAuth><LayoutEditorPage /></RequireAuth>} />
+        <Route path="admin/layout-presets" element={<RequireAuth><AdminLayoutPresetsPage /></RequireAuth>} />
+        <Route path="admin/layout-presets/new" element={<RequireAuth><PresetEditorPage /></RequireAuth>} />
+        <Route path="admin/layout-presets/:presetId" element={<RequireAuth><PresetEditorPage /></RequireAuth>} />
         <Route path="manage/team" element={<RequireAuth><TeamPage /></RequireAuth>} />
         <Route path="manage/finance" element={<RequireAuth><ManageFinancePage /></RequireAuth>} />
         <Route path="manage/settings" element={<RequireAuth><ManageSettingsPage /></RequireAuth>} />

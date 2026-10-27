@@ -348,13 +348,48 @@ export interface LayoutShape {
   rotation?: number;
 }
 export interface VenueLayout {
-  venueId?: UUID;
-  /** 0 = nothing saved yet; one more with every save. */
+  /** 1 when created; one more with every save. */
   version?: number;
   width: number;
   height: number;
   sections: LayoutSection[];
   shapes?: LayoutShape[];
+}
+
+export interface SeatLayoutSummary {
+  id: UUID;
+  name: string;
+  width: number;
+  height: number;
+  seatCount: number;
+  version: number;
+}
+/** An organization's seat layout in full. */
+export interface SeatLayout extends VenueLayout {
+  id: UUID;
+  organizationId: UUID;
+  name: string;
+  seatCount: number;
+}
+export interface SeatLayoutRequest extends VenueLayout {
+  name: string;
+}
+/** An admin-managed layout organizers copy into their organization. */
+export interface PresetLayoutSummary extends SeatLayoutSummary {
+  description?: string | null;
+  active: boolean;
+}
+export interface PresetLayout extends VenueLayout {
+  id: UUID;
+  name: string;
+  description?: string | null;
+  active: boolean;
+  seatCount: number;
+}
+export interface PresetLayoutRequest extends SeatLayoutRequest {
+  description?: string | null;
+  /** Null or left out: true on create, unchanged on replace. */
+  active?: boolean | null;
 }
 
 export interface Event {
@@ -430,7 +465,12 @@ export interface TicketTypeCreateRequest {
   name: string;
   kind: TicketTypeKind;
   price: Money;
-  quantityTotal: number;
+  /** Left out when the seats are copied from a seat layout (layoutId): the quantity is then the number of seats copied. */
+  quantityTotal?: number;
+  /** RESERVED_SEATING only: copy seats from this organization layout, with a sectionId or wholeLayout. */
+  layoutId?: UUID;
+  sectionId?: UUID;
+  wholeLayout?: boolean;
   /** Left out = the sale starts the moment the API saves it. */
   saleStartAt?: string;
   /** At least an hour before the event starts, or the API refuses it (400). */

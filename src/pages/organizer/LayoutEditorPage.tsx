@@ -1,15 +1,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { QuantityField } from '../../components/fields/QuantityField';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
-import { venueApi } from '../../api/endpoints';
-import type { LayoutSection, LayoutShape, SeatType, Venue, VenueLayout } from '../../api/types';
+import { layoutApi, presetApi } from '../../api/endpoints';
+import type { LayoutSection, LayoutShape, PresetLayoutRequest, SeatLayoutSummary, SeatType, UUID, VenueLayout } from '../../api/types';
 import { useAuth } from '../../auth/AuthContext';
 import { isAdmin } from '../../auth/roles';
 import { useHasPermission } from '../../auth/useCanManage';
 import { CheckIcon, GridLinesIcon, MagnetIcon, PlusIcon, RedoIcon, SaveIcon, SpinnerIcon, UndoIcon, WarningIcon } from '../../components/DesignerIcons';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { TextField } from '../../components/fields/TextField';
 import { FormDialog } from '../../components/FormDialog';
 import { Popover } from '../../components/Popover';
 import { ErrorBox, Spinner } from '../../components/ui';
@@ -23,37 +24,83 @@ type DotKey = 'tl' | 'tr' | 'bl' | 'br' | 'c';
 
 const COLORS = ['#6D28D9', '#D97706', '#0D9488', '#E11D48', '#2563EB', '#16A34A', '#64748B'];
 const HISTORY = 100;
+const BLANK: VenueLayout = { width: 1000, height: 800, sections: [], shapes: [] };
 
-/** The seat layout of a venue: design the plan once, with VIP and standard sections, then copy it into events with reserved seating. */
-export function VenueLayoutPage() {
-  const { venueId = '' } = useParams();
-  const { user } = useAuth();
-  const location = useLocation();
+/** An organization's seat layout: design the plan once, with VIP and standard sections, then copy sections of it into events with reserved seating. */
+export function LayoutEditorPage() {
+  const { layoutId } = useParams();
+  const [search] = useSearchParams();
   const navigate = useNavigate();
-  // "New layout" on the Venues page opens this with a blank plan. Read it once, then drop it from the history entry,
-  // so a reload shows the saved layout again instead of starting over.
-  const [blank] = useState(() => (location.state as { blank?: boolean } | null)?.blank === true);
-  useEffect(() => {
-    if (blank) navigate(location.pathname, { replace: true, state: null });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const { data, error, loading } = useAsync(() => Promise.all([venueApi.get(venueId), venueApi.layout(venueId)]), [venueId]);
-  const canEvents = useHasPermission('EVENTS', data?.[0].organizationId);
+  const { user } = useAuth();
+  const { data, error, loading } = useAsync(() => (layoutId ? layoutApi.get(layoutId) : Promise.resolve(null)), [layoutId]);
+  // A new layout names its organization in the address (?org=); a saved one knows its own.
+  const orgId = data?.organizationId ?? search.get('org') ?? '';
+  const canEvents = useHasPermission('EVENTS', orgId || undefined);
   if (loading && !data) return <Spinner />;
-  if (error || !data) return <ErrorBox message={error ?? 'Venue not found'} />;
-  // Admins can read a layout but not change it.
-  const canEdit = canEvents && !isAdmin(user?.role);
-  // Only someone who can edit may start blank. The version stays the saved one, so the header shows what is replaced on Save.
-  const startBlank = blank && canEdit;
-  const initial: VenueLayout = startBlank ? { width: 1000, height: 800, sections: [], shapes: [], venueId: data[1].venueId, version: data[1].version } : data[1];
-  return <Editor key={venueId} venue={data[0]} initial={initial} canEdit={canEdit} startBlank={startBlank} />;
+  if (error || (!layoutId && !orgId)) return <ErrorBox message={error ?? 'Open a new layout from Seat layouts.'} />;
+  return (
+    <Editor
+      key={layoutId ?? 'new'}
+      initial={data ?? BLANK}
+      name={data?.name ?? ''}
+      orgId={orgId}
+      layoutId={layoutId}
+      // Admins can read a layout but not change it.
+      canEdit={canEvents && !isAdmin(user?.role)}
+      save={(body) => (layoutId ? layoutApi.replace(layoutId, body) : layoutApi.create(orgId, body))}
+      onSaved={(saved) => !layoutId && navigate(`/manage/layouts/${saved.id}`, { replace: true })}
+    />
+  );
 }
 
-function Editor({ venue, initial, canEdit, startBlank = false }: { venue: Venue; initial: VenueLayout; canEdit: boolean; startBlank?: boolean }) {
+/** An admin preset: a ready-made layout organizers can copy into their organization. */
+export function PresetEditorPage() {
+  const { presetId } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data, error, loading } = useAsync(() => (presetId ? presetApi.get(presetId) : Promise.resolve(null)), [presetId]);
+  if (loading && !data) return <Spinner />;
+  if (error) return <ErrorBox message={error} />;
+  return (
+    <Editor
+      key={presetId ?? 'new'}
+      initial={data ?? BLANK}
+      name={data?.name ?? ''}
+      preset={{ description: data?.description ?? '', active: data?.active ?? true }}
+      canEdit={isAdmin(user?.role)}
+      save={(body) => (presetId ? presetApi.replace(presetId, body) : presetApi.create(body))}
+      onSaved={(saved) => !presetId && navigate(`/admin/layout-presets/${saved.id}`, { replace: true })}
+    />
+  );
+}
+
+function Editor({
+  initial,
+  name: savedName,
+  preset,
+  orgId,
+  layoutId,
+  canEdit,
+  save: send,
+  onSaved,
+}: {
+  initial: VenueLayout;
+  name: string;
+  /** Only a preset has these. */
+  preset?: { description: string; active: boolean };
+  /** Only an organization layout has these: the layouts of the same organization can be copied from. */
+  orgId?: UUID;
+  layoutId?: UUID;
+  canEdit: boolean;
+  save: (body: PresetLayoutRequest) => Promise<VenueLayout & { id: UUID }>;
+  onSaved: (saved: VenueLayout & { id: UUID }) => void;
+}) {
   const [layout, setLayout] = useState<VenueLayout>(initial);
   const [version, setVersion] = useState(initial.version ?? 0);
-  // A blank plan counts as a change already (saving it replaces the saved layout); opening it saved nothing.
-  const [dirty, setDirty] = useState(startBlank);
+  const [name, setName] = useState(savedName);
+  const [description, setDescription] = useState(preset?.description ?? '');
+  const [active, setActive] = useState(preset?.active ?? true);
+  const [dirty, setDirty] = useState(false);
   // What is selected: one or several items, as keys ("s:<section id>" and "h:<shape number>"). One selected item is `sel`.
   const [picked, setPicked] = useState<string[]>([]);
   const sel: Sel = picked.length === 1 ? (picked[0]!.startsWith('s:') ? { t: 'section', id: picked[0]!.slice(2) } : { t: 'shape', i: Number(picked[0]!.slice(2)) }) : null;
@@ -833,15 +880,27 @@ function Editor({ venue, initial, canEdit, startBlank = false }: { venue: Venue;
       setError(`Fix this first: ${issues[0]}`);
       return;
     }
+    if (!name.trim()) {
+      setError('Give the layout a name first.');
+      return;
+    }
     setSaving(true);
     try {
-      const saved = await venueApi.saveLayout(venue.id, { width: layout.width, height: layout.height, sections: layout.sections, shapes });
+      const saved = await send({
+        name: name.trim(),
+        width: layout.width,
+        height: layout.height,
+        sections: layout.sections,
+        shapes,
+        ...(preset && { description: description.trim() || null, active }),
+      });
       setLayout(saved);
       setVersion(saved.version ?? version + 1);
       past.current = [];
       future.current = [];
       setDirty(false);
       setJustSaved(true);
+      onSaved(saved);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -849,21 +908,21 @@ function Editor({ venue, initial, canEdit, startBlank = false }: { venue: Venue;
     }
   }
 
-  // "Copy layout from": another venue of the same organization. The plan is replaced as an unsaved change (undo brings it back).
-  const [copyFrom, setCopyFrom] = useState<Venue | null>(null);
+  // "Copy layout from": another layout of the same organization. The plan is replaced as an unsaved change (undo brings it back).
+  const [copyFrom, setCopyFrom] = useState<SeatLayoutSummary | null>(null);
   const [copying, setCopying] = useState(false);
-  function chooseCopy(v: Venue) {
+  function chooseCopy(v: SeatLayoutSummary) {
     if (layout.sections.length + shapes.length === 0) void copyLayout(v);
     else setCopyFrom(v);
   }
-  async function copyLayout(v: Venue) {
+  async function copyLayout(v: SeatLayoutSummary) {
     setCopyFrom(null);
     setCopying(true);
     setError(null);
     try {
-      const other = await venueApi.layout(v.id);
-      if ((other.version ?? 0) === 0 || other.sections.length + (other.shapes ?? []).length === 0) {
-        setError(`${v.name} has no saved seat layout to copy.`);
+      const other = await layoutApi.get(v.id);
+      if (other.sections.length + (other.shapes ?? []).length === 0) {
+        setError(`${v.name} has nothing on its plan to copy.`);
         return;
       }
       edit({ ...layout, width: other.width, height: other.height, sections: other.sections, shapes: other.shapes ?? [] });
@@ -882,12 +941,49 @@ function Editor({ venue, initial, canEdit, startBlank = false }: { venue: Venue;
   return (
     <div className="designer-page layout-editor">
       <ErrorBox message={error} />
-      {startBlank && version > 0 && !justSaved && (
-        <p className="alert alert-warning" role="status">
-          This is a blank plan. The saved layout (version {version}) stays as it is until you press Save, which replaces it.
-        </p>
-      )}
-      {!canEdit && <p className="alert alert-warning">You can look at this layout, but only the organization's owner or an organizer with Events access can change it.</p>}
+      {!canEdit && <p className="alert alert-warning">You can look at this layout, but only {preset ? 'an admin' : "the organization's owner or an organizer with Events access"} can change it.</p>}
+      <div className="le-meta">
+        <TextField
+          label={preset ? 'Preset name' : 'Layout name'}
+          required
+          maxLength={100}
+          disabled={!canEdit}
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            setDirty(true);
+            setJustSaved(false);
+          }}
+        />
+        {preset && (
+          <>
+            <TextField
+              label="Description"
+              maxLength={500}
+              disabled={!canEdit}
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setDirty(true);
+                setJustSaved(false);
+              }}
+            />
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={active}
+                disabled={!canEdit}
+                onChange={(e) => {
+                  setActive(e.target.checked);
+                  setDirty(true);
+                  setJustSaved(false);
+                }}
+              />
+              Active (organizers can copy it)
+            </label>
+          </>
+        )}
+      </div>
 
       <div className="designer-toolbar">
         {/* One row: the seat brush, undo and redo, then plan size, snap, zoom and save. */}
@@ -935,9 +1031,9 @@ function Editor({ venue, initial, canEdit, startBlank = false }: { venue: Venue;
               {() => <PlanSizeMenu width={layout.width} height={layout.height} onCommit={(width, height) => edit({ ...layout, width, height })} />}
             </Popover>
           )}
-          {canEdit && (
-            <Popover text={copying ? 'Copying…' : 'Layout'} label="Copy the layout of another venue" icon={<CopyLayoutIcon />} disabled={copying}>
-              {(close) => <CopyLayoutMenu venue={venue} onPick={(v) => { close(); chooseCopy(v); }} />}
+          {canEdit && orgId && (
+            <Popover text={copying ? 'Copying…' : 'Layout'} label="Copy another layout of the organization" icon={<CopyLayoutIcon />} disabled={copying}>
+              {(close) => <CopyLayoutMenu orgId={orgId} selfId={layoutId} onPick={(v) => { close(); chooseCopy(v); }} />}
             </Popover>
           )}
           <button type="button" className="icon-button has-text" title="Open a picture of the plan" onClick={openPreview}>
@@ -991,7 +1087,7 @@ function Editor({ venue, initial, canEdit, startBlank = false }: { venue: Venue;
         onCancel={() => setCopyFrom(null)}
         onConfirm={() => copyFrom && void copyLayout(copyFrom)}
       >
-        The plan on screen is replaced with a copy of the layout of {copyFrom?.name}. Nothing is saved until you press Save, and Undo brings the current plan back.
+        The plan on screen is replaced with a copy of the plan of {copyFrom?.name}. Nothing is saved until you press Save, and Undo brings the current plan back.
       </ConfirmDialog>
       <FormDialog open={preview !== null} title="Plan preview" size="large" onClose={() => setPreview(null)}>
         {preview && <PlanPreview src={preview} width={layout.width} height={layout.height} />}
@@ -1306,16 +1402,16 @@ function TurnDots({ box, zoom, pivot, onDown }: { box: Rect; zoom: number; pivot
   );
 }
 
-/** The other venues of the organization, to copy a seat layout from. */
-function CopyLayoutMenu({ venue, onPick }: { venue: Venue; onPick: (v: Venue) => void }) {
-  const { data, error, loading } = useAsync(() => venueApi.listForOrg(venue.organizationId), [venue.organizationId]);
-  const others = (data ?? []).filter((v) => v.id !== venue.id);
+/** The other layouts of the organization, to copy a plan from. */
+function CopyLayoutMenu({ orgId, selfId, onPick }: { orgId: UUID; selfId?: UUID; onPick: (v: SeatLayoutSummary) => void }) {
+  const { data, error, loading } = useAsync(() => layoutApi.listForOrg(orgId), [orgId]);
+  const others = (data ?? []).filter((v) => v.id !== selfId);
   return (
     <div className="margin-menu">
-      <p className="menu-heading">Copy the layout of</p>
-      {loading && <p className="muted small">Loading venues…</p>}
+      <p className="menu-heading">Copy the plan of</p>
+      {loading && <p className="muted small">Loading layouts…</p>}
       {error && <p className="muted small">{error}</p>}
-      {!loading && !error && others.length === 0 && <p className="muted small">This organization has no other venue.</p>}
+      {!loading && !error && others.length === 0 && <p className="muted small">This organization has no other layout.</p>}
       <ul className="le-copy-list">
         {others.map((v) => (
           <li key={v.id}>

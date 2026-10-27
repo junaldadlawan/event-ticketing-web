@@ -7,7 +7,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { assetUrl, errorMessage } from '../../api/client';
-import { eventApi, promoApi, ticketSaleSettingsApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
+import { eventApi, layoutApi, promoApi, ticketSaleSettingsApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
 import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKind, TicketTypeUpdateRequest } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DeleteEventDialog } from '../../components/DeleteEventDialog';
@@ -337,6 +337,7 @@ export function ManageEventPage() {
       {!scanner && (
         <TicketTypes
           eventId={event.id}
+          organizationId={event.organizationId}
           eventTitle={event.title}
           eventStartAt={event.startAt}
           eventEndAt={event.endAt}
@@ -958,8 +959,12 @@ function PromoCodesDialog({
   );
 }
 
+/** The "Section" choice that copies every section of the layout. */
+const WHOLE_LAYOUT = 'whole';
+
 function TicketTypes({
   eventId,
+  organizationId,
   eventTitle,
   eventStartAt,
   eventEndAt,
@@ -971,6 +976,8 @@ function TicketTypes({
   ownDesignTypeIds,
 }: {
   eventId: string;
+  /** Whose seat layouts a reserved-seating ticket type can copy its seats from. */
+  organizationId: string;
   /** The event this ticket type belongs to, named at the top of the window. */
   eventTitle: string;
   /** The event's start: ticket sales must close at least an hour before it. */
@@ -1121,6 +1128,9 @@ function TicketTypes({
   const [price, setPrice] = useState('');
   const [currency, setCurrency] = useState('PHP');
   const [quantity, setQuantity] = useState('');
+  // Reserved seating can copy its seats from an organization seat layout: the whole plan, or one section of it.
+  const [layoutId, setLayoutId] = useState('');
+  const [sectionId, setSectionId] = useState(WHOLE_LAYOUT);
   // The sale window, as dates and times in the event's timezone. "Start now" leaves the start empty: it is set on save.
   const [startNow, setStartNow] = useState(false);
   const [saleStartDate, setSaleStartDate] = useState('');
@@ -1180,6 +1190,9 @@ function TicketTypes({
   const [adding, setAdding] = useState(false);
   // The ticket type being edited in that same window (null = adding a new one).
   const [editing, setEditing] = useState<TicketType | null>(null);
+  const seatLayouts = useAsync(() => (adding && !editing && kind === 'RESERVED_SEATING' ? layoutApi.listForOrg(organizationId) : Promise.resolve([])), [adding, editing, kind, organizationId]).data ?? [];
+  const pickedLayout = useAsync(() => (layoutId ? layoutApi.get(layoutId) : Promise.resolve(null)), [layoutId]).data;
+  const seatsForSale = (secs: { rows: { seats: { type?: string }[] }[] }[]) => secs.reduce((n, sec) => n + sec.rows.reduce((m, r) => m + r.seats.filter((x) => x.type !== 'BLOCKED').length, 0), 0);
   // Name of the ticket type a new one is being copied from (for the hint in the window).
   const [copyOf, setCopyOf] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -1192,6 +1205,8 @@ function TicketTypes({
     setPrice('');
     setCurrency('PHP');
     setQuantity('');
+    setLayoutId('');
+    setSectionId(WHOLE_LAYOUT);
     setStartNow(false);
     setSaleStartDate('');
     setSaleStartTime('');
@@ -1218,6 +1233,7 @@ function TicketTypes({
     setPrice(String(tt.price.amount / 100));
     setCurrency(tt.price.currency);
     setQuantity(String(tt.quantityTotal));
+    setLayoutId('');
     const start = zonedParts(tt.saleStartAt, timezone);
     const end = zonedParts(tt.saleEndAt, timezone);
     setStartNow(false);
@@ -1275,7 +1291,9 @@ function TicketTypes({
         name,
         kind,
         price: { amount: Math.round(Number(price) * 100), currency: currency.toUpperCase() },
-        quantityTotal: Number(quantity),
+        ...(kind === 'RESERVED_SEATING' && layoutId
+          ? { layoutId, ...(sectionId === WHOLE_LAYOUT ? { wholeLayout: true } : { sectionId }) }
+          : { quantityTotal: Number(quantity) }),
         saleStartAt,
         saleEndAt,
         maxPerOrder: maxPerOrder ? Number(maxPerOrder) : undefined,
@@ -1608,7 +1626,30 @@ function TicketTypes({
                   ))}
                 </SelectField>
               </div>
+              {kind === 'RESERVED_SEATING' && !editing && (
+                <div className="form-row">
+                  <SelectField label="Seats from" hint="Copy the seats of a seat layout, or leave it to just set a quantity." value={layoutId} onChange={(e) => { setLayoutId(e.target.value); setSectionId(WHOLE_LAYOUT); }}>
+                    <option value="">A quantity (no seat map)</option>
+                    {seatLayouts.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                  {layoutId && (
+                    <SelectField label="Section" hint="The seats are copied now; editing the layout later does not change them." value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
+                      <option value={WHOLE_LAYOUT}>Whole layout{pickedLayout ? ` (${seatsForSale(pickedLayout.sections)} seats)` : ''}</option>
+                      {(pickedLayout?.sections ?? []).map((sec) => (
+                        <option key={sec.id} value={sec.id}>
+                          {sec.name} ({seatsForSale([sec])} seats)
+                        </option>
+                      ))}
+                    </SelectField>
+                  )}
+                </div>
+              )}
               <div className="form-row">
+                {!(kind === 'RESERVED_SEATING' && !editing && layoutId) && (
                 <TextField
                   label="Quantity"
                   type="number"
@@ -1617,6 +1658,7 @@ function TicketTypes({
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                 />
+                )}
                 <TextField
                   label={
                     <>
