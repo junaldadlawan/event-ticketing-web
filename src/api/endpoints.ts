@@ -526,6 +526,10 @@ export const ticketTypeApi = {
   /** Pause or resume selling a ticket type (the one place that sets it). */
   setSalesStatus: (id: UUID, status: SalesStatus) =>
     api<TicketType>(`/ticket-types/${id}/sales-status`, { method: 'PUT', body: { status } }),
+  /** Admin only: buyers still see it but can't buy it, and the organizer can't resume it until an admin lifts this. */
+  suspend: (id: UUID, reason: string) =>
+    api<TicketType>(`/ticket-types/${id}/suspension`, { method: 'POST', body: { reason } }),
+  unsuspend: (id: UUID) => api<TicketType>(`/ticket-types/${id}/suspension`, { method: 'DELETE' }),
   create: (eventId: UUID, body: TicketTypeCreateRequest) =>
     api<TicketType>(`/events/${eventId}/ticket-types`, { method: 'POST', body }),
   /** Save the arrangement: every ticket type of the event, first to last. Returns them in the new order. */

@@ -453,6 +453,11 @@ export interface TicketType {
   maxPerUser: number | null;
   /** While true the type can not be added to a cart (the organizer paused sales). */
   salesPaused: boolean;
+  /** An admin suspended it: buyers see it but can't buy it, and only an admin lifts it. Separate from salesPaused. */
+  suspended?: boolean;
+  /** Why; only returned to the event's owner, organizers with Events access and admins. */
+  suspensionReason?: string | null;
+  suspendedAt?: string | null;
   /** Where it sits in the event's list (0 = first), as arranged by the organizer. */
   position: number;
   /** When it was created (tie-break for the order). */

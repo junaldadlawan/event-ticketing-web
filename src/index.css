@@ -1405,6 +1405,10 @@ textarea:disabled {
 .search-wide {
   grid-template-columns: 2fr 1fr 1fr auto;
 }
+/* Admins get two more dropdowns: organization, and suspended or not. */
+.search-admin {
+  grid-template-columns: 2fr repeat(4, 1fr) auto;
+}
 .results-bar {
   display: flex;
   justify-content: space-between;
@@ -2778,6 +2782,72 @@ button.code-warning:focus-visible {
   width: min(560px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
   overflow-y: auto;
+}
+/* The scroll bar of every pop-up window and its inner lists (the log in pop-up has none): a 12px bar with a visible track and a solid
+   accent thumb, a 5px gap each side. Its ends stay --sb-inset clear of the corners (a window sets more, for its rounded corners).
+   The transparent borders make the gap and the radius is half the bar plus the border, so both ends stay round. Chrome-style only:
+   scrollbar-width / scrollbar-color would make Chrome ignore these rules. Add a new pop-up's scrolling element to this list. */
+.modal {
+  --sb-inset: 40px;
+}
+:is(
+  .modal:not(.modal-auth),
+  .save-warning-list,
+  .viewer-body,
+  .user-picker-results,
+  .checkin-body,
+  .bell-list,
+  .le-copy-list,
+  .map-picker-results,
+  .popover-panel .popover-help
+)::-webkit-scrollbar {
+  width: 22px;
+}
+:is(
+  .modal:not(.modal-auth),
+  .save-warning-list,
+  .viewer-body,
+  .user-picker-results,
+  .checkin-body,
+  .bell-list,
+  .le-copy-list,
+  .map-picker-results,
+  .popover-panel .popover-help
+)::-webkit-scrollbar-track {
+  margin: var(--sb-inset, 8px) 0;
+  border: 0 solid transparent;
+  border-inline-width: 5px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent) padding-box;
+}
+:is(
+  .modal:not(.modal-auth),
+  .save-warning-list,
+  .viewer-body,
+  .user-picker-results,
+  .checkin-body,
+  .bell-list,
+  .le-copy-list,
+  .map-picker-results,
+  .popover-panel .popover-help
+)::-webkit-scrollbar-thumb {
+  border: 0 solid transparent;
+  border-inline-width: 5px;
+  border-radius: 11px;
+  background: var(--accent) padding-box;
+}
+:is(
+  .modal:not(.modal-auth),
+  .save-warning-list,
+  .viewer-body,
+  .user-picker-results,
+  .checkin-body,
+  .bell-list,
+  .le-copy-list,
+  .map-picker-results,
+  .popover-panel .popover-help
+)::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 80%, var(--text)) padding-box;
 }
 
 /* Price + Edit button at the end of a ticket type row. */
@@ -11304,20 +11374,10 @@ h3 .refresh-button {
   font-size: 0.95rem;
 }
 
-/* The Help panel is long: it scrolls inside itself, with the scroll bar always showing. */
+/* The Help panel is long: it scrolls inside itself, with the (shared) scroll bar always showing. */
 .popover-panel .popover-help {
   max-height: min(65vh, 520px);
   overflow-y: scroll;
-  padding-right: 12px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
-}
-.popover-panel .popover-help::-webkit-scrollbar {
-  width: 8px;
-}
-.popover-panel .popover-help::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: var(--line-strong);
 }
 /* The placeholder's name, one step bigger. */
 .ticket-field .field-name {
@@ -12904,9 +12964,32 @@ body:has(.layout-editor) .app-content {
 .le-meta {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 12px 16px;
   margin-bottom: 12px;
+}
+/* One row: a short name, a one-line description, and the Active switch at the end, level with the boxes. */
+.le-meta > .field:first-child {
+  flex: 0 1 280px;
+}
+.le-meta > .field:nth-child(2) {
+  flex: 0 1 380px;
+}
+.le-active {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  margin-top: 30px;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.le-active input {
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
 }
 .layout-card-actions {
   display: flex;
@@ -12916,4 +12999,46 @@ body:has(.layout-editor) .app-content {
 }
 .layout-card-actions .btn {
   margin-top: 0;
+}
+
+.event-org-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.event-org-link:hover,
+.event-org-link:focus-visible {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: 4px;
+  outline: none;
+}
+
+.ticket-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 4px;
+}
+.ticket-status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.show-tickets-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.show-tickets-toggle input {
+  /* Inputs are full width with padding by default; a checkbox is neither. */
+  flex: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
 }

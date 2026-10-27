@@ -23,11 +23,12 @@ import { SalesInsights } from '../../components/SalesInsights';
 import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon, TrashIcon } from '../../components/DesignerIcons';
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../components/ui';
 import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso, minutesText } from '../../utils/format';
-import { sortTicketTypes } from '../../utils/ticketTypes';
+import { sortTicketTypes, ticketStatus } from '../../utils/ticketTypes';
 import { useHasPermission, useIsOrgManager, usePosition } from '../../auth/useCanManage';
 import { useNow } from '../../utils/useNow';
 import { useOrgNames } from '../../utils/useOrgNames';
 import { ReasonForm } from '../admin/ReasonForm';
+import { CONTACT_EMAIL } from '../../config';
 import { EventSuspendedNotice } from '../../components/EventSuspendedNotice';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { useAsync } from '../../utils/useAsync';
@@ -133,7 +134,14 @@ export function ManageEventPage() {
         <p className="event-sub">
           {orgName && (
             <>
-              {orgName}
+              {/* Admins open the organization in the Organizations list; owners and organizers open its details in Settings. */}
+              {admin || canEvents ? (
+                <Link className="event-org-link" to={admin ? `/admin/organizations?q=${encodeURIComponent(orgName)}` : '/manage/settings/organization'}>
+                  {orgName}
+                </Link>
+              ) : (
+                orgName
+              )}
               <span aria-hidden="true"> · </span>
             </>
           )}
@@ -152,8 +160,8 @@ export function ManageEventPage() {
         </div>
       )}
 
-      <aside className="booking-card manage-card" aria-label="Manage this event">
-        <h2>Manage this event</h2>
+      <aside className="booking-card manage-card" aria-label={admin ? 'Admin actions' : 'Manage this event'}>
+        <h2>{admin ? 'Admin actions' : 'Manage this event'}</h2>
         <ErrorBox message={actionError} />
         <div className="actions manage-actions">
         <Link
@@ -373,6 +381,7 @@ export function ManageEventPage() {
           timezone={event.timezone}
           venueName={event.venue ? event.venue.name : 'Online'}
           canEdit={canEditTickets}
+          admin={admin}
           eventOver={over}
           query={typesQuery}
           ownDesignTypeIds={new Set((templates ?? []).map((t) => t.ticketTypeId).filter((id): id is string => Boolean(id)))}
@@ -628,17 +637,6 @@ const CARD_COLOURS: { name: string; value: string | null }[] = [
   { name: 'Orange', value: '#fda471' },
   { name: 'Pink', value: '#fd719f' },
 ];
-
-/** One word (and a colour) for where a ticket type is in its life: on sale, scheduled, paused, ended, sold out. */
-function ticketStatus(tt: TicketType, eventOver: boolean): { label: string; tone: 'good' | 'warn' | 'bad' | 'info' | 'muted' } {
-  const now = Date.now();
-  if (eventOver) return { label: 'Event ended', tone: 'muted' };
-  if (tt.salesPaused) return { label: 'Paused', tone: 'warn' };
-  if (tt.quantityAvailable <= 0) return { label: 'Sold out', tone: 'bad' };
-  if (new Date(tt.saleStartAt).getTime() > now) return { label: 'Scheduled', tone: 'info' };
-  if (new Date(tt.saleEndAt).getTime() < now) return { label: 'Sale ended', tone: 'muted' };
-  return { label: 'On sale', tone: 'good' };
-}
 
 /** "20% off" or "$5.00 off". */
 function discountText(p: PromoCode, currency: string): string {
@@ -999,6 +997,7 @@ function TicketTypes({
   eventEndAt,
   timezone,
   canEdit,
+  admin,
   eventOver,
   venueName,
   query,
@@ -1018,6 +1017,8 @@ function TicketTypes({
   venueName: string;
   /** false = read-only (an admin who is not an organizer of this event): no add, edit, pause, reorder or delete. */
   canEdit: boolean;
+  /** An admin: reads the ticket types and can suspend or lift one (with a reason), never edits them. */
+  admin: boolean;
   /** The event has ended: every ticket type reads "Event ended" and the change controls are disabled. */
   eventOver: boolean;
   query: ReturnType<typeof useAsync<TicketType[]>>;
@@ -1219,6 +1220,9 @@ function TicketTypes({
   const [adding, setAdding] = useState(false);
   // The ticket type being edited in that same window (null = adding a new one).
   const [editing, setEditing] = useState<TicketType | null>(null);
+  // An admin suspending a ticket type (asks for a reason first) or lifting a suspension (asks to confirm).
+  const [suspending, setSuspending] = useState<TicketType | null>(null);
+  const [lifting, setLifting] = useState<TicketType | null>(null);
   const seatLayouts = useAsync(() => (adding && !editing && kind === 'RESERVED_SEATING' ? layoutApi.listForOrg(organizationId) : Promise.resolve([])), [adding, editing, kind, organizationId]).data ?? [];
   const pickedLayout = useAsync(() => (layoutId ? layoutApi.get(layoutId) : Promise.resolve(null)), [layoutId]).data;
   const seatsForSale = (secs: { rows: { seats: { type?: string }[] }[] }[]) => secs.reduce((n, sec) => n + sec.rows.reduce((m, r) => m + r.seats.filter((x) => x.type !== 'BLOCKED').length, 0), 0);
@@ -1424,6 +1428,18 @@ function TicketTypes({
               </div>
               <p className="muted small tt-meta">{humanize(tt.kind)}</p>
               {!canEdit && <p className="muted small tt-meta">Venue: {venueName}</p>}
+              {tt.suspended && (canEdit || admin) && (
+                <p className="alert alert-warning small" role="status">
+                  <strong>Suspended by an admin.</strong> Buyers can see this ticket but can't buy it.
+                  {tt.suspensionReason && <> Reason: {tt.suspensionReason}</>}
+                  {canEdit && (
+                    <>
+                      {' '}
+                      To fix this, contact the admin{CONTACT_EMAIL && <> at <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></>}.
+                    </>
+                  )}
+                </p>
+              )}
               <p className="muted small tt-meta tt-window">
                 <span>On sale</span>
                 <span className="nowrap">{formatDateTime(tt.saleStartAt)}</span>
@@ -1460,6 +1476,17 @@ function TicketTypes({
                 <span>{humanize(tt.kind)}</span>
               </div>
             )}
+            {admin && (
+              <button
+                type="button"
+                className={tt.suspended ? 'btn btn-sm' : 'btn btn-sm danger'}
+                disabled={eventOver}
+                title={eventOver ? ENDED_TIP : tt.suspended ? 'Let people buy this ticket again' : 'Buyers still see this ticket but can no longer buy it'}
+                onClick={() => (tt.suspended ? setLifting(tt) : setSuspending(tt))}
+              >
+                {tt.suspended ? 'Lift suspension' : 'Suspend ticket'}
+              </button>
+            )}
             {canEdit && <strong className="tt-price">{formatMoney(tt.price)}</strong>}
             {canEdit && (
             <div className="tt-actions">
@@ -1468,11 +1495,13 @@ function TicketTypes({
                   type="button"
                   className={`btn btn-sm btn-icon ${tt.salesPaused ? 'btn-resume' : 'btn-pause'}`}
                   onClick={() => setToggling(tt)}
-                  disabled={eventOver}
+                  disabled={eventOver || Boolean(tt.suspended && tt.salesPaused)}
                   aria-label={tt.salesPaused ? `Resume sales for ${tt.name}` : `Pause sales for ${tt.name}`}
                   title={
                     eventOver
                       ? ENDED_TIP
+                      : tt.suspended && tt.salesPaused
+                        ? 'An admin suspended this ticket; it can be resumed once they lift that'
                       : tt.salesPaused
                         ? 'Resume sales: let people buy this ticket type again'
                         : 'Pause sales: stop new purchases without deleting anything'
@@ -1574,6 +1603,45 @@ function TicketTypes({
           </li>
         ))}
       </ul>
+
+      <FormDialog open={suspending !== null} title="Suspend ticket" onClose={() => setSuspending(null)}>
+        <ReasonForm
+          intro={`${suspending?.name ?? 'This ticket'} stays visible, but nobody can buy it until you lift the suspension. Tickets already sold are not affected. The organizers see your reason and have to contact you to get it fixed, so say what needs to change.`}
+          confirmLabel="Suspend ticket"
+          danger
+          onCancel={() => setSuspending(null)}
+          onSubmit={async (reason) => {
+            if (!suspending) return;
+            await ticketTypeApi.suspend(suspending.id, reason);
+            notify(`${suspending.name} suspended`);
+            setSuspending(null);
+            reload();
+          }}
+        />
+      </FormDialog>
+
+      <ConfirmDialog
+        open={lifting !== null}
+        title={`Lift the suspension of ${lifting?.name ?? 'this ticket'}?`}
+        confirmLabel="Lift suspension"
+        cancelLabel="Keep it suspended"
+        onCancel={() => setLifting(null)}
+        onConfirm={async () => {
+          const tt = lifting;
+          setLifting(null);
+          if (!tt) return;
+          setRowError(null);
+          try {
+            await ticketTypeApi.unsuspend(tt.id);
+            notify(`${tt.name} is no longer suspended`);
+            reload();
+          } catch (ex) {
+            setRowError(errorMessage(ex));
+          }
+        }}
+      >
+        Buyers can buy it again (unless the organizer paused it themselves, or its sale window is closed).
+      </ConfirmDialog>
 
       {/* Same safeguard as deleting an event: type the ticket name and re-enter the password. */}
       <DeleteEventDialog

@@ -950,6 +950,7 @@ function Editor({
           disabled={!canEdit}
           value={name}
           onChange={(e) => {
+            setError(null);
             setName(e.target.value);
             setDirty(true);
             setJustSaved(false);
@@ -968,7 +969,7 @@ function Editor({
                 setJustSaved(false);
               }}
             />
-            <label className="check-row">
+            <label className="le-active">
               <input
                 type="checkbox"
                 checked={active}

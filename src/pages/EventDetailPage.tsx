@@ -216,12 +216,12 @@ function TicketTypeRow({ ticketType: tt, eventOver }: { ticketType: TicketType; 
   // From 1 up to what one order may hold and what is left.
   const limit = Math.max(1, max);
   const qty = Math.min(limit, Math.max(1, Math.floor(Number(qtyText)) || 1));
-  const paused = tt.salesPaused;
+  const paused = tt.salesPaused || Boolean(tt.suspended);
   const disabled = notStarted || ended || soldOut || reserved || paused;
 
   let note: string | null = null;
   if (eventOver) note = 'This event has ended';
-  else if (paused) note = 'Sales are paused for now';
+  else if (paused) note = tt.suspended ? 'This ticket is not available right now' : 'Sales are paused for now';
   else if (soldOut) note = 'Sold out. Join the waitlist and we will tell you if tickets come back.';
   else if (notStarted) note = `On sale ${formatDateTime(tt.saleStartAt)}`;
   else if (ended) note = 'Sales ended';
