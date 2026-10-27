@@ -42,7 +42,8 @@ export function ManageEventsPage() {
   // Admins read the platform's event log; organizers and owners their organizations'.
   const { user } = useAuth();
   const platformLogs = isAdmin(user?.role);
-  const canCreate = useHasPermission('EVENTS', 'any');
+  // Admins only read events here (and suspend them on the event's page): they never create one.
+  const canCreate = useHasPermission('EVENTS', 'any') && !platformLogs;
   // Check-in staff only read events: no logs, no editing.
   const scanner = usePosition() === 'Scanner';
   // /manage/new opens the New event window over this list.

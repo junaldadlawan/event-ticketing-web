@@ -7,7 +7,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
 import { assetUrl, errorMessage } from '../../api/client';
-import { eventApi, layoutApi, promoApi, ticketSaleSettingsApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
+import { eventApi, layoutApi, moderationApi, promoApi, ticketSaleSettingsApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
 import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKind, TicketTypeUpdateRequest } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DeleteEventDialog } from '../../components/DeleteEventDialog';
@@ -27,6 +27,8 @@ import { sortTicketTypes } from '../../utils/ticketTypes';
 import { useHasPermission, useIsOrgManager, usePosition } from '../../auth/useCanManage';
 import { useNow } from '../../utils/useNow';
 import { useOrgNames } from '../../utils/useOrgNames';
+import { ReasonForm } from '../admin/ReasonForm';
+import { EventSuspendedNotice } from '../../components/EventSuspendedNotice';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { useAsync } from '../../utils/useAsync';
 import { zonedParts, zonedToIso } from '../../utils/zonedTime';
@@ -68,12 +70,14 @@ export function ManageEventPage() {
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [moderating, setModerating] = useState(false);
   // The activity log (who changed what on the event) opens in a floating window.
   const [showingActivity, setShowingActivity] = useState(false);
   const [showingPromos, setShowingPromos] = useState(false);
   const [showingCheckIns, setShowingCheckIns] = useState(false);
-  // Only the event's own owner / organizer may change ticket types; an admin sees them read-only.
-  const canEvents = useHasPermission('EVENTS', event?.organizationId);
+  // Only the event's own owner / organizer may change the event; an admin sees it read-only and can only suspend or reinstate it.
+  const admin = isAdmin(user?.role);
+  const canEvents = useHasPermission('EVENTS', event?.organizationId) && !admin;
   const canPromos = useHasPermission('PROMO_CODES', event?.organizationId);
   const canOrders = useHasPermission('ORDERS_REFUNDS', event?.organizationId);
   const canAnalytics = useHasPermission('ANALYTICS', event?.organizationId);
@@ -109,6 +113,7 @@ export function ManageEventPage() {
   return (
     <div className="manage-page event-page">
       <SuspendedOrgNotice organizationIds={[event.organizationId]} />
+      {event.status === 'SUSPENDED' && <EventSuspendedNotice eventId={event.id} />}
       <header className="event-head">
         <div className="title-with-status">
           <h1>{event.title}</h1>
@@ -217,6 +222,16 @@ export function ManageEventPage() {
             Cancel event
           </button>
         )}
+        {admin && (event.status === 'SUSPENDED' || ['PUBLISHED', 'ON_SALE', 'SOLD_OUT'].includes(event.status)) && (
+          <button
+            className={event.status === 'SUSPENDED' ? 'btn' : 'btn danger'}
+            disabled={busy || over}
+            title={over ? ENDED_TIP : event.status === 'SUSPENDED' ? 'Show this event to the public again' : 'Hide this event from the public'}
+            onClick={() => setModerating(true)}
+          >
+            {event.status === 'SUSPENDED' ? 'Reinstate event' : 'Suspend event'}
+          </button>
+        )}
         {canEvents && (
           <button
             className="btn btn-link danger"
@@ -292,6 +307,20 @@ export function ManageEventPage() {
         />
       )}
 
+      <FormDialog open={moderating} title={event.status === 'SUSPENDED' ? 'Reinstate event' : 'Suspend event'} onClose={() => setModerating(false)}>
+        <ReasonForm
+          intro={event.status === 'SUSPENDED' ? `${event.title} becomes visible to the public again.` : `${event.title} is hidden from the public until you reinstate it. The organizers see your reason and have to contact you to get it fixed, so say what needs to change.`}
+          confirmLabel={event.status === 'SUSPENDED' ? 'Reinstate' : 'Suspend'}
+          danger={event.status !== 'SUSPENDED'}
+          onCancel={() => setModerating(false)}
+          onSubmit={async (reason) => {
+            await moderationApi.create({ targetType: 'EVENT', targetId: event.id, action: event.status === 'SUSPENDED' ? 'REINSTATE' : 'SUSPEND', reason });
+            setEvent(await eventApi.get(event.id));
+            setModerating(false);
+          }}
+        />
+      </FormDialog>
+
       {/* Same safeguard as delete: type the event name and re-enter the password. */}
       <DeleteEventDialog
         kind="cancel"
@@ -330,7 +359,7 @@ export function ManageEventPage() {
       {over && (
         <section aria-label="Event recap">
           <h2>Recap</h2>
-          <RecapFeed event={event} canPost={canEvents && !isAdmin(user?.role)} canDelete={canEvents} />
+          <RecapFeed event={event} canPost={canEvents && !isAdmin(user?.role)} canDelete={canEvents || admin} />
         </section>
       )}
 
