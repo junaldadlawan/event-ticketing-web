@@ -150,13 +150,20 @@ export function VenuesPage() {
     }
   }
 
-  function openAdd() {
+  // The form as it was opened: closing it with other values asks before throwing them away.
+  const [initial, setInitial] = useState('');
+  const [discarding, setDiscarding] = useState(false);
+  const closeForm = () => (draft && JSON.stringify(draft) !== initial ? setDiscarding(true) : setDraft(null));
+  function openDraft(d: Draft) {
     setFormError(null);
-    setDraft({ ...EMPTY, orgId: orgs[0]?.id ?? '' });
+    setInitial(JSON.stringify(d));
+    setDraft(d);
+  }
+  function openAdd() {
+    openDraft({ ...EMPTY, orgId: orgs[0]?.id ?? '' });
   }
   function openEdit(v: Venue) {
-    setFormError(null);
-    setDraft({ id: v.id, orgId: v.organizationId, name: v.name, venueType: v.venueType ?? '', country: v.country ?? '', province: v.province ?? '', city: v.city ?? '', address: v.address ?? '', description: v.description ?? '', maxCapacity: v.maxCapacity == null ? '' : String(v.maxCapacity), coverImageUrl: v.coverImageUrl ?? null, latitude: v.latitude == null ? '' : String(v.latitude), longitude: v.longitude == null ? '' : String(v.longitude) });
+    openDraft({ id: v.id, orgId: v.organizationId, name: v.name, venueType: v.venueType ?? '', country: v.country ?? '', province: v.province ?? '', city: v.city ?? '', address: v.address ?? '', description: v.description ?? '', maxCapacity: v.maxCapacity == null ? '' : String(v.maxCapacity), coverImageUrl: v.coverImageUrl ?? null, latitude: v.latitude == null ? '' : String(v.latitude), longitude: v.longitude == null ? '' : String(v.longitude) });
   }
 
   // The pin on the map is the venue's position; both numbers are set, or neither.
@@ -335,7 +342,7 @@ export function VenuesPage() {
         {replacing?.name} already has a seat layout. A new layout replaces it once you press Save in the editor; until then nothing changes. Events that already copied seats from the old layout are not affected.
       </ConfirmDialog>
 
-      <FormDialog open={draft !== null} title={draft?.id ? 'Edit venue' : 'Add a venue'} size="large" onClose={() => setDraft(null)}>
+      <FormDialog open={draft !== null} title={draft?.id ? 'Edit venue' : 'Add a venue'} size="large" onClose={closeForm}>
         {draft && (
           <form className="form" onSubmit={save}>
             <ErrorBox message={formError} />
@@ -449,10 +456,25 @@ export function VenuesPage() {
                 <MapPinPicker position={pin} onChange={(next) => setDraft({ ...draft, latitude: next ? String(next.lat) : '', longitude: next ? String(next.lng) : '' })} />
               </div>
             </div>
-            <FormActions busy={busy} busyLabel="Saving…" submitLabel={draft.id ? 'Save changes' : 'Add venue'} submitDisabled={invalid} onCancel={() => setDraft(null)} />
+            <FormActions busy={busy} busyLabel="Saving…" submitLabel={draft.id ? 'Save changes' : 'Add venue'} submitDisabled={invalid} onCancel={closeForm} />
           </form>
         )}
       </FormDialog>
+
+      <ConfirmDialog
+        open={discarding}
+        title="Discard your changes?"
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        danger
+        onCancel={() => setDiscarding(false)}
+        onConfirm={() => {
+          setDiscarding(false);
+          setDraft(null);
+        }}
+      >
+        What you entered for this venue has not been saved and will be lost.
+      </ConfirmDialog>
     </>
   );
 }
