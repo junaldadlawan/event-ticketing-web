@@ -22,6 +22,7 @@ import { TextAreaField, TextField } from '../../components/fields/TextField';
 import { isEventOver } from '../../utils/eventState';
 import { useOrgNames } from '../../utils/useOrgNames';
 import { formatDateTime, minutesText } from '../../utils/format';
+import { Checkbox } from '../../components/fields/Checkbox';
 
 /** 0 to 24: the API takes a gate time of at most 24 hours (1440 minutes) before the start. */
 const GATE_HOURS = Array.from({ length: 25 }, (_, i) => String(i));
@@ -123,8 +124,8 @@ function EventForm({
   const [timezone, setTimezone] = useState(
     () => existing?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   );
-  // The event's images, in order: uploaded files and pasted links alike.
-  const [imageUrls, setImageUrls] = useState<string[]>(existing?.images ?? []);
+  // The event's picture: one only (an uploaded file or a pasted link). A new one replaces the old one.
+  const [imageUrls, setImageUrls] = useState<string[]>(existing?.images?.slice(0, 1) ?? []);
   // How long before the start the gates open, as hours and minutes; both blank = not set. Still editable after creation.
   const savedGate = existing?.gateOpensMinutesBefore ?? null;
   const [gateH, setGateH] = useState(savedGate == null ? '' : String(Math.floor(savedGate / 60)));
@@ -146,21 +147,21 @@ function EventForm({
       return false;
     }
     setUploadError(null);
-    setImageUrls((list) => (list.includes(link) ? list : [...list, link]));
+    setImageUrls([link]);
     setLinkInput('');
     return true;
   }
 
-  async function uploadFiles(files: File[]) {
-    const tooBig = files.filter((f) => f.size > 5 * 1024 * 1024);
-    const ok = files.filter((f) => f.size <= 5 * 1024 * 1024);
-    setUploadError(tooBig.length ? `Over 5 MB, not uploaded: ${tooBig.map((f) => f.name).join(', ')}` : null);
+  async function uploadFile(file: File) {
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError(`Over 5 MB, not uploaded: ${file.name}`);
+      return;
+    }
+    setUploadError(null);
     setUploading(true);
     try {
-      for (const file of ok) {
-        const { url } = await uploadApi.image(file);
-        setImageUrls((list) => [...list, url]);
-      }
+      const { url } = await uploadApi.image(file, 'events');
+      setImageUrls([url]); // replaces the previous picture
     } catch (err) {
       setUploadError(errorMessage(err));
     } finally {
@@ -349,8 +350,7 @@ function EventForm({
         {!locked && (
           // Not a <label>: only the box itself toggles it, not the whole row.
           <div className="same-day">
-            <input
-              type="checkbox"
+            <Checkbox
               aria-label="Same-day event"
               checked={sameDay}
               onChange={(e) => {
@@ -420,11 +420,11 @@ function EventForm({
         <div className="event-images">
           <div className="row-between">
             <span>
-              Images <span className="hint">(optional)</span>
+              Image <span className="hint">(optional)</span>
             </span>
             {/* Same button as the ticket designer's background: upload a file or use a link. */}
             <Popover
-              label={uploading ? 'Uploading image…' : 'Add image'}
+              label={uploading ? 'Uploading image…' : imageUrls.length ? 'Replace image' : 'Add image'}
               icon={uploading ? <SpinnerIcon /> : <ImageIcon />}
               disabled={uploading}
             >
@@ -449,12 +449,11 @@ function EventForm({
             ref={fileInput}
             type="file"
             accept="image/png,image/jpeg,image/webp,image/gif"
-            multiple
             hidden
             onChange={(e) => {
-              const files = [...(e.target.files ?? [])];
+              const file = e.target.files?.[0];
               e.target.value = '';
-              if (files.length) void uploadFiles(files);
+              if (file) void uploadFile(file);
             }}
           />
           <ErrorBox message={uploadError} />
@@ -484,7 +483,7 @@ function EventForm({
           <button
             className="btn btn-primary"
             disabled={busy || blocked || uploading}
-            title={uploading ? 'Wait for the images to finish uploading' : blocked ? blockedHint : undefined}
+            title={uploading ? 'Wait for the image to finish uploading' : blocked ? blockedHint : undefined}
           >
             {existing ? (busy ? 'Saving...' : 'Save changes') : busy ? 'Creating...' : 'Create draft event'}
           </button>

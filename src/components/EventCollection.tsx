@@ -160,15 +160,51 @@ export function EventCollection({
       </ul>
     );
   }
+  if (view === 'grid') {
+    return (
+      <div className="listing-row manage-grid">
+        {events.map((ev) => {
+          const over = isEventOver(ev);
+          const soon = over ? null : startsSoonIn(ev, now);
+          const draft = ev.status === 'DRAFT';
+          return (
+            <Link key={ev.id} to={hrefFor(ev)} className={`listing-card manage-card${over ? ' is-completed' : ''}${soon?.shake ? ' is-soon' : ''}${draft ? ' is-draft' : ''}`}>
+              <span className="listing-card-photo">
+                <EventImage event={ev} size="lg" />
+                <span className="manage-badges">
+                  {tag?.(ev)}
+                  {soon && <SoonBadge in={soon.left} />}
+                  <StatusBadge status={over ? 'COMPLETED' : ev.status} />
+                </span>
+              </span>
+              <span className="listing-card-meta">
+                <strong className="listing-card-title">{ev.title}</strong>
+                <span className="muted small">{humanize(ev.category)}</span>
+                <span className="muted small">{formatDateTime(ev.startAt, ev.timezone)}</span>
+                <span className="muted small">
+                  Ends {formatDateTime(ev.endAt, ev.timezone)} · {formatDuration(new Date(ev.endAt).getTime() - new Date(ev.startAt).getTime())}
+                </span>
+                <span className="muted small">{ev.venue ? ev.venue.name : 'Online'}</span>
+                {extra?.(ev) && <span className="muted small">{extra(ev)}</span>}
+                {draft && (
+                  <span className="small warn">{draftDeletesIn(ev, now) ? `Deletes in ${draftDeletesIn(ev, now)}` : 'Not published yet'}</span>
+                )}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    );
+  }
   return (
-    <div className={view === 'grid' ? 'event-grid' : 'event-list'}>
+    <div className="event-list">
       {events.map((ev) => {
         const over = isEventOver(ev);
         const soon = over ? null : startsSoonIn(ev, now);
         const draft = ev.status === 'DRAFT';
         return (
           <Link key={ev.id} to={hrefFor(ev)} className={`card event-card${over ? ' is-completed' : ''}${soon?.shake ? ' is-soon' : ''}${draft ? ' is-draft' : ''}`}>
-            <EventImage event={ev} size={view === 'grid' ? 'md' : 'sm'} />
+            <EventImage event={ev} size="sm" />
             <div className="card-body">
               <div className="row-between">
                 <span className="eyebrow">{ev.category}</span>
@@ -179,17 +215,7 @@ export function EventCollection({
                 </span>
               </div>
               <h3>{ev.title}</h3>
-              {view === 'grid' ? (
-                // The narrow stacked card: start and end on their own lines.
-                <>
-                  <p className="muted small">Starts {formatDateTime(ev.startAt, ev.timezone)}</p>
-                  <p className="muted small">
-                    Ends {formatDateTime(ev.endAt, ev.timezone)} · {formatDuration(new Date(ev.endAt).getTime() - new Date(ev.startAt).getTime())}
-                  </p>
-                </>
-              ) : (
-                <p className="muted small when-line">{whenLine(ev)}</p>
-              )}
+              <p className="muted small when-line">{whenLine(ev)}</p>
               <p className="muted small">{ev.venue ? ev.venue.name : 'Online'}</p>
               {extra?.(ev) && <p className="muted small">{extra(ev)}</p>}
             </div>

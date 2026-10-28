@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useMatch, useNavigate, useSearchParams } from 'react-router-dom';
-import { eventApi } from '../../api/endpoints';
+import { eventApi, organizationApi } from '../../api/endpoints';
 import type { Event, EventStatus } from '../../api/types';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { CategorySelect } from '../../components/CategorySelect';
@@ -15,10 +15,12 @@ import { humanize } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { useNow } from '../../utils/useNow';
 import { useOrgNames } from '../../utils/useOrgNames';
+import { EventTicketStatuses } from '../../components/EventTicketStatuses';
 import { LogsButton } from '../../components/LogsButton';
 import { useAuth } from '../../auth/AuthContext';
 import { isAdmin } from '../../auth/roles';
 import { useHasPermission, usePosition } from '../../auth/useCanManage';
+import { Checkbox } from '../../components/fields/Checkbox';
 
 const STATUSES: EventStatus[] = [
   'DRAFT',
@@ -36,13 +38,20 @@ export function ManageEventsPage() {
   const keyword = params.get('keyword') ?? '';
   const category = params.get('category') ?? '';
   const status = (params.get('status') ?? '') as EventStatus | '';
+  // Admins can narrow to suspended events, or to those that are not (shown only when not).
+  const suspension = params.get('suspension') ?? '';
+  // Admins can look at one organization's events (all of them when empty).
+  const org = params.get('org') ?? '';
+  // Lists each event's ticket types with their status.
+  const showTickets = params.get('tickets') === '1';
   const page = Number(params.get('page') ?? 0);
 
   const [kw, setKw] = useState(keyword);
   // Admins read the platform's event log; organizers and owners their organizations'.
   const { user } = useAuth();
   const platformLogs = isAdmin(user?.role);
-  const canCreate = useHasPermission('EVENTS', 'any');
+  // Admins only read events here (and suspend them on the event's page): they never create one.
+  const canCreate = useHasPermission('EVENTS', 'any') && !platformLogs;
   // Check-in staff only read events: no logs, no editing.
   const scanner = usePosition() === 'Scanner';
   // /manage/new opens the New event window over this list.
@@ -55,18 +64,20 @@ export function ManageEventsPage() {
       eventApi.managed({
         keyword,
         category,
-        status: status || undefined,
+        status: suspension === 'yes' ? 'SUSPENDED' : status || undefined,
+        organizationId: platformLogs && org ? org : undefined,
         page,
         size: 12,
         sort: 'startAt,desc',
       }),
-    [keyword, category, status, page],
+    [keyword, category, status, suspension, org, page],
   );
 
+  const allOrgs = useAsync(() => (platformLogs ? organizationApi.list() : Promise.resolve([])), [platformLogs]).data ?? [];
   const orgNames = useOrgNames((data?.content ?? []).map((e) => e.organizationId));
 
   function update(next: Record<string, string>) {
-    const merged = { keyword, category, status, page: String(page), ...next };
+    const merged = { keyword, category, status, suspension, org, tickets: showTickets ? '1' : '', page: String(page), ...next };
     const clean = Object.fromEntries(Object.entries(merged).filter(([, v]) => v && v !== '0'));
     setParams(clean);
   }
@@ -76,19 +87,26 @@ export function ManageEventsPage() {
     update({ keyword: kw.trim(), page: '0' });
   }
 
-  const filtered = Boolean(keyword || category || status);
+  const filtered = Boolean(keyword || category || status || suspension || org);
   // Events running right now, from this page of results, with how long they have been on.
   const now = useNow().getTime();
-  const ongoing = data?.content.filter((e) => isOngoing(e, now)) ?? [];
-  const rest = data?.content.filter((e) => !isOngoing(e, now)) ?? [];
+  // "Not suspended" can't be asked of the API, so it hides the suspended ones from this page of results.
+  const shown = (data?.content ?? []).filter((e) => suspension !== 'no' || e.status !== 'SUSPENDED');
+  const ongoing = shown.filter((e) => isOngoing(e, now));
+  const rest = shown.filter((e) => !isOngoing(e, now));
   // Still to come, soonest first and grouped by when (Today, Tomorrow, a weekday, Later this month, a month); then the ended ones.
   // Drafts are one group of their own, whatever their date.
   const drafts = rest.filter((e) => e.status === 'DRAFT');
   const toCome = rest.filter((e) => e.status !== 'DRAFT' && !isEventOver(e, now)).sort((a, b) => a.startAt.localeCompare(b.startAt));
   const completed = rest.filter((e) => e.status !== 'DRAFT' && isEventOver(e, now));
   // The organization's name, only when the list mixes several.
-  const orgLabel = (ev: Event) => (orgNames.size > 1 ? orgNames.get(ev.organizationId) : undefined);
-  const extra = (ev: Event) => orgLabel(ev) ?? null;
+  const orgLabel = (ev: Event) => (orgNames.size > 1 || (platformLogs && !org) ? orgNames.get(ev.organizationId) : undefined);
+  const extra = (ev: Event) => (
+    <>
+      {orgLabel(ev)}
+      {showTickets && <EventTicketStatuses event={ev} />}
+    </>
+  );
 
   return (
     <>
@@ -100,8 +118,8 @@ export function ManageEventsPage() {
       <SuspendedOrgNotice organizationIds={(data?.content ?? []).map((e) => e.organizationId)} />
       <section className="hero">
         <PageHeader
-          title="Manage events"
-          lede={orgNames.size > 0 ? [...orgNames.values()].join(' · ') : undefined}
+          title="Events"
+          lede={platformLogs ? (org ? orgNames.get(org) : "Every organization's events") : undefined}
           actions={
             <>
               {!scanner && <LogsButton area="EVENTS" title="Event Management" organizations={platformLogs ? undefined : 'mine'} />}
@@ -114,7 +132,7 @@ export function ManageEventsPage() {
             </>
           }
         />
-        <form className="search search-wide" onSubmit={onSearch}>
+        <form className={`search ${platformLogs ? 'search-admin' : 'search-wide'}`} onSubmit={onSearch}>
           <input
             placeholder="Search your events..."
             value={kw}
@@ -140,6 +158,27 @@ export function ManageEventsPage() {
               </option>
             ))}
           </select>
+          {platformLogs && (
+            <select value={org} onChange={(e) => update({ keyword: kw.trim(), org: e.target.value, page: '0' })} aria-label="Organization">
+              <option value="">All organizations</option>
+              {[...allOrgs].sort((a, b) => a.name.localeCompare(b.name)).map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {platformLogs && (
+            <select
+              value={suspension}
+              onChange={(e) => update({ keyword: kw.trim(), suspension: e.target.value, page: '0' })}
+              aria-label="Suspension"
+            >
+              <option value="">Suspended or not</option>
+              <option value="yes">Suspended</option>
+              <option value="no">Not suspended</option>
+            </select>
+          )}
           <button className="btn btn-primary search-button" type="submit" title="Search" aria-label="Search">
             <SearchIcon />
           </button>
@@ -149,7 +188,7 @@ export function ManageEventsPage() {
       <ErrorBox message={error} />
       {loading && !data ? (
         <Spinner />
-      ) : data && data.content.length === 0 ? (
+      ) : data && shown.length === 0 ? (
         <Empty>
           {filtered ? (
             'No events match your search.'
@@ -162,8 +201,12 @@ export function ManageEventsPage() {
       ) : (
         data && (
           <>
-            <ResultsBar count={data.totalElements} view={view} onViewChange={setView} onRefresh={reload} refreshing={loading} />
-            <div>
+            <label className="show-tickets-toggle">
+              <Checkbox checked={showTickets} onChange={(e) => update({ tickets: e.target.checked ? '1' : '' })} />
+              Show each event's tickets and their status
+            </label>
+            <ResultsBar count={suspension === 'no' ? shown.length : data.totalElements} view={view} onViewChange={setView} onRefresh={reload} refreshing={loading} />
+            <div className="manage-list">
             {ongoing.length > 0 && (
               <>
                 <h2>Happening now</h2>
@@ -176,6 +219,7 @@ export function ManageEventsPage() {
                       Running for {formatDuration(now - new Date(ev.startAt).getTime())} ·{' '}
                       {formatDuration(new Date(ev.endAt).getTime() - now)} left
                       {orgLabel(ev) && <> · {orgLabel(ev)}</>}
+                      {showTickets && <EventTicketStatuses event={ev} />}
                     </>
                   )}
                 />

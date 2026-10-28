@@ -123,6 +123,8 @@ export function AuthDialogProvider({ children }: { children: ReactNode }) {
         className="modal modal-auth"
         aria-label={mode === 'register' ? 'Create your account' : 'Log in'}
         onCancel={(e) => {
+          // A file picker inside the window sends its own "cancel" up to here: only the window's own Escape counts.
+          if (e.target !== e.currentTarget) return;
           e.preventDefault(); // Escape closes it
           close();
         }}

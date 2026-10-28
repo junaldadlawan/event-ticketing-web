@@ -12,3 +12,15 @@ export function sortTicketTypes(list: TicketType[]): TicketType[] {
     return byDate !== 0 ? byDate : a.id.localeCompare(b.id);
   });
 }
+
+/** One word (and a colour) for where a ticket type is in its life: on sale, scheduled, paused, ended, sold out. */
+export function ticketStatus(tt: TicketType, eventOver: boolean): { label: string; tone: 'good' | 'warn' | 'bad' | 'info' | 'muted' } {
+  const now = Date.now();
+  if (eventOver) return { label: 'Event ended', tone: 'muted' };
+  if (tt.suspended) return { label: 'Suspended', tone: 'bad' };
+  if (tt.salesPaused) return { label: 'Paused', tone: 'warn' };
+  if (tt.quantityAvailable <= 0) return { label: 'Sold out', tone: 'bad' };
+  if (new Date(tt.saleStartAt).getTime() > now) return { label: 'Scheduled', tone: 'info' };
+  if (new Date(tt.saleEndAt).getTime() < now) return { label: 'Sale ended', tone: 'muted' };
+  return { label: 'On sale', tone: 'good' };
+}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { errorMessage } from '../api/client';
 import { authApi } from '../api/endpoints';
@@ -67,6 +67,7 @@ export function DeleteEventDialog({
   /** Runs the actual delete / cancel / pause / resume once name + password check out. */
   onConfirmed: () => Promise<void>;
 }) {
+  const titleId = useId();
   const { user } = useAuth();
   const copy = COPY[kind];
   const dialog = useRef<HTMLDialogElement>(null);
@@ -115,9 +116,11 @@ export function DeleteEventDialog({
     <dialog
       ref={dialog}
       className="modal"
-      aria-labelledby="delete-event-title"
+      aria-labelledby={titleId}
       // Escape / backdrop close -> tell the parent (unless mid-delete).
       onCancel={(e) => {
+        // A file picker inside the window sends its own "cancel" up to here: only the window's own Escape counts.
+        if (e.target !== e.currentTarget) return;
         if (busy) e.preventDefault();
         else onCancel();
       }}
@@ -127,7 +130,7 @@ export function DeleteEventDialog({
           <span className="modal-icon" aria-hidden="true">
             {kind === 'pause' ? <PauseIcon /> : kind === 'resume' ? <PlayIcon /> : <TrashIcon />}
           </span>
-          <h2 id="delete-event-title">{copy.title}</h2>
+          <h2 id={titleId}>{copy.title}</h2>
         </div>
         <p className="small">
           This {copy.text} <strong>{eventTitle}</strong>. {copy.after}

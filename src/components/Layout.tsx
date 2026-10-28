@@ -1,8 +1,8 @@
 import { CustomerNotificationBell } from './CustomerNotificationBell';
+import { HeaderOrgName } from './HeaderOrgName';
 import { NotificationBell } from './NotificationBell';
 import { isAdmin as isAdminRole } from '../auth/roles';
 import { useEffect, useRef, useState } from 'react';
-import { fullName, isNewAccount } from '../utils/format';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useAuthDialog } from '../auth/AuthDialog';
@@ -11,22 +11,10 @@ import type { ViewMode } from '../auth/ViewMode';
 import { useHasPermission, useIsHost, usePosition } from '../auth/useCanManage';
 import { useCart } from '../cart/CartContext';
 import { ThemeToggle } from '../theme/ThemeToggle';
-import { Avatar } from './Avatar';
-import { SparkleIcon, TicketIcon } from './DesignerIcons';
+import { AccountMenu } from './AccountMenu';
 import { BackButton } from './BackButton';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useUnsavedChangesApi } from './UnsavedChanges';
-import { ViewSwitcher } from './ViewSwitcher';
-
-/** A gear: the Settings tab. */
-function SettingsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
-  );
-}
 
 function CartIcon() {
   return (
@@ -112,6 +100,11 @@ export function Layout() {
     // Going to the customer view leaves any management page: ask about unsaved edits first.
     if (next === 'customer' && /^\/(manage|admin)(\/|$)/.test(pathname) && !(await confirmLeave())) return;
     setMode(next);
+    // Each view starts at its own home, so a page of the other view is not left on screen under the new menu:
+    // management starts at Events (/manage); the customer view shows the public page of the event you were managing, or Home.
+    const managed = pathname.match(/^\/manage\/events\/([^/]+)$/);
+    if (next === 'manage') navigate('/manage');
+    else navigate(managed ? `/events/${managed[1]}` : '/');
   }
 
   async function handleLogout() {
@@ -123,50 +116,45 @@ export function Layout() {
 
   return (
     <div className="app">
-      <header className="topbar">
+      {/* Every header is the marketplace one: the wordmark at the left, the tabs centred, the account at the right.
+          In the management view (owner, organizer, admin) the centre holds the management tabs. */}
+      <header className={`topbar topbar-market${hideManagement ? '' : ' topbar-manage'}`}>
         <div className="container topbar-inner">
-          {/* Organization members (owner, organizer) in their management view work from Event Management, Team and Settings. */}
-          {!orgMemberView && (
-            <>
-              {hideManagement && (
-                <NavLink to="/" end className="brand">
-                  Home
-                </NavLink>
-              )}
+          <div className="brand-group">
+            <NavLink to="/" end className="wordmark">
+              eventKo
+            </NavLink>
+            {/* Names the role (Admin, Organization Owner...) while someone works in their management view. */}
+            {user && isHost === true && !hideManagement && (
+              <span className="view-badge is-manage" title="Change the view in the account menu">
+                {`${position ?? 'Management'} view`}
+              </span>
+            )}
+          </div>
+          {orgMemberView && <HeaderOrgName />}
+          {/* Organization members (owner, organizer) in their management view work from Events, Team and Settings. */}
+          {!orgMemberView && hideManagement && (
+            <div className="topbar-tabs">
               <NavLink to="/events" end className="brand">
                 Events
               </NavLink>
-            </>
-          )}
-          {user && !hideManagement && (
-            <nav className="nav" aria-label="Organizer">
-              {/* Team and Settings live under /manage too, so Event Management is not highlighted there */}
-              <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/finance', '/manage/scanner'].includes(pathname) && !pathname.startsWith('/manage/settings') ? 'active' : '')}>
-                {isAdminRole(user.role) ? 'Event Management' : 'Events'}
-              </NavLink>
-              {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/team">Team &amp; access</NavLink>}
-              {!isAdminRole(user.role) && canFinance && <NavLink to="/manage/finance">Finance</NavLink>}
-              {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/scanner">Check-in</NavLink>}
-              {isAdminRole(user.role) && (
-                <>
-                  <NavLink to="/admin/posts">Posts</NavLink>
-                  <NavLink to="/admin/organizations">Organizations</NavLink>
-                  <NavLink to="/admin/users">Users</NavLink>
-                  <NavLink to="/admin/payouts">Finance</NavLink>
-                  <NavLink to="/admin/disputes">Disputes</NavLink>
-                  <NavLink to="/admin/scanner">Check-in</NavLink>
-                </>
-              )}
-              {settingsTo && (
-                <NavLink to={settingsTo} className="nav-icon" aria-label="Settings" title="Settings">
-                  <SettingsIcon />
+              {hideManagement && (
+                <NavLink to="/posts" end className="brand">
+                  Posts
                 </NavLink>
               )}
-            </nav>
+              {hideManagement && (
+                <NavLink to="/contact" end className="brand">
+                  Contact us
+                </NavLink>
+              )}
+            </div>
           )}
           <div className="nav nav-right">
-            {user && isHost === true && (
-              <ViewSwitcher mode={mode} position={position} onChoose={setSwitchingTo} />
+            {hideManagement && isHost !== true && (
+              <Link to="/apply" className="host-link">
+                Host an event
+              </Link>
             )}
             {user && isAdminRole(user.role) && !hideManagement && <NotificationBell />}
             {user && hideManagement && <CustomerNotificationBell userId={user.id} />}
@@ -189,55 +177,52 @@ export function Layout() {
                       </span>
                     )}
                   </NavLink>
-                  <NavLink to="/tickets" className="cart-link" title="My tickets" aria-label="My tickets">
-                    <TicketIcon />
-                  </NavLink>
                 </nav>
               </>
             )}
-            {user ? (
-              <>
-                <NavLink to="/profile" className="nav-user">
-                  <span className="nav-avatar">
-                    <Avatar src={user.avatarUrl} name={fullName(user)} size={26} />
-                    {isNewAccount(user.createdAt) && (
-                      <span className="nav-new" role="img" aria-label="New user" data-tip="New user">
-                        <SparkleIcon />
-                      </span>
-                    )}
-                  </span>
-                  {user.firstName}
-                </NavLink>
-                <button className="btn btn-link" onClick={() => setConfirmingLogout(true)}>
-                  Log out
-                </button>
-              </>
-            ) : (
-              <>
-                <a
-                  href="/login"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    openAuth('login');
-                  }}
-                >
-                  Log in
-                </a>
-                <a
-                  href="/register"
-                  className="btn btn-cta btn-sm"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    openAuth('register');
-                  }}
-                >
-                  Sign up
-                </a>
-              </>
-            )}
+            <AccountMenu
+              user={user}
+              isHost={isHost === true}
+              customerView={hideManagement}
+              mode={mode}
+              position={position}
+              onChooseMode={setSwitchingTo}
+              onOpenAuth={openAuth}
+              onLogout={() => setConfirmingLogout(true)}
+            />
           </div>
         </div>
       </header>
+      <div className={hideManagement ? 'app-body' : 'app-body app-shell'}>
+      {user && !hideManagement && (
+        <aside className="sidebar">
+              <nav className="sidebar-nav" aria-label="Organizer">
+                {/* Team and Settings live under /manage too, so Events is not highlighted there */}
+                <NavLink to="/manage" className={({ isActive }) => (isActive && !['/manage/team', '/manage/finance', '/manage/scanner'].includes(pathname) && !pathname.startsWith('/manage/settings') && !pathname.startsWith('/manage/venues') && !pathname.startsWith('/manage/layouts') ? 'active' : '')}>
+                  Events
+                </NavLink>
+                {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/venues" className={({ isActive }) => (isActive || pathname.startsWith('/manage/layouts') ? 'active' : '')}>Venues &amp; seat layouts</NavLink>}
+                {!isAdminRole(user.role) && isHost === true && !scanner && <NavLink to="/manage/team">Team &amp; access</NavLink>}
+                {!isAdminRole(user.role) && canFinance && <NavLink to="/manage/finance">Finance</NavLink>}
+                {!isAdminRole(user.role) && isHost === true && <NavLink to="/manage/scanner">Check-in</NavLink>}
+                {isAdminRole(user.role) && (
+                  <>
+                    <NavLink to="/admin/posts">Posts</NavLink>
+                    <NavLink to="/admin/organizations">Organizations</NavLink>
+                    <NavLink to="/admin/users">Users</NavLink>
+                    <NavLink to="/admin/payouts">Finance</NavLink>
+                    <NavLink to="/admin/disputes">Disputes</NavLink>
+                    <NavLink to="/admin/layout-presets">Seat layouts</NavLink>
+                    <NavLink to="/admin/scanner">Check-in</NavLink>
+                  </>
+                )}
+                {settingsTo && (
+                  <NavLink to={settingsTo}>Settings</NavLink>
+                )}
+              </nav>
+        </aside>
+      )}
+      <div className="app-content">
       <ConfirmDialog
         open={confirmingLogout}
         title="Log out?"
@@ -260,48 +245,53 @@ export function Layout() {
           ? "You'll see the app the way buyers do, without the Manage and Posts tabs. Switch back any time."
           : 'The Manage and Posts tabs come back, along with the Manage buttons on your events.'}
       </ConfirmDialog>
-      <main className="container main" ref={mainRef}>
+      <main className={`container main${pathname === '/' || pathname === '/events' || /^\/(events|manage\/events)\/[^/]+$/.test(pathname) || pathname === '/manage' ? ' container-wide' : ''}${hideManagement ? '' : ' manage-view'}`} ref={mainRef}>
         <BackButton />
         <Outlet />
       </main>
-      <footer className="footer">
-        <div className="container footer-inner">
-          <span>© {new Date().getFullYear()} events</span>
-          <nav className="footer-links" aria-label="Footer">
-            {/* Same as the header: no customer links in the management view. */}
-            {!orgMemberView && <Link to="/events">Events</Link>}
-            {(!user || hideManagement) && <Link to="/apply">Host an event</Link>}
-            {user ? (
-              <>
-                {hideManagement && <Link to="/orders">Orders</Link>}
-                {!hideManagement && <Link to="/manage">Event Management</Link>}
-                <Link to="/profile">Profile</Link>
-              </>
-            ) : (
-              <>
-                <a
-                  href="/login"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    openAuth('login');
-                  }}
-                >
-                  Log in
-                </a>
-                <a
-                  href="/register"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    openAuth('register');
-                  }}
-                >
-                  Sign up
-                </a>
-              </>
-            )}
-          </nav>
-        </div>
-      </footer>
+      {/* The footer is the customer view's; the management view has none. */}
+      {hideManagement && (
+        <footer className="footer">
+          <div className="container footer-inner">
+            <span>© {new Date().getFullYear()} eventKo</span>
+            <nav className="footer-links" aria-label="Footer">
+              {/* Same as the header: no customer links in the management view. */}
+              {!orgMemberView && <Link to="/events">Events</Link>}
+              {(!user || hideManagement) && <Link to="/apply">Host an event</Link>}
+              {user ? (
+                <>
+                  {hideManagement && <Link to="/orders">Orders</Link>}
+                  {!hideManagement && <Link to="/manage">Events</Link>}
+                  <Link to="/profile">Profile</Link>
+                </>
+              ) : (
+                <>
+                  <a
+                    href="/login"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      openAuth('login');
+                    }}
+                  >
+                    Log in
+                  </a>
+                  <a
+                    href="/register"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      openAuth('register');
+                    }}
+                  >
+                    Sign up
+                  </a>
+                </>
+              )}
+            </nav>
+          </div>
+        </footer>
+      )}
+      </div>
+      </div>
     </div>
   );
 }

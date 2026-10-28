@@ -10,6 +10,7 @@ import { formatMoney } from '../../utils/format';
 import { useAsync } from '../../utils/useAsync';
 import { AdminOnly } from './AdminTabs';
 import { GeneratePayoutForm } from './AdminPayoutsPage';
+import { Checkbox } from '../../components/fields/Checkbox';
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const keyOf = (i: EligiblePayoutItem) => `${i.organizationId}:${i.eventId ?? ''}`;
@@ -155,8 +156,7 @@ function GeneratePayout() {
           <thead>
             <tr>
               <th>
-                <input
-                  type="checkbox"
+                <Checkbox
                   aria-label="Select all ready payouts"
                   checked={allReady}
                   onChange={() => setPicked(allReady ? new Set() : new Set(readyKeys))}
@@ -175,8 +175,7 @@ function GeneratePayout() {
               return (
                 <tr key={key} className={hold ? 'is-suspended' : undefined}>
                   <td>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       aria-label={`Select ${i.organizationName}${i.eventTitle ? `, ${i.eventTitle}` : ''}`}
                       disabled={hold}
                       checked={picked.has(key)}

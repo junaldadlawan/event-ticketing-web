@@ -6,14 +6,15 @@ import { SelectField, TextField } from '../../components/fields/TextField';
 import type { CSSProperties, ReactNode } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useMatch, useNavigate, useParams } from 'react-router-dom';
-import { errorMessage } from '../../api/client';
-import { eventApi, promoApi, ticketSaleSettingsApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
+import { assetUrl, errorMessage } from '../../api/client';
+import { eventApi, layoutApi, moderationApi, organizationApi, promoApi, ticketSaleSettingsApi, ticketTemplateApi, ticketTypeApi } from '../../api/endpoints';
 import type { Event, PromoCode, PromoCodeCreateRequest, TicketType, TicketTypeKind, TicketTypeUpdateRequest } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DeleteEventDialog } from '../../components/DeleteEventDialog';
 import { EventActivity } from '../../components/EventActivity';
 import { EventCheckIns } from '../../components/EventCheckIns';
 import { RecapFeed } from '../../components/EventRecap';
+import { RefreshButton } from '../../components/RefreshButton';
 import { useAuth } from '../../auth/AuthContext';
 import { isAdmin } from '../../auth/roles';
 import { FormDialog } from '../../components/FormDialog';
@@ -21,15 +22,19 @@ import { EventFormDialog } from './CreateEventPage';
 import { SalesInsights } from '../../components/SalesInsights';
 import { CheckIcon, ChevronDownIcon, EditIcon, EyeIcon, GripIcon, PauseIcon, PlayIcon, TicketIcon, TrashIcon } from '../../components/DesignerIcons';
 import { Empty, ErrorBox, Pagination, Spinner, StatusBadge } from '../../components/ui';
-import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso, minutesText } from '../../utils/format';
-import { sortTicketTypes } from '../../utils/ticketTypes';
+import { formatDateTime, formatMoney, humanize, isoToLocalInput, localInputToIso, minorDigits, minutesText, toMajor, toMinor } from '../../utils/format';
+import { sortTicketTypes, ticketStatus } from '../../utils/ticketTypes';
 import { useHasPermission, useIsOrgManager, usePosition } from '../../auth/useCanManage';
 import { useNow } from '../../utils/useNow';
 import { useOrgNames } from '../../utils/useOrgNames';
+import { ReasonForm } from '../admin/ReasonForm';
+import { CONTACT_EMAIL } from '../../config';
+import { EventSuspendedNotice } from '../../components/EventSuspendedNotice';
 import { SuspendedOrgNotice } from '../../components/SuspendedOrgNotice';
 import { useAsync } from '../../utils/useAsync';
 import { zonedParts, zonedToIso } from '../../utils/zonedTime';
 import { draftDeletesIn, formatDuration, isEventOver } from '../../utils/eventState';
+import { Checkbox } from '../../components/fields/Checkbox';
 
 /** Tooltip on the controls an ended event greys out. */
 const ENDED_TIP = 'This event has ended and can no longer be changed';
@@ -67,12 +72,14 @@ export function ManageEventPage() {
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [moderating, setModerating] = useState(false);
   // The activity log (who changed what on the event) opens in a floating window.
   const [showingActivity, setShowingActivity] = useState(false);
   const [showingPromos, setShowingPromos] = useState(false);
   const [showingCheckIns, setShowingCheckIns] = useState(false);
-  // Only the event's own owner / organizer may change ticket types; an admin sees them read-only.
-  const canEvents = useHasPermission('EVENTS', event?.organizationId);
+  // Only the event's own owner / organizer may change the event; an admin sees it read-only and can only suspend or reinstate it.
+  const admin = isAdmin(user?.role);
+  const canEvents = useHasPermission('EVENTS', event?.organizationId) && !admin;
   const canPromos = useHasPermission('PROMO_CODES', event?.organizationId);
   const canOrders = useHasPermission('ORDERS_REFUNDS', event?.organizationId);
   const canAnalytics = useHasPermission('ANALYTICS', event?.organizationId);
@@ -103,14 +110,15 @@ export function ManageEventPage() {
   const canPublish = canEvents && event.status === 'DRAFT';
   // An ended event keeps the button (disabled) like its other controls.
   const canCancel = canEvents && (over || !['CANCELLED', 'COMPLETED'].includes(event.status));
+  const cover = assetUrl(event.images?.find((u) => u && u.trim()));
 
   return (
-    <div className="manage-page">
+    <div className="manage-page event-page">
       <SuspendedOrgNotice organizationIds={[event.organizationId]} />
-      <section className="event-hero">
+      {event.status === 'SUSPENDED' && <EventSuspendedNotice eventId={event.id} />}
+      <header className="event-head">
         <div className="title-with-status">
           <h1>{event.title}</h1>
-          <StatusBadge status={over ? 'COMPLETED' : event.status} />
           {canEvents && (
             <button
               type="button"
@@ -124,15 +132,39 @@ export function ManageEventPage() {
             </button>
           )}
         </div>
-        <p className="event-hero-when">
-          {orgName && <>{orgName} · </>}
-          {formatDateTime(event.startAt, event.timezone)} · {event.venue ? event.venue.name : 'Online'} · runs{' '}
-          {formatDuration(new Date(event.endAt).getTime() - new Date(event.startAt).getTime())} · prefix <code>{event.ticketPrefix}</code>
-          {event.category && <span className="hero-category">{humanize(event.category)}</span>}
+        <p className="event-sub">
+          {orgName && (
+            <>
+              {/* Admins open the organization in the Organizations list; owners and organizers open its details in Settings. */}
+              {admin || canEvents ? (
+                <Link className="event-org-link" to={admin ? `/admin/organizations?q=${encodeURIComponent(orgName)}` : '/manage/settings/organization'}>
+                  {orgName}
+                </Link>
+              ) : (
+                orgName
+              )}
+              <span aria-hidden="true"> · </span>
+            </>
+          )}
+          {event.category ? humanize(event.category) : 'Event'}
+          <span aria-hidden="true"> · </span>
+          {event.venue ? event.venue.name : 'Online'}
+          <StatusBadge status={over ? 'COMPLETED' : event.status} />
         </p>
-        {event.description && <p className="event-hero-about">{event.description}</p>}
+      </header>
+
+      {cover ? (
+        <img className="event-hero" src={cover} alt={`Picture for ${event.title}`} />
+      ) : (
+        <div className="event-hero event-hero-empty" aria-hidden="true">
+          {event.category ? humanize(event.category) : 'Event'}
+        </div>
+      )}
+
+      <aside className="booking-card manage-card" aria-label={admin ? 'Admin actions' : 'Manage this event'}>
+        <h2>{admin ? 'Admin actions' : 'Manage this event'}</h2>
         <ErrorBox message={actionError} />
-        <div className="actions">
+        <div className="actions manage-actions">
         <Link
           to={`/events/${event.id}`}
           className="btn btn-outline-cta"
@@ -199,6 +231,16 @@ export function ManageEventPage() {
             Cancel event
           </button>
         )}
+        {admin && (event.status === 'SUSPENDED' || ['PUBLISHED', 'ON_SALE', 'SOLD_OUT'].includes(event.status)) && (
+          <button
+            className={event.status === 'SUSPENDED' ? 'btn' : 'btn danger'}
+            disabled={busy || over}
+            title={over ? ENDED_TIP : event.status === 'SUSPENDED' ? 'Show this event to the public again' : 'Hide this event from the public'}
+            onClick={() => setModerating(true)}
+          >
+            {event.status === 'SUSPENDED' ? 'Reinstate event' : 'Suspend event'}
+          </button>
+        )}
         {canEvents && (
           <button
             className="btn btn-link danger"
@@ -210,7 +252,49 @@ export function ManageEventPage() {
           </button>
         )}
         </div>
-      </section>
+      </aside>
+
+      <ul className="event-facts">
+        <li>
+          <FactIcon>
+            <rect x="3" y="5" width="18" height="16" rx="3" />
+            <path d="M3 10h18M8 3v4M16 3v4" />
+          </FactIcon>
+          <div>
+            <strong>{formatDateTime(event.startAt, event.timezone)}</strong>
+            <span>
+              Ends {formatDateTime(event.endAt, event.timezone)} · runs {formatDuration(new Date(event.endAt).getTime() - new Date(event.startAt).getTime())}
+            </span>
+          </div>
+        </li>
+        <li>
+          <FactIcon>
+            <path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" />
+            <circle cx="12" cy="9" r="2.5" />
+          </FactIcon>
+          <div>
+            <strong>{event.venue ? event.venue.name : 'Online'}</strong>
+            <span>{event.venue ? event.venue.address : 'Join from anywhere'}</span>
+          </div>
+        </li>
+        <li>
+          <FactIcon>
+            <path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.5a1.5 1.5 0 0 0 0 3V15a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1.5a1.5 1.5 0 0 0 0-3z" />
+            <path d="M14 7v10" strokeDasharray="2 2" />
+          </FactIcon>
+          <div>
+            <strong>Ticket prefix <code>{event.ticketPrefix}</code></strong>
+            <span>Every ticket number for this event starts with it</span>
+          </div>
+        </li>
+      </ul>
+
+      {event.description && (
+        <section className="event-about">
+          <h2>About this event</h2>
+          <p className="description">{event.description}</p>
+        </section>
+      )}
 
       {draftDeletesIn(event, now) && (
         <p className="alert alert-warning" role="status">
@@ -231,6 +315,20 @@ export function ManageEventPage() {
           onPublish={() => act(() => eventApi.publish(event.id))}
         />
       )}
+
+      <FormDialog open={moderating} title={event.status === 'SUSPENDED' ? 'Reinstate event' : 'Suspend event'} onClose={() => setModerating(false)}>
+        <ReasonForm
+          intro={event.status === 'SUSPENDED' ? `${event.title} becomes visible to the public again.` : `${event.title} is hidden from the public until you reinstate it. The organizers see your reason and have to contact you to get it fixed, so say what needs to change.`}
+          confirmLabel={event.status === 'SUSPENDED' ? 'Reinstate' : 'Suspend'}
+          danger={event.status !== 'SUSPENDED'}
+          onCancel={() => setModerating(false)}
+          onSubmit={async (reason) => {
+            await moderationApi.create({ targetType: 'EVENT', targetId: event.id, action: event.status === 'SUSPENDED' ? 'REINSTATE' : 'SUSPEND', reason });
+            setEvent(await eventApi.get(event.id));
+            setModerating(false);
+          }}
+        />
+      </FormDialog>
 
       {/* Same safeguard as delete: type the event name and re-enter the password. */}
       <DeleteEventDialog
@@ -270,19 +368,21 @@ export function ManageEventPage() {
       {over && (
         <section aria-label="Event recap">
           <h2>Recap</h2>
-          <RecapFeed event={event} canPost={canEvents && !isAdmin(user?.role)} canDelete={canEvents} />
+          <RecapFeed event={event} canPost={canEvents && !isAdmin(user?.role)} canDelete={canEvents || admin} />
         </section>
       )}
 
       {!scanner && (
         <TicketTypes
           eventId={event.id}
+          organizationId={event.organizationId}
           eventTitle={event.title}
           eventStartAt={event.startAt}
           eventEndAt={event.endAt}
           timezone={event.timezone}
           venueName={event.venue ? event.venue.name : 'Online'}
           canEdit={canEditTickets}
+          admin={admin}
           eventOver={over}
           query={typesQuery}
           ownDesignTypeIds={new Set((templates ?? []).map((t) => t.ticketTypeId).filter((id): id is string => Boolean(id)))}
@@ -306,6 +406,15 @@ export function ManageEventPage() {
         <EventActivity eventId={event.id} timezone={event.timezone} ticketTypes={typesQuery.data ?? []} />
       </FormDialog>
     </div>
+  );
+}
+
+/** A small line icon for the key facts (the paths are drawn by the caller). */
+function FactIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg className="fact-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
   );
 }
 
@@ -513,9 +622,6 @@ function RowMenu({ label, children }: { label: string; children: (close: () => v
   );
 }
 
-/** Currencies a ticket can be priced in (all with cents, which the price field assumes). PHP first: PayMongo charges PHP. */
-const CURRENCIES = ['PHP', 'USD', 'EUR', 'GBP', 'SGD', 'AUD', 'CAD', 'HKD'].map((code) => ({ code }));
-
 /** The platform's sale timing rules until the admin's settings load (the API's defaults; it checks them anyway). */
 const DEFAULT_SALE_SETTINGS = { salesCloseMinutesBeforeEvent: 60, minSaleDurationMinutes: 60 };
 
@@ -529,17 +635,6 @@ const CARD_COLOURS: { name: string; value: string | null }[] = [
   { name: 'Orange', value: '#fda471' },
   { name: 'Pink', value: '#fd719f' },
 ];
-
-/** One word (and a colour) for where a ticket type is in its life: on sale, scheduled, paused, ended, sold out. */
-function ticketStatus(tt: TicketType, eventOver: boolean): { label: string; tone: 'good' | 'warn' | 'bad' | 'info' | 'muted' } {
-  const now = Date.now();
-  if (eventOver) return { label: 'Event ended', tone: 'muted' };
-  if (tt.salesPaused) return { label: 'Paused', tone: 'warn' };
-  if (tt.quantityAvailable <= 0) return { label: 'Sold out', tone: 'bad' };
-  if (new Date(tt.saleStartAt).getTime() > now) return { label: 'Scheduled', tone: 'info' };
-  if (new Date(tt.saleEndAt).getTime() < now) return { label: 'Sale ended', tone: 'muted' };
-  return { label: 'On sale', tone: 'good' };
-}
 
 /** "20% off" or "$5.00 off". */
 function discountText(p: PromoCode, currency: string): string {
@@ -618,7 +713,7 @@ function PromoCodesDialog({
     setEditing(promo);
     setCode(promo.code);
     setType(promo.discountType);
-    setValue(promo.discountType === 'PERCENTAGE' ? String(promo.discountValue) : String(promo.discountValue / 100));
+    setValue(promo.discountType === 'PERCENTAGE' ? String(promo.discountValue) : String(toMajor(promo.discountValue, currency)));
     setFrom(isoToLocalInput(promo.validFrom));
     setUntil(isoToLocalInput(promo.validUntil));
     setLimitTotal(promo.usageLimitTotal ? String(promo.usageLimitTotal) : '');
@@ -641,7 +736,7 @@ function PromoCodesDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const amount = () => (type === 'PERCENTAGE' ? Number(value) : Math.round(Number(value) * 100));
+  const amount = () => (type === 'PERCENTAGE' ? Number(value) : toMinor(Number(value), currency));
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -708,6 +803,8 @@ function PromoCodesDialog({
       className="modal modal-landscape promo-dialog"
       aria-labelledby="promo-title"
       onCancel={(e) => {
+        // A file picker inside the window sends its own "cancel" up to here: only the window's own Escape counts.
+        if (e.target !== e.currentTarget) return;
         e.preventDefault();
         if (!busy) onClose();
       }}
@@ -889,19 +986,26 @@ function PromoCodesDialog({
   );
 }
 
+/** The "Section" choice that copies every section of the layout. */
+const WHOLE_LAYOUT = 'whole';
+
 function TicketTypes({
   eventId,
+  organizationId,
   eventTitle,
   eventStartAt,
   eventEndAt,
   timezone,
   canEdit,
+  admin,
   eventOver,
   venueName,
   query,
   ownDesignTypeIds,
 }: {
   eventId: string;
+  /** Whose seat layouts a reserved-seating ticket type can copy its seats from. */
+  organizationId: string;
   /** The event this ticket type belongs to, named at the top of the window. */
   eventTitle: string;
   /** The event's start: ticket sales must close at least an hour before it. */
@@ -913,6 +1017,8 @@ function TicketTypes({
   venueName: string;
   /** false = read-only (an admin who is not an organizer of this event): no add, edit, pause, reorder or delete. */
   canEdit: boolean;
+  /** An admin: reads the ticket types and can suspend or lift one (with a reason), never edits them. */
+  admin: boolean;
   /** The event has ended: every ticket type reads "Event ended" and the change controls are disabled. */
   eventOver: boolean;
   query: ReturnType<typeof useAsync<TicketType[]>>;
@@ -1050,8 +1156,13 @@ function TicketTypes({
   const [name, setName] = useState('');
   const [kind, setKind] = useState<TicketTypeKind>('GENERAL_ADMISSION');
   const [price, setPrice] = useState('');
+  // Tickets are priced in the currency of the organization's country (fixed when an admin approved it).
+  const orgCurrency = useAsync(() => organizationApi.get(organizationId), [organizationId]).data?.currency ?? 'PHP';
   const [currency, setCurrency] = useState('PHP');
   const [quantity, setQuantity] = useState('');
+  // Reserved seating can copy its seats from an organization seat layout: the whole plan, or one section of it.
+  const [layoutId, setLayoutId] = useState('');
+  const [sectionId, setSectionId] = useState(WHOLE_LAYOUT);
   // The sale window, as dates and times in the event's timezone. "Start now" leaves the start empty: it is set on save.
   const [startNow, setStartNow] = useState(false);
   const [saleStartDate, setSaleStartDate] = useState('');
@@ -1111,6 +1222,12 @@ function TicketTypes({
   const [adding, setAdding] = useState(false);
   // The ticket type being edited in that same window (null = adding a new one).
   const [editing, setEditing] = useState<TicketType | null>(null);
+  // An admin suspending a ticket type (asks for a reason first) or lifting a suspension (asks to confirm).
+  const [suspending, setSuspending] = useState<TicketType | null>(null);
+  const [lifting, setLifting] = useState<TicketType | null>(null);
+  const seatLayouts = useAsync(() => (adding && !editing && kind === 'RESERVED_SEATING' ? layoutApi.listForOrg(organizationId) : Promise.resolve([])), [adding, editing, kind, organizationId]).data ?? [];
+  const pickedLayout = useAsync(() => (layoutId ? layoutApi.get(layoutId) : Promise.resolve(null)), [layoutId]).data;
+  const seatsForSale = (secs: { rows: { seats: { type?: string }[] }[] }[]) => secs.reduce((n, sec) => n + sec.rows.reduce((m, r) => m + r.seats.filter((x) => x.type !== 'BLOCKED').length, 0), 0);
   // Name of the ticket type a new one is being copied from (for the hint in the window).
   const [copyOf, setCopyOf] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -1121,8 +1238,10 @@ function TicketTypes({
     setName('');
     setKind('GENERAL_ADMISSION');
     setPrice('');
-    setCurrency('PHP');
+    setCurrency(orgCurrency);
     setQuantity('');
+    setLayoutId('');
+    setSectionId(WHOLE_LAYOUT);
     setStartNow(false);
     setSaleStartDate('');
     setSaleStartTime('');
@@ -1146,9 +1265,10 @@ function TicketTypes({
     setEditing(tt);
     setName(tt.name);
     setKind(tt.kind);
-    setPrice(String(tt.price.amount / 100));
+    setPrice(String(toMajor(tt.price.amount, tt.price.currency)));
     setCurrency(tt.price.currency);
     setQuantity(String(tt.quantityTotal));
+    setLayoutId('');
     const start = zonedParts(tt.saleStartAt, timezone);
     const end = zonedParts(tt.saleEndAt, timezone);
     setStartNow(false);
@@ -1186,7 +1306,7 @@ function TicketTypes({
       if (editing) {
         // Send only what changed: a new quantityTotal keeps what is sold or held (409 if it goes below that).
         const body: TicketTypeUpdateRequest = {};
-        const amount = Math.round(Number(price) * 100);
+        const amount = toMinor(Number(price), currency);
         if (name !== editing.name) body.name = name;
         if (amount !== editing.price.amount || currency.toUpperCase() !== editing.price.currency) {
           body.price = { amount, currency: currency.toUpperCase() };
@@ -1205,8 +1325,10 @@ function TicketTypes({
       await ticketTypeApi.create(eventId, {
         name,
         kind,
-        price: { amount: Math.round(Number(price) * 100), currency: currency.toUpperCase() },
-        quantityTotal: Number(quantity),
+        price: { amount: toMinor(Number(price), currency), currency: currency.toUpperCase() },
+        ...(kind === 'RESERVED_SEATING' && layoutId
+          ? { layoutId, ...(sectionId === WHOLE_LAYOUT ? { wholeLayout: true } : { sectionId }) }
+          : { quantityTotal: Number(quantity) }),
         saleStartAt,
         saleEndAt,
         maxPerOrder: maxPerOrder ? Number(maxPerOrder) : undefined,
@@ -1227,6 +1349,7 @@ function TicketTypes({
       <div className="section-head">
         <div className="section-title">
           <h2>Ticket types</h2>
+          <RefreshButton onClick={query.reload} busy={query.loading} label="Reload ticket types" />
           {data && (
             <>
               <span className="count-badge" aria-label={`${data.length} ticket types`}>
@@ -1307,6 +1430,18 @@ function TicketTypes({
               </div>
               <p className="muted small tt-meta">{humanize(tt.kind)}</p>
               {!canEdit && <p className="muted small tt-meta">Venue: {venueName}</p>}
+              {tt.suspended && (canEdit || admin) && (
+                <p className="alert alert-warning small" role="status">
+                  <strong>Suspended by an admin.</strong> Buyers can see this ticket but can't buy it.
+                  {tt.suspensionReason && <> Reason: {tt.suspensionReason}</>}
+                  {canEdit && (
+                    <>
+                      {' '}
+                      To fix this, contact the admin{CONTACT_EMAIL && <> at <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></>}.
+                    </>
+                  )}
+                </p>
+              )}
               <p className="muted small tt-meta tt-window">
                 <span>On sale</span>
                 <span className="nowrap">{formatDateTime(tt.saleStartAt)}</span>
@@ -1343,6 +1478,17 @@ function TicketTypes({
                 <span>{humanize(tt.kind)}</span>
               </div>
             )}
+            {admin && (
+              <button
+                type="button"
+                className={tt.suspended ? 'btn btn-sm' : 'btn btn-sm danger'}
+                disabled={eventOver}
+                title={eventOver ? ENDED_TIP : tt.suspended ? 'Let people buy this ticket again' : 'Buyers still see this ticket but can no longer buy it'}
+                onClick={() => (tt.suspended ? setLifting(tt) : setSuspending(tt))}
+              >
+                {tt.suspended ? 'Lift suspension' : 'Suspend ticket'}
+              </button>
+            )}
             {canEdit && <strong className="tt-price">{formatMoney(tt.price)}</strong>}
             {canEdit && (
             <div className="tt-actions">
@@ -1351,11 +1497,13 @@ function TicketTypes({
                   type="button"
                   className={`btn btn-sm btn-icon ${tt.salesPaused ? 'btn-resume' : 'btn-pause'}`}
                   onClick={() => setToggling(tt)}
-                  disabled={eventOver}
+                  disabled={eventOver || Boolean(tt.suspended && tt.salesPaused)}
                   aria-label={tt.salesPaused ? `Resume sales for ${tt.name}` : `Pause sales for ${tt.name}`}
                   title={
                     eventOver
                       ? ENDED_TIP
+                      : tt.suspended && tt.salesPaused
+                        ? 'An admin suspended this ticket; it can be resumed once they lift that'
                       : tt.salesPaused
                         ? 'Resume sales: let people buy this ticket type again'
                         : 'Pause sales: stop new purchases without deleting anything'
@@ -1437,6 +1585,7 @@ function TicketTypes({
               <button
                 type="button"
                 className="tt-grip"
+                aria-label={`Reorder ${tt.name}: drag, or press the up or down arrow`}
                 disabled={eventOver}
                 title={eventOver ? ENDED_TIP : undefined}
                 // Some browsers still deliver pointer events to a disabled button, so the drag checks it too.
@@ -1457,6 +1606,45 @@ function TicketTypes({
           </li>
         ))}
       </ul>
+
+      <FormDialog open={suspending !== null} title="Suspend ticket" onClose={() => setSuspending(null)}>
+        <ReasonForm
+          intro={`${suspending?.name ?? 'This ticket'} stays visible, but nobody can buy it until you lift the suspension. Tickets already sold are not affected. The organizers see your reason and have to contact you to get it fixed, so say what needs to change.`}
+          confirmLabel="Suspend ticket"
+          danger
+          onCancel={() => setSuspending(null)}
+          onSubmit={async (reason) => {
+            if (!suspending) return;
+            await ticketTypeApi.suspend(suspending.id, reason);
+            notify(`${suspending.name} suspended`);
+            setSuspending(null);
+            reload();
+          }}
+        />
+      </FormDialog>
+
+      <ConfirmDialog
+        open={lifting !== null}
+        title={`Lift the suspension of ${lifting?.name ?? 'this ticket'}?`}
+        confirmLabel="Lift suspension"
+        cancelLabel="Keep it suspended"
+        onCancel={() => setLifting(null)}
+        onConfirm={async () => {
+          const tt = lifting;
+          setLifting(null);
+          if (!tt) return;
+          setRowError(null);
+          try {
+            await ticketTypeApi.unsuspend(tt.id);
+            notify(`${tt.name} is no longer suspended`);
+            reload();
+          } catch (ex) {
+            setRowError(errorMessage(ex));
+          }
+        }}
+      >
+        Buyers can buy it again (unless the organizer paused it themselves, or its sale window is closed).
+      </ConfirmDialog>
 
       {/* Same safeguard as deleting an event: type the ticket name and re-enter the password. */}
       <DeleteEventDialog
@@ -1492,6 +1680,8 @@ function TicketTypes({
         className="modal modal-landscape"
         aria-labelledby="add-ticket-type-title"
         onCancel={(e) => {
+          // A file picker inside the window sends its own "cancel" up to here: only the window's own Escape counts.
+          if (e.target !== e.currentTarget) return;
           e.preventDefault(); // Escape closes it
           setAdding(false);
         }}
@@ -1528,17 +1718,36 @@ function TicketTypes({
             <fieldset className="form-group">
               <legend>Price and stock</legend>
               <div className="form-row">
-                <TextField label="Price" type="number" required min={0} step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
-                <SelectField label="Currency" required value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                  {/* A ticket type saved in a currency not listed here keeps it. */}
-                  {(CURRENCIES.some((c) => c.code === currency) ? CURRENCIES : [{ code: currency }, ...CURRENCIES]).map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.code}
-                    </option>
-                  ))}
+                <TextField label="Price" type="number" required min={0} step={String(10 ** -minorDigits(currency))} value={price} onChange={(e) => setPrice(e.target.value)} />
+                <SelectField label="Currency" required disabled value={currency} onChange={() => {}}>
+                  {/* Set by the organization's country, so there is nothing to pick. */}
+                  <option value={currency}>{currency}</option>
                 </SelectField>
               </div>
+              {kind === 'RESERVED_SEATING' && !editing && (
+                <div className="form-row">
+                  <SelectField label="Seats from" hint="Copy the seats of a seat layout, or leave it to just set a quantity." value={layoutId} onChange={(e) => { setLayoutId(e.target.value); setSectionId(WHOLE_LAYOUT); }}>
+                    <option value="">A quantity (no seat map)</option>
+                    {seatLayouts.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                  {layoutId && (
+                    <SelectField label="Section" hint="The seats are copied now; editing the layout later does not change them." value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
+                      <option value={WHOLE_LAYOUT}>Whole layout{pickedLayout ? ` (${seatsForSale(pickedLayout.sections)} seats)` : ''}</option>
+                      {(pickedLayout?.sections ?? []).map((sec) => (
+                        <option key={sec.id} value={sec.id}>
+                          {sec.name} ({seatsForSale([sec])} seats)
+                        </option>
+                      ))}
+                    </SelectField>
+                  )}
+                </div>
+              )}
               <div className="form-row">
+                {!(kind === 'RESERVED_SEATING' && !editing && layoutId) && (
                 <TextField
                   label="Quantity"
                   type="number"
@@ -1547,6 +1756,7 @@ function TicketTypes({
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                 />
+                )}
                 <TextField
                   label={
                     <>
@@ -1603,8 +1813,7 @@ function TicketTypes({
                 timeKey={startNow ? 'now' : 'set'}
               />
               <label className="check-row">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={startNow}
                   onChange={(e) => {
                     setStartNow(e.target.checked);
@@ -1654,7 +1863,7 @@ function TicketTypes({
 
 function EventOrders({ eventId }: { eventId: string }) {
   const [page, setPage] = useState(0);
-  const { data, error } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => eventApi.orders(eventId, { page, size: 10, sort: 'createdAt,desc' }),
     [eventId, page],
   );
@@ -1663,6 +1872,7 @@ function EventOrders({ eventId }: { eventId: string }) {
     <section>
       <h2>
         Orders
+        <RefreshButton onClick={reload} busy={loading} label="Reload orders" />
         {data && data.totalElements > 0 && (
           <span className="count-badge" aria-label={`${data.totalElements} orders`}>
             {data.totalElements}

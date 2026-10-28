@@ -9,20 +9,25 @@ import { Button } from '../components/Button';
 import { DocumentRows } from '../components/fields/DocumentRows';
 import type { DocRow } from '../components/fields/DocumentRows';
 import { FieldGroup } from '../components/fields/Field';
-import { TextAreaField, TextField } from '../components/fields/TextField';
+import { SelectField, TextAreaField, TextField } from '../components/fields/TextField';
 import { ErrorBox, StatusBadge, PageHeader, Spinner } from '../components/ui';
+import { usePlatformRegions } from '../utils/usePlatformRegions';
 import { CONTACT_EMAIL, CONTACT_PHONE, telHref } from '../config';
 
 
 /** Apply to host events. Someone whose application is still pending sees it here to edit and resubmit instead of a blank form. */
-export function ApplyOrganizerPage() {
+export function ApplyOrganizerPage({ embedded = false }: { embedded?: boolean }) {
   const mine = useAsync(async () => (await organizationApi.mine()).find((o) => o.status === 'PENDING') ?? null, []);
   if (mine.loading && mine.data === null) return <Spinner />;
-  return <ApplicationForm key={mine.data?.id ?? 'new'} existing={mine.data ?? undefined} />;
+  return <ApplicationForm key={mine.data?.id ?? 'new'} existing={mine.data ?? undefined} embedded={embedded} />;
 }
 
-function ApplicationForm({ existing }: { existing?: Organization }) {
+function ApplicationForm({ existing, embedded }: { existing?: Organization; embedded: boolean }) {
   const [name, setName] = useState(existing?.name ?? '');
+  // The country decides the currency the organization sells in; only the countries the admin enabled can be picked.
+  const { regions } = usePlatformRegions();
+  const [country, setCountry] = useState(existing?.country ?? '');
+  const chosen = regions?.countries.find((c) => c.code === country);
   // Optional details; they become the organization's first values, and an admin sees them when reviewing.
   const [contactEmail, setContactEmail] = useState(existing?.contactEmail ?? '');
   const [contactPhone, setContactPhone] = useState(existing?.contactPhone ?? '');
@@ -51,13 +56,14 @@ function ApplicationForm({ existing }: { existing?: Organization }) {
         existing
           ? await organizationApi.editApplication(existing.id, {
               name: name.trim(),
+              country,
               contactEmail: contactEmail.trim(),
               contactPhone: contactPhone.trim(),
               address: address.trim(),
               description: description.trim(),
               documents: docs,
             })
-          : await organizationApi.apply(name.trim(), docs, details),
+          : await organizationApi.apply(name.trim(), docs, { country, ...details }),
       );
     } catch (err) {
       setError(errorMessage(err));
@@ -80,7 +86,8 @@ function ApplicationForm({ existing }: { existing?: Organization }) {
   }
 
   return (
-    <div className="narrow">
+    <div className={embedded ? undefined : 'narrow'}>
+      {!embedded && (
       <PageHeader
         title={existing ? 'Your application' : 'Host your own events'}
         lede={
@@ -99,6 +106,7 @@ function ApplicationForm({ existing }: { existing?: Organization }) {
           </>
         }
       />
+      )}
       {existing?.revisionRequested && (
         <p className="alert alert-warning" role="status">
           An admin asked you to change your application: {existing.revisionMessage}
@@ -107,6 +115,22 @@ function ApplicationForm({ existing }: { existing?: Organization }) {
       <ErrorBox message={error} />
       <form className="form" onSubmit={onSubmit}>
         <TextField label="Organization name" required maxLength={255} value={name} onChange={(e) => setName(e.target.value)} />
+        <SelectField
+          label="Country"
+          required
+          hint={chosen ? `You will sell tickets in ${chosen.currencyCode}.` : 'Decides the currency you sell tickets in.'}
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+        >
+          <option value="">Choose a country</option>
+          {/* An application already on file keeps its country even if the admin has since turned it off. */}
+          {country && !chosen && <option value={country}>{country}</option>}
+          {(regions?.countries ?? []).map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name}
+            </option>
+          ))}
+        </SelectField>
         <TextAreaField label="About the organization" optional rows={3} maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} />
 
         <FieldGroup legend="Contact details" hint="Optional. An admin sees these when reviewing your application, and you can ask to change them later in Settings.">

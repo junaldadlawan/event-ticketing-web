@@ -40,6 +40,7 @@ import type {
   ActivityArea,
   EventActivityEntry,
   EventFunnel,
+  ShareTimeline,
   EventSalesPatterns,
   FeeScope,
   ModerationAction,
@@ -88,6 +89,14 @@ import type {
   User,
   UUID,
   Venue,
+  PlatformRegions,
+  PresetLayout,
+  PresetLayoutRequest,
+  PresetLayoutSummary,
+  SeatLayout,
+  SeatLayoutRequest,
+  SeatLayoutSummary,
+  VenueType,
 } from './types';
 
 export interface PageQuery {
@@ -187,6 +196,13 @@ export const eventApi = {
   get: (id: UUID) => api<Event>(`/events/${id}`),
   /** Public; always 204. Ignored for the event's own staff and admins, and visitorId is ignored when signed in. */
   recordView: (id: UUID, visitorId: string) => api<void>(`/events/${id}/views`, { method: 'POST', body: { visitorId } }),
+  /** Public; always 204. Counts every press of the Share button (no deduplication, nothing about the caller is stored). */
+  recordShareClick: (id: UUID, action: 'SHARE_BUTTON' | 'COPY_LINK' | 'QR_GENERATE' = 'SHARE_BUTTON') =>
+    api<void>(`/events/${id}/share-clicks`, { method: 'POST', body: { action } }),
+  /** Public; always 204. A buy click by someone who came through the shared link (LINK) or its QR code (QR). */
+  recordShareBuyClick: (id: UUID, source: 'LINK' | 'QR') => api<void>(`/events/${id}/share-buy-clicks`, { method: 'POST', body: { source } }),
+  /** Public. The event's short share link ({ code, path: "/s/{code}" }); 404 unless the event is published, on sale or sold out. */
+  shareLink: (id: UUID) => api<{ code: string; path: string }>(`/events/${id}/share-link`),
   create: (body: EventCreateRequest) => api<Event>('/events', { method: 'POST', body }),
   update: (id: UUID, body: EventUpdateRequest) =>
     api<Event>(`/events/${id}`, { method: 'PATCH', body }),
@@ -282,10 +298,14 @@ export const recapApi = {
 };
 
 export const uploadApi = {
-  /** PNG/JPEG/WebP/GIF, max 5 MB. Returns an absolute URL. */
-  image: (file: File) => {
+  /**
+   * PNG/JPEG/WebP/GIF, max 5 MB. Returns an absolute URL. `folder` says what the picture is for (it decides where it is
+   * stored and lets the API delete it when it is replaced or its owner is deleted); left out it is a temporary upload.
+   */
+  image: (file: File, folder?: 'events' | 'organizations' | 'platform' | 'tickets' | 'users' | 'venues') => {
     const form = new FormData();
     form.append('file', file);
+    if (folder) form.append('folder', folder);
     return api<UploadedImage>('/uploads', { method: 'POST', body: form });
   },
 };
@@ -380,6 +400,12 @@ export const activityApi = {
     api<PageResponse<EventActivityEntry>>('/activity', { query: { ...q } }),
 };
 
+export const shareLinkApi = {
+  /** Public. Counts one open of a share link and returns the event it points at; an unknown code is a 404 and counts nothing. */
+  open: (code: string, source: 'LINK' | 'QR' = 'LINK') =>
+    api<{ eventId: UUID }>(`/share-links/${encodeURIComponent(code)}/open`, { method: 'POST', body: { source } }),
+};
+
 export const analyticsApi = {
   /** Owner / organizer of the event's organization, or an admin. */
   event: (eventId: UUID) => api<EventAnalytics>(`/events/${eventId}/analytics`),
@@ -388,6 +414,9 @@ export const analyticsApi = {
   /** Owner / organizer of the event's organization, or an admin. */
   eventSalesPatterns: (eventId: UUID) => api<EventSalesPatterns>(`/events/${eventId}/analytics/sales-patterns`),
   /** Owner / organizer of the event's organization, or an admin. Days from..to (default: event creation to today) in the event's time zone. */
+  /** Owner / organizer with ANALYTICS, or an admin. Share counters per day; from / to are dates (default: when counting began to today). */
+  eventShareTimeline: (eventId: UUID, q: { from?: string; to?: string } = {}) =>
+    api<ShareTimeline>(`/events/${eventId}/analytics/share-timeline`, { query: { ...q } }),
   eventFunnel: (eventId: UUID, q: { from?: string; to?: string } = {}) =>
     api<EventFunnel>(`/events/${eventId}/analytics/funnel`, { query: { ...q } }),
   /** Admin only. Dates are UTC days (YYYY-MM-DD); the period is at most 366 days. */
@@ -498,6 +527,10 @@ export const ticketTypeApi = {
   /** Pause or resume selling a ticket type (the one place that sets it). */
   setSalesStatus: (id: UUID, status: SalesStatus) =>
     api<TicketType>(`/ticket-types/${id}/sales-status`, { method: 'PUT', body: { status } }),
+  /** Admin only: buyers still see it but can't buy it, and the organizer can't resume it until an admin lifts this. */
+  suspend: (id: UUID, reason: string) =>
+    api<TicketType>(`/ticket-types/${id}/suspension`, { method: 'POST', body: { reason } }),
+  unsuspend: (id: UUID) => api<TicketType>(`/ticket-types/${id}/suspension`, { method: 'DELETE' }),
   create: (eventId: UUID, body: TicketTypeCreateRequest) =>
     api<TicketType>(`/events/${eventId}/ticket-types`, { method: 'POST', body }),
   /** Save the arrangement: every ticket type of the event, first to last. Returns them in the new order. */
@@ -507,7 +540,68 @@ export const ticketTypeApi = {
 
 export const venueApi = {
   listForOrg: (orgId: UUID) => api<Venue[]>(`/organizations/${orgId}/venues`),
+  get: (venueId: UUID) => api<Venue>(`/venues/${venueId}`),
+  /** Owner or organizer of the organization. Address and coordinates are optional. */
+  create: (orgId: UUID, body: VenueInput) => api<Venue>(`/organizations/${orgId}/venues`, { method: 'POST', body }),
+  /** Owner or organizer of the owning organization. Only the fields sent change. */
+  update: (venueId: UUID, body: Partial<VenueInput>) => api<Venue>(`/venues/${venueId}`, { method: 'PATCH', body }),
 };
+
+/** Public: the countries and currencies the admin enabled. */
+export const platformApi = {
+  /** `fresh` skips the browser's copy (the API lets it keep one for five minutes): used right after the admin changed something. */
+  regions: (fresh = false) => api<PlatformRegions>('/platform/regions', fresh ? { query: { t: Date.now() } } : {}),
+};
+
+/** Admin only: which currencies and countries the platform uses. USD is the reference; rates come from the API's exchange-rate feed. */
+export const regionAdminApi = {
+  /** Enables a currency and fetches its USD rate at once. 409/400 when the code is unknown or already on. */
+  enableCurrency: (code: string) => api<unknown>('/admin/currencies', { method: 'POST', body: { code } }),
+  /** 409 for USD, or while a country, an organization or an event that has not ended uses it. */
+  disableCurrency: (code: string) => api<void>(`/admin/currencies/${code}`, { method: 'DELETE' }),
+  refreshRates: () => api<unknown>('/admin/currencies/refresh', { method: 'POST' }),
+  /** Enables a country, or changes its currency (organizations already approved keep theirs). */
+  putCountry: (code: string, currencyCode: string) => api<unknown>(`/admin/countries/${code}`, { method: 'PUT', body: { currencyCode } }),
+  /** 409 while an organization is in it, or the venue of an upcoming event is. */
+  disableCountry: (code: string) => api<void>(`/admin/countries/${code}`, { method: 'DELETE' }),
+};
+
+/** Seat layouts belong to an organization. Members read; the owner or an organizer holding EVENTS writes (admins are read-only). */
+export const layoutApi = {
+  listForOrg: (orgId: UUID) => api<SeatLayoutSummary[]>(`/organizations/${orgId}/layouts`),
+  get: (id: UUID) => api<SeatLayout>(`/layouts/${id}`),
+  create: (orgId: UUID, body: SeatLayoutRequest) => api<SeatLayout>(`/organizations/${orgId}/layouts`, { method: 'POST', body }),
+  /** Replaces the whole design, name included; the answer has the version one higher. */
+  replace: (id: UUID, body: SeatLayoutRequest) => api<SeatLayout>(`/layouts/${id}`, { method: 'PUT', body }),
+  /** 409 while an event that has not ended still uses it. */
+  remove: (id: UUID) => api<void>(`/layouts/${id}`, { method: 'DELETE' }),
+  /** Copies a preset into the organization as its own editable layout. */
+  fromPreset: (orgId: UUID, presetId: UUID) => api<SeatLayout>(`/organizations/${orgId}/layouts/from-preset/${presetId}`, { method: 'POST' }),
+};
+
+/** Admin-managed presets. Owners, organizers and admins read (organizers only the active ones); only admins write. */
+export const presetApi = {
+  list: () => api<PresetLayoutSummary[]>('/layout-presets'),
+  get: (id: UUID) => api<PresetLayout>(`/layout-presets/${id}`),
+  create: (body: PresetLayoutRequest) => api<PresetLayout>('/layout-presets', { method: 'POST', body }),
+  replace: (id: UUID, body: PresetLayoutRequest) => api<PresetLayout>(`/layout-presets/${id}`, { method: 'PUT', body }),
+  remove: (id: UUID) => api<void>(`/layout-presets/${id}`, { method: 'DELETE' }),
+};
+
+export interface VenueInput {
+  name: string;
+  /** The complete street address. */
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  /** On an update, null clears one of these; left out leaves it as it is. */
+  venueType?: VenueType | null;
+  country?: string | null;
+  province?: string | null;
+  city?: string | null;
+  description?: string | null;
+  maxCapacity?: number | null;
+}
 
 export const cartApi = {
   create: () => api<Cart>('/carts', { method: 'POST' }),

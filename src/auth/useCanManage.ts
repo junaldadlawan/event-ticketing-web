@@ -13,17 +13,30 @@ const MANAGING_ROLES: OrganizationRole[] = ['OWNER', 'ORGANIZER'];
 // show the Manage button.
 const cache = new Map<string, Promise<boolean>>();
 
+// The organizations the user belongs to, once per user: the members list is only asked for those, so a customer looking at other
+// people's events does not trigger a 403 per organization.
+const belongsCache = new Map<UUID, Promise<Set<UUID>>>();
+
+function myOrgIds(userId: UUID): Promise<Set<UUID>> {
+  let result = belongsCache.get(userId);
+  if (!result) {
+    result = organizationApi
+      .mine()
+      .then((orgs) => new Set(orgs.map((o) => o.id)))
+      .catch(() => new Set<UUID>());
+    belongsCache.set(userId, result);
+  }
+  return result;
+}
+
 function canManageOrg(userId: UUID, orgId: UUID): Promise<boolean> {
   const key = `${userId}:${orgId}`;
   let result = cache.get(key);
   if (!result) {
-    result = organizationApi
-      .members(orgId)
-      .then((members) => {
-        const me = members.find((m) => m.userId === userId);
-        return Boolean(me?.roles.some((r) => MANAGING_ROLES.includes(r)));
-      })
-      // Non-members get 403 here - that just means "no".
+    result = myOrgIds(userId)
+      // The user's own membership (the full members list is refused to check-in staff with a 403).
+      .then((mine) => (mine.has(orgId) ? organizationApi.myMembership(orgId) : null))
+      .then((me) => Boolean(me?.roles.some((r) => MANAGING_ROLES.includes(r))))
       .catch(() => false);
     cache.set(key, result);
   }
@@ -190,9 +203,10 @@ function orgPosition(userId: UUID): Promise<string | null> {
   if (!result) {
     result = organizationApi
       .mine()
-      .then((orgs) => Promise.all(orgs.filter((o) => o.status === 'APPROVED').map((o) => organizationApi.members(o.id).catch(() => []))))
-      .then((lists) => {
-        const roles = lists.flat().filter((m) => m.userId === userId).flatMap((m) => m.roles);
+      // Own membership of each approved organization (the members list is refused to check-in staff with a 403).
+      .then((orgs) => Promise.all(orgs.filter((o) => o.status === 'APPROVED').map((o) => organizationApi.myMembership(o.id).catch(() => null))))
+      .then((mine) => {
+        const roles = mine.flatMap((m) => m?.roles ?? []);
         return roles.includes('OWNER')
           ? 'Organization Owner'
           : roles.includes('ORGANIZER')

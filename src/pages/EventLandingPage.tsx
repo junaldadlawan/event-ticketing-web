@@ -19,7 +19,7 @@ type SaleState = 'live' | 'soon' | 'soldout' | 'paused' | 'ended';
 
 export function saleState(tt: TicketType, now: number, eventOver = false): SaleState {
   if (eventOver) return 'ended';
-  if (tt.salesPaused) return 'paused';
+  if (tt.salesPaused || tt.suspended) return 'paused';
   if (tt.quantityAvailable <= 0) return 'soldout';
   if (new Date(tt.saleStartAt).getTime() > now) return 'soon';
   if (new Date(tt.saleEndAt).getTime() < now) return 'ended';
@@ -35,7 +35,7 @@ export function saleNote(tt: TicketType, state: SaleState): string {
     case 'soldout':
       return 'Sold out';
     case 'paused':
-      return 'Sales paused for now';
+      return tt.suspended ? 'Not available right now' : 'Sales paused for now';
     default:
       return 'Sales ended';
   }

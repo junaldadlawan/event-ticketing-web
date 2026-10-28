@@ -32,6 +32,8 @@ export function ConfirmDialog({
       className="modal"
       aria-labelledby="confirm-title"
       onCancel={(e) => {
+        // A file picker inside the window sends its own "cancel" up to here: only the window's own Escape counts.
+        if (e.target !== e.currentTarget) return;
         e.preventDefault();
         onCancel();
       }}

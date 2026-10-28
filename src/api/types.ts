@@ -240,6 +240,10 @@ export interface Organization {
   revisionRequested?: boolean;
   revisionMessage?: string | null;
   revisionRequestedAt?: string | null;
+  /** ISO 3166-1 alpha-2; one of the countries the admin enabled. Changed through a change request. */
+  country?: string;
+  /** The country's currency when the organization was approved (null before); it never changes afterwards and ticket prices must use it. */
+  currency?: string | null;
 }
 
 /** The organization details a change request can carry (any subset; an empty string clears a detail). */
@@ -249,6 +253,8 @@ export interface OrganizationUpdate {
   contactPhone?: string;
   address?: string;
   description?: string;
+  /** An enabled country (see usePlatformRegions); the currency stays the one fixed at approval. */
+  country?: string;
   /** Only when the applicant edits their own pending application. */
   documents?: OrganizationDocument[];
 }
@@ -300,8 +306,118 @@ export interface VenueSnapshot {
   longitude?: number;
 }
 
+export type VenueType = 'THEATER' | 'ARENA' | 'STADIUM' | 'CONCERT_HALL' | 'CONFERENCE_CENTER' | 'CLUB_BAR' | 'RESTAURANT' | 'CHURCH' | 'OUTDOOR' | 'SCHOOL' | 'OTHER' | 'VIRTUAL';
+
 export interface Venue extends VenueSnapshot {
   organizationId: UUID;
+  /** All of these are null for a venue added before they existed. */
+  venueType?: VenueType | null;
+  /** ISO 3166-1 alpha-2 code, upper-case. */
+  country?: string | null;
+  province?: string | null;
+  city?: string | null;
+  description?: string | null;
+  maxCapacity?: number | null;
+}
+
+/** A venue's seat layout: sections of rows of seats, and shapes (stage, labels, walls), in the plan's own units. */
+export type SeatType = 'SEAT' | 'WHEELCHAIR' | 'BLOCKED';
+export interface LayoutSeat {
+  number: string;
+  x: number;
+  y: number;
+  type?: SeatType;
+}
+export interface LayoutRow {
+  label: string;
+  offset?: number;
+  seats: LayoutSeat[];
+}
+export interface LayoutSection {
+  id: UUID;
+  name: string;
+  kind: 'VIP' | 'STANDARD';
+  color: string;
+  x: number;
+  y: number;
+  rotation?: number;
+  rows: LayoutRow[];
+}
+export interface LayoutShape {
+  type: 'STAGE' | 'LABEL' | 'WALL';
+  text?: string | null;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+}
+export interface VenueLayout {
+  /** 1 when created; one more with every save. */
+  version?: number;
+  width: number;
+  height: number;
+  sections: LayoutSection[];
+  shapes?: LayoutShape[];
+}
+
+export interface SeatLayoutSummary {
+  id: UUID;
+  name: string;
+  width: number;
+  height: number;
+  seatCount: number;
+  version: number;
+}
+/** An organization's seat layout in full. */
+export interface SeatLayout extends VenueLayout {
+  id: UUID;
+  organizationId: UUID;
+  name: string;
+  seatCount: number;
+}
+export interface SeatLayoutRequest extends VenueLayout {
+  name: string;
+}
+/** An admin-managed layout organizers copy into their organization. */
+export interface PresetLayoutSummary extends SeatLayoutSummary {
+  description?: string | null;
+  active: boolean;
+}
+export interface PresetLayout extends VenueLayout {
+  id: UUID;
+  name: string;
+  description?: string | null;
+  active: boolean;
+  seatCount: number;
+}
+export interface PresetLayoutRequest extends SeatLayoutRequest {
+  description?: string | null;
+  /** Null or left out: true on create, unchanged on replace. */
+  active?: boolean | null;
+}
+
+/** GET /platform/regions: what the admin enabled. Every country and currency list is built from it. */
+export interface RegionCurrency {
+  code: string;
+  name: string;
+  symbol: string;
+  minorUnits: number;
+  /** Units of this currency per 1 USD; null until the exchange-rate feed has given one. */
+  usdRate: number | null;
+  rateUpdatedAt: string | null;
+  /** The last refresh failed or had no rate: usdRate is the last known one. */
+  rateStale: boolean;
+}
+export interface RegionCountry {
+  code: string;
+  name: string;
+  currencyCode: string;
+}
+export interface PlatformRegions {
+  baseCurrency: string;
+  currencies: RegionCurrency[];
+  countries: RegionCountry[];
 }
 
 export interface Event {
@@ -365,6 +481,11 @@ export interface TicketType {
   maxPerUser: number | null;
   /** While true the type can not be added to a cart (the organizer paused sales). */
   salesPaused: boolean;
+  /** An admin suspended it: buyers see it but can't buy it, and only an admin lifts it. Separate from salesPaused. */
+  suspended?: boolean;
+  /** Why; only returned to the event's owner, organizers with Events access and admins. */
+  suspensionReason?: string | null;
+  suspendedAt?: string | null;
   /** Where it sits in the event's list (0 = first), as arranged by the organizer. */
   position: number;
   /** When it was created (tie-break for the order). */
@@ -377,7 +498,12 @@ export interface TicketTypeCreateRequest {
   name: string;
   kind: TicketTypeKind;
   price: Money;
-  quantityTotal: number;
+  /** Left out when the seats are copied from a seat layout (layoutId): the quantity is then the number of seats copied. */
+  quantityTotal?: number;
+  /** RESERVED_SEATING only: copy seats from this organization layout, with a sectionId or wholeLayout. */
+  layoutId?: UUID;
+  sectionId?: UUID;
+  wholeLayout?: boolean;
   /** Left out = the sale starts the moment the API saves it. */
   saleStartAt?: string;
   /** At least an hour before the event starts, or the API refuses it (400). */
@@ -696,6 +822,45 @@ export interface EventAnalytics {
   revenue: Money;
   remainingInventory: number;
   salesOverTime: { date: string; ticketsSold: number; revenue: Money }[];
+  /** Sharing, all independent: presses of the Share button, "Copy link" and "Generate QR poster" clicks. */
+  shareClicks?: number;
+  shareCopies?: number;
+  shareQrs?: number;
+  /** Opens of the short share link, by how it was reached: a pasted link or a scanned QR code. */
+  shareLinkOpens?: number;
+  shareQrScans?: number;
+  shareOpens?: number;
+  /** "Buy now" clicks by visitors who came through the shared link or the QR code. */
+  shareLinkBuys?: number;
+  shareQrBuys?: number;
+}
+
+/** The share counters per day (the event's own calendar days), every day of the range with zeros included. */
+export interface ShareTimeline {
+  timezone: string;
+  /** The first day with any count; null when nothing was counted yet. Earlier days are zeros. */
+  trackingSince: string | null;
+  days: {
+    day: string;
+    shareButton: number;
+    copyLink: number;
+    qrGenerate: number;
+    linkOpen: number;
+    qrScan: number;
+    linkBuy: number;
+    qrBuy: number;
+  }[];
+  /** When the API has hour-of-day history: 24 rows (hour 0 to 23, event time zone) summed over the range. */
+  byHour?: {
+    hour: number;
+    shareButton: number;
+    copyLink: number;
+    qrGenerate: number;
+    linkOpen: number;
+    qrScan: number;
+    linkBuy: number;
+    qrBuy: number;
+  }[];
 }
 
 /** Buyers by age group (age at their first order). A group of 1 to 4 buyers is hidden: buyers and tickets null. */

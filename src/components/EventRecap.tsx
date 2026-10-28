@@ -289,7 +289,7 @@ export function RecapFeed({ event, canPost, canDelete }: { event: Event; canPost
     setError(null);
     try {
       // A chosen picture is uploaded first; its URL then goes with the message.
-      const imageUrl = file ? (await uploadApi.image(file)).url : null;
+      const imageUrl = file ? (await uploadApi.image(file, 'events')).url : null;
       const sent = await recapApi.post(event.id, body.trim() || null, imageUrl);
       feed.setData([...messages, sent]);
       setBody('');

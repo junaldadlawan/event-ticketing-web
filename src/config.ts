@@ -9,13 +9,13 @@ function setting(value: string | undefined, fallback: string): string | null {
 
 export const CONTACT_EMAIL = setting(
   import.meta.env.VITE_CONTACT_EMAIL,
-  'junielald.adlawan@gmail.com',
+  'event.ko@gmail.com',
 );
 
 /** Shown as written; dialled via telHref(). */
-export const CONTACT_PHONE = setting(import.meta.env.VITE_CONTACT_PHONE, '0998 153 3822');
+export const CONTACT_PHONE = setting(import.meta.env.VITE_CONTACT_PHONE, '0998 123 9801');
 
-/** tel: link for a Philippine number, e.g. "0998 153 3822" -> "tel:+639981533822". */
+/** tel: link for a Philippine number, e.g. "0998 123 9801" -> "tel:+639981239801". */
 export function telHref(phone: string): string {
   const digits = phone.replace(/[^\d+]/g, '');
   if (digits.startsWith('+')) return `tel:${digits}`;

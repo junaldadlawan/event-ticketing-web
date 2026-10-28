@@ -6,6 +6,7 @@ import { uploadApi } from '../api/endpoints';
 import type { Event, PostKind } from '../api/types';
 import { isoToLocalInput, localInputToIso } from '../utils/format';
 import { ErrorBox } from './ui';
+import { Checkbox } from './fields/Checkbox';
 
 /** Form to write a sale or announcement. Only shown to admins; the caller decides where the post goes. */
 export function PostComposer({
@@ -79,7 +80,7 @@ export function PostComposer({
     setError(null);
     try {
       // A newly chosen picture is uploaded first; its URL then goes with the post.
-      const uploaded = imageFile ? (await uploadApi.image(imageFile)).url : null;
+      const uploaded = imageFile ? (await uploadApi.image(imageFile, 'platform')).url : null;
       const finalImage = uploaded ?? imageUrl;
       await onPost({
         kind,
@@ -210,7 +211,7 @@ export function PostComposer({
           />
         </label>
         <label className="span-2 check-row">
-          <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
+          <Checkbox checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
           Hide from the public (keep it as a draft)
         </label>
       </div>

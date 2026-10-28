@@ -260,6 +260,8 @@ function QrPass({
       className={`modal qr-pass${scanned ? ' scanned' : ''}`}
       aria-label={`QR code for ticket ${ticket.ticketNumber}`}
       onCancel={(e) => {
+        // A file picker inside the window sends its own "cancel" up to here: only the window's own Escape counts.
+        if (e.target !== e.currentTarget) return;
         e.preventDefault(); // Escape closes it
         onClose();
       }}
@@ -814,6 +816,8 @@ function TransferDialog({
       className="modal"
       aria-labelledby="transfer-title"
       onCancel={(e) => {
+        // A file picker inside the window sends its own "cancel" up to here: only the window's own Escape counts.
+        if (e.target !== e.currentTarget) return;
         e.preventDefault(); // Escape closes it
         if (!busy) onClose();
       }}

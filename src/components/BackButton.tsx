@@ -4,6 +4,9 @@ import { useUnsavedChangesApi } from './UnsavedChanges';
 /** Where "back" goes when there is no in-app history (direct link, refresh, new tab). */
 function parentPath(pathname: string): string {
   if (pathname.startsWith('/orders/')) return '/orders';
+  if (/^\/manage\/layouts\/presets\/[^/]+$/.test(pathname)) return '/manage/layouts?tab=presets';
+  if (/^\/manage\/layouts\/[^/]+$/.test(pathname)) return '/manage/layouts';
+  if (/^\/admin\/layout-presets\/[^/]+$/.test(pathname)) return '/admin/layout-presets';
   const design = pathname.match(/^\/manage\/events\/([^/]+)\/ticket-design$/);
   if (design) return `/manage/events/${design[1]}`;
   if (pathname.startsWith('/manage/')) return '/manage';
@@ -21,7 +24,7 @@ export function BackButton() {
 
   // The top-level tabs (Home, Events, Manage) and the login and sign-up pages have nowhere to go back to, unless
   // another tab sent you here. They line up with each other, so no placeholder is needed.
-  if (!from && (location.pathname.startsWith('/admin/settings') || ['/', '/events', '/home', '/manage', '/manage/team', '/manage/settings', '/manage/finance', '/orders', '/login', '/register', '/admin/posts', '/admin/organizations', '/admin/users', '/admin/payouts', '/admin/settings'].includes(location.pathname))) return null;
+  if (!from && (location.pathname.startsWith('/admin/settings') || ['/', '/events', '/contact', '/posts', '/home', '/manage', '/manage/venues', '/manage/layouts', '/admin/layout-presets', '/manage/team', '/manage/settings', '/manage/finance', '/login', '/register', '/admin/posts', '/admin/organizations', '/admin/users', '/admin/payouts', '/admin/settings'].includes(location.pathname))) return null;
 
   async function goBack() {
     // Unsaved edits on this page? Ask "Discard or continue editing" first.
@@ -34,7 +37,8 @@ export function BackButton() {
     }
     // React Router gives the very first entry of a session the key "default",
     // so anything else means there is an in-app page to go back to.
-    if (location.key !== 'default') navigate(-1);
+    const fresh = (location.state as { fresh?: boolean } | null)?.fresh;
+    if (location.key !== 'default' && !fresh) navigate(-1);
     else navigate(from ?? parentPath(location.pathname));
   }
 

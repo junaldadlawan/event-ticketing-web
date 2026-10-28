@@ -429,6 +429,8 @@ export function TicketCanvas({
   gridPx = null,
   snap = false,
   preview = false,
+  showNames = true,
+  marginGuide = 0,
   fieldValue,
 }: {
   backgroundUrl: string | null;
@@ -480,6 +482,10 @@ export function TicketCanvas({
   snap?: boolean;
   /** Preview: read-only, no outlines or handles - looks like the printed ticket. */
   preview?: boolean;
+  /** Show the small black name tab on each dynamic placeholder (on by default). */
+  showNames?: boolean;
+  /** A guide: a dashed frame this many ticket pixels in from every edge (0 = none). It is not saved with the design. */
+  marginGuide?: number;
   /** In preview, a dynamic field's sample value (shown inside its reserved X box); null = its usual text. */
   fieldValue?: (f: TextField) => string | null;
   /** Grid cell size in ticket pixels; null = auto (40 across). */
@@ -958,12 +964,13 @@ export function TicketCanvas({
               onError={() => setImageFailed(backgroundUrl)}
             />
           </div>
-        ) : (
+        ) : (textFields.length === 0 && !showCode) || backgroundUrl ? (
+          // The "starts here" prompt is only for a ticket with nothing on it; a failed image is still reported.
           <div className="ticket-canvas-empty">
-            <span>Your ticket starts here</span>
+            {textFields.length === 0 && !showCode && <span>Your ticket starts here</span>}
             {backgroundUrl ? <small>Image could not be loaded</small> : <small className="canvas-hint">Add something from the box above</small>}
           </div>
-        )}
+        ) : null}
 
         {/* Selected background: an unclipped frame over the image - drag to move, corner dot to resize. */}
         {showImage && backgroundRect && selected === 'background' && onBackgroundChange && (
@@ -1064,6 +1071,15 @@ export function TicketCanvas({
           />
         )}
 
+        {marginGuide > 0 && (
+          <div
+            className="margin-guide"
+            aria-hidden="true"
+            data-label={`Margin ${marginGuide} px`}
+            style={{ inset: `${(marginGuide / size.height) * 100}% ${(marginGuide / size.width) * 100}%` }}
+          />
+        )}
+
         {textFields.map((f) => {
           const id = fieldId(f);
           const text = fieldText ? fieldText(f) : placeholderLabel(f.key);
@@ -1145,6 +1161,12 @@ export function TicketCanvas({
               })()
             )}
             {isDynamicKey(f.key) && <FillArrow align={f.align} />}
+            {/* The element's name and whether its value is dynamic (per ticket) or static, as a small tab on its upper right. */}
+            {!preview && !isEditing && showNames && (
+              <span className="field-name" aria-hidden="true">
+                {f.key === 'CUSTOM' ? 'Label' : placeholderLabel(f.key)} · {isDynamicKey(f.key) ? 'dynamic' : 'static'} value
+              </span>
+            )}
             {/* "!" marker: this text has a warning (overlap, off the ticket, outside the safe area). */}
             {flagged.has(id) && !preview && (
               <span className="code-warning field-warning" aria-hidden="true">
@@ -1191,6 +1213,12 @@ export function TicketCanvas({
             {...handlers}
           >
             {codeType === 'QR' ? <DummyQrGraphic /> : <DummyBarcodeGraphic />}
+            {/* Its name, like the text placeholders: a small black tab on the upper right. */}
+            {!preview && showNames && (
+              <span className="field-name" aria-hidden="true">
+                {label} · dynamic value
+              </span>
+            )}
             {/* Marker only - the full list is behind the warnings icon in the toolbar. */}
             {codeWarnings.length > 0 && !preview && (
               <span className="code-warning" aria-hidden="true">

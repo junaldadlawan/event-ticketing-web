@@ -3,7 +3,7 @@ import { FormActions, IconButton } from './Button';
 import { DocumentRows } from './fields/DocumentRows';
 import type { DocRow } from './fields/DocumentRows';
 import { FieldGroup } from './fields/Field';
-import { TextAreaField, TextField } from './fields/TextField';
+import { SelectField, TextAreaField, TextField } from './fields/TextField';
 import { SettingRow } from './SettingsLayout';
 import type { FormEvent } from 'react';
 import { assetUrl, errorMessage } from '../api/client';
@@ -12,6 +12,7 @@ import type { OrganizationDocument, OrganizationUpdate } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { useHasPermission } from '../auth/useCanManage';
 import { formatDateTime } from '../utils/format';
+import { usePlatformRegions } from '../utils/usePlatformRegions';
 import { ORG_FIELDS } from '../utils/orgFields';
 import { useAsync } from '../utils/useAsync';
 import { EditIcon } from './DesignerIcons';
@@ -27,6 +28,7 @@ export function OrganizationDetails({ orgId }: { orgId: string }) {
   const { user } = useAuth();
   const canEdit = useHasPermission('TEAM', orgId);
   const org = useAsync(() => organizationApi.get(orgId), [orgId]);
+  const { regions } = usePlatformRegions();
   const requests = useAsync(() => organizationApi.changeRequests(orgId), [orgId]);
   const [editing, setEditing] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -46,6 +48,7 @@ export function OrganizationDetails({ orgId }: { orgId: string }) {
     // A waiting request is replaced by the new one, so start from its values and keep them.
     const start: Record<string, string> = {};
     for (const f of ORG_FIELDS) start[f.key] = pending && typeof pending.requested[f.key] === 'string' ? (pending.requested[f.key] as string) : pending && f.key in pending.requested ? '' : current(f.key);
+    start.country = pending && typeof pending.requested.country === 'string' ? pending.requested.country : current('country');
     setValues(start);
     // A waiting request that changes the documents is the starting point too (it is replaced by the new one).
     const waitingDocs = pending?.requested.documents;
@@ -58,6 +61,7 @@ export function OrganizationDetails({ orgId }: { orgId: string }) {
     e.preventDefault();
     const changed: OrganizationUpdate = {};
     for (const f of ORG_FIELDS) if (values[f.key].trim() !== current(f.key)) changed[f.key] = values[f.key].trim();
+    if (values.country && values.country !== current('country')) changed.country = values.country;
     // Documents go along only when they differ from the ones on file.
     const nextDocs = docs.filter((d) => d.url.trim()).map((d) => ({ type: d.type, url: d.url.trim() }));
     if (JSON.stringify(nextDocs) !== JSON.stringify(o?.documents.map((d) => ({ type: d.type, url: d.url })) ?? [])) changed.documents = nextDocs;
@@ -113,6 +117,8 @@ export function OrganizationDetails({ orgId }: { orgId: string }) {
             {current(f.key) || <span className="muted">Not set</span>}
           </SettingRow>
         ))}
+        <SettingRow label="Country">{regions?.countries.find((c) => c.code === current('country'))?.name ?? (current('country') || <span className="muted">Not set</span>)}</SettingRow>
+        <SettingRow label="Currency">{o?.currency ?? <span className="muted">Set when an admin approves it</span>}</SettingRow>
         {/* The verification documents (the business permit...): shown, not editable here; the API does not take new ones for an approved organization. */}
         <SettingRow label="Documents">
           <DocumentLinks documents={o?.documents ?? []} />
@@ -158,6 +164,14 @@ export function OrganizationDetails({ orgId }: { orgId: string }) {
           <TextField label="Contact email" type="email" maxLength={255} value={values.contactEmail ?? ''} onChange={(e) => setValues({ ...values, contactEmail: e.target.value })} />
           <TextField label="Contact phone" type="tel" maxLength={30} value={values.contactPhone ?? ''} onChange={(e) => setValues({ ...values, contactPhone: e.target.value })} />
           <TextField label="Address" maxLength={500} value={values.address ?? ''} onChange={(e) => setValues({ ...values, address: e.target.value })} />
+          <SelectField label="Country" hint="The currency stays the one you were approved with." value={values.country ?? ''} onChange={(e) => setValues({ ...values, country: e.target.value })}>
+            {values.country && !regions?.countries.some((c) => c.code === values.country) && <option value={values.country}>{values.country}</option>}
+            {(regions?.countries ?? []).map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </SelectField>
           <TextAreaField label="Description" rows={4} maxLength={2000} value={values.description ?? ''} onChange={(e) => setValues({ ...values, description: e.target.value })} />
           <FieldGroup legend="Verification documents" hint="Link to each document (e.g. a shared file URL). Like the other details, a change waits for an admin.">
             <DocumentRows docs={docs} onChange={setDocs} />
